@@ -560,8 +560,37 @@ async function saveMetadata() {
   }
 }
 
+function confirmDelete() {
+  return new Promise((resolve) => {
+    const dialog = document.getElementById('confirm-delete-dialog');
+    const cancelBtn = document.getElementById('confirm-delete-cancel-btn');
+    const okBtn = document.getElementById('confirm-delete-ok-btn');
+
+    const cleanup = () => {
+      dialog.classList.add('hidden');
+      cancelBtn.removeEventListener('click', onCancel);
+      okBtn.removeEventListener('click', onOk);
+    };
+
+    const onCancel = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    const onOk = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    cancelBtn.addEventListener('click', onCancel);
+    okBtn.addEventListener('click', onOk);
+    dialog.classList.remove('hidden');
+  });
+}
+
 async function deleteBook(id) {
-  if (!confirm('Êtes-vous sûr de vouloir supprimer ce livre définitivement ?')) return;
+  const confirmed = await confirmDelete();
+  if (!confirmed) return;
   
   try {
     const res = await fetch(`/books/${id}`, {

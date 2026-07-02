@@ -153,6 +153,18 @@
     </div>
   </div>
 
+  <!-- Confirm Delete Dialog -->
+  <div class="dialog-overlay hidden" id="confirm-delete-dialog">
+    <div class="dialog-box" style="width: 400px;">
+      <div class="dialog-title" style="color: var(--danger);">Supprimer le livre</div>
+      <p style="margin-bottom: 24px; line-height: 1.5; color: var(--text-normal);">Êtes-vous sûr de vouloir supprimer ce livre définitivement ? Cette action est irréversible.</p>
+      <div class="form-actions" style="justify-content: flex-end; gap: 12px; display: flex;">
+        <button class="btn-secondary" id="confirm-delete-cancel-btn">Annuler</button>
+        <button class="btn-primary" id="confirm-delete-ok-btn" style="background-color: var(--danger); border-color: var(--danger);">Supprimer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- EPUB Reader Screen Overlay -->
   <div class="reader-overlay hidden" id="reader-overlay">
     <header class="reader-header">
