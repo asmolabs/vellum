@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bibliothèque Ebook</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="styles.css">
+  <!-- JSZip and EpubJS for EPUB reading -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo-section">
+        <span class="logo-icon">📚</span>
+        <h1 class="logo-text">Bibliothèque</h1>
+      </div>
+
+      <div class="import-btn-container">
+        <label class="import-label">
+          <span>➕ Importer un Livre</span>
+          <input type="file" id="book-import-input" accept=".epub,.mobi,.azw3" style="display: none;" />
+        </label>
+      </div>
+
+      <!-- Library Location -->
+      <div class="library-path-section">
+        <div class="path-title">Emplacement</div>
+        <div class="path-value" id="library-path-text">Aucun dossier sélectionné</div>
+        <button class="change-path-btn" id="change-library-path-btn">Changer le dossier</button>
+      </div>
+
+      <!-- Categories / Sidebar Navigation -->
+      <nav class="nav-section">
+        <div class="nav-title">Catégories</div>
+        <ul class="nav-list" id="categories-list">
+          <li class="nav-item active" id="category-all">
+            <span>Tous les livres</span>
+            <span class="nav-item-count" id="all-books-count">0</span>
+          </li>
+          <!-- Dynamic tags here -->
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main View -->
+    <main class="main-content">
+      <header class="header">
+        <div class="search-bar">
+          <span class="search-icon">🔍</span>
+          <input 
+            type="text" 
+            placeholder="Rechercher par titre, auteur ou description..." 
+            class="search-input"
+            id="search-input"
+          />
+        </div>
+
+        <div class="view-controls">
+          <button class="view-btn active" id="view-mode-grid">
+            <span>📱 Grille</span>
+          </button>
+          <button class="view-btn" id="view-mode-list" style="margin-left: 6px;">
+            <span>☰ Liste</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Books View -->
+      <div class="books-container">
+        <!-- Grid View -->
+        <div class="books-grid" id="books-grid-view">
+          <!-- Dynamic cards here -->
+        </div>
+
+        <!-- List View (Hidden by default) -->
+        <div class="books-list hidden" id="books-list-view">
+          <table class="books-table">
+            <thead>
+              <tr>
+                <th>Titre</th>
+                <th>Auteur</th>
+                <th>Éditeur</th>
+                <th>Formats</th>
+                <th>Ajouté le</th>
+              </tr>
+            </thead>
+            <tbody id="books-table-body">
+              <!-- Dynamic rows here -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty state placeholder -->
+        <div id="no-books-placeholder" class="hidden" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; color: var(--text-muted);">
+          <span style="font-size: 48px; margin-bottom: 12px;">📚</span>
+          <p>Aucun livre trouvé dans la bibliothèque.</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Details Drawer -->
+    <aside class="detail-drawer hidden" id="detail-drawer">
+      <div id="detail-drawer-content">
+        <!-- Dynamic content here -->
+      </div>
+    </aside>
+  </div>
+
+  <!-- Edit Metadata Dialog -->
+  <div class="dialog-overlay hidden" id="edit-dialog">
+    <div class="dialog-box">
+      <div class="dialog-title">Éditer les Métadonnées</div>
+      
+      <input type="hidden" id="edit-book-id" />
+
+      <div class="form-group">
+        <label class="path-title">Titre</label>
+        <input type="text" class="form-control" id="edit-title" />
+      </div>
+
+      <div class="form-group">
+        <label class="path-title">Auteur</label>
+        <input type="text" class="form-control" id="edit-author" />
+      </div>
+
+      <div class="form-group">
+        <label class="path-title">Éditeur</label>
+        <input type="text" class="form-control" id="edit-publisher" />
+      </div>
+
+      <div class="form-group">
+        <label class="path-title">Description</label>
+        <textarea class="form-control" rows="4" id="edit-description"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="path-title">Tags (séparés par des virgules)</label>
+        <input type="text" class="form-control" id="edit-tags" />
+      </div>
+
+      <div class="form-group">
+        <label class="path-title">Modifier la couverture (Image)</label>
+        <input type="file" id="edit-cover-file" accept="image/*" />
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-secondary" id="edit-cancel-btn">Annuler</button>
+        <button class="btn-primary" id="edit-save-btn">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EPUB Reader Screen Overlay -->
+  <div class="reader-overlay hidden" id="reader-overlay">
+    <header class="reader-header">
+      <h3 style="font-weight: 500;" id="reader-title">Titre du Livre</h3>
+      <button class="btn-secondary" style="padding: 4px 12px;" id="reader-close-btn">Fermer la lecture</button>
+    </header>
+    
+    <div class="reader-viewer">
+      <button class="reader-nav-btn prev" id="reader-prev-btn">◀</button>
+      <div id="reader-area"></div>
+      <button class="reader-nav-btn next" id="reader-next-btn">▶</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

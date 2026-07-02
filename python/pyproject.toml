@@ -1,0 +1,20 @@
+[project]
+name = "library-desktop"
+version = "0.1.0"
+description = "Ebook library desktop application in Python with pywebview and FastAPI"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "sqlalchemy>=2.0.0",
+    "python-multipart>=0.0.6",
+    "pywebview>=5.0.0",
+]
+
+[project.scripts]
+library-desktop = "library_desktop.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

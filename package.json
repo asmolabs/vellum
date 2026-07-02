@@ -1,0 +1,17 @@
+{
+  "name": "library-desktop",
+  "version": "1.0.0",
+  "description": "E-book library manager built with NestJS, Angular, and Electron",
+  "private": true,
+  "scripts": {
+    "init-all": "npm install && cd frontend && npm install && cd ../backend && npm install && cd ../desktop && npm install",
+    "start:frontend": "cd frontend && npm run start",
+    "start:backend": "cd backend && npm run start:dev",
+    "start:desktop": "cd desktop && npm run start",
+    "dev": "concurrently -n \"angular,nestjs,electron\" -c \"blue,green,magenta\" \"npm run start:frontend\" \"npm run start:backend\" \"wait-on http://localhost:4250 && npm run start:desktop\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
+  }
+}
