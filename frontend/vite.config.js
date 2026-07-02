@@ -6,7 +6,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [svelte()],
   build: {
-    outDir: path.resolve(__dirname, '../backend/src/library_desktop/static'),
+    outDir: path.resolve(__dirname, '../backend/src/vellum/static'),
     emptyOutDir: true
   }
 })

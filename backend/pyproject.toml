@@ -1,5 +1,5 @@
 [project]
-name = "library-desktop"
+name = "vellum"
 version = "0.1.0"
 description = "Ebook library desktop application in Python with pywebview and FastAPI"
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-library-desktop = "library_desktop.main:main"
+vellum = "vellum.main:main"
 
 [build-system]
 requires = ["hatchling"]

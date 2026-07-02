@@ -1,4 +1,4 @@
-from library_desktop.main import main
+from vellum.main import main
 
 if __name__ == "__main__":
     main()
