@@ -150,7 +150,7 @@ button, input, textarea, select {
 }
 
 .form-control {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 8px 12px;
@@ -185,12 +185,21 @@ button, input, textarea, select {
   flex-direction: column;
   padding: 24px;
   flex-shrink: 0;
+  transition: width var(--transition-smooth), padding var(--transition-smooth), opacity var(--transition-smooth), border-color var(--transition-smooth);
+}
+
+.sidebar.collapsed {
+  width: 0px;
+  padding: 24px 0px;
+  opacity: 0;
+  border-right-color: transparent;
+  pointer-events: none;
 }
 
 .logo-section {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
   margin-bottom: 32px;
 }
 
@@ -431,7 +440,7 @@ button, input, textarea, select {
   position: relative;
   width: 100%;
   aspect-ratio: 2/3;
-  background: #1e1e28;
+  background: var(--bg-cover-placeholder);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -538,7 +547,7 @@ button, input, textarea, select {
   object-fit: cover;
   box-shadow: var(--shadow-md);
   margin-bottom: 20px;
-  background: #1e1e28;
+  background: var(--bg-cover-placeholder);
 }
 
 .detail-title {
@@ -612,7 +621,7 @@ button, input, textarea, select {
 }
 
 .dialog-box {
-  background: #151826;
+  background: var(--bg-dialog);
   border: 1px solid var(--border-color-hover);
   border-radius: 16px;
   width: 500px;
@@ -648,7 +657,7 @@ button, input, textarea, select {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #121212;
+  background: var(--bg-reader);
   z-index: 200;
   display: flex;
   flex-direction: column;
@@ -656,7 +665,7 @@ button, input, textarea, select {
 
 .reader-header {
   height: 50px;
-  background: #1a1a1a;
+  background: var(--bg-reader-header);
   border-bottom: 1px solid rgba(255,255,255,0.1);
   display: flex;
   justify-content: space-between;
@@ -757,4 +766,75 @@ button, input, textarea, select {
 .books-table tr.selected td {
   color: var(--text-primary);
   border-bottom-color: rgba(139, 92, 246, 0.3);
+}
+
+.theme-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 16px;
+}
+
+.theme-toggle-btn:hover {
+  border-color: var(--border-color-hover);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.light-theme .theme-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.hamburger-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+}
+
+.hamburger-btn:hover {
+  border-color: var(--border-color-hover);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.light-theme .hamburger-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.header-action-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+}
+
+.header-action-btn:hover {
+  border-color: var(--border-color-hover);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.light-theme .header-action-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
