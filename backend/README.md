@@ -1,23 +1,22 @@
-# Bibliothèque Ebook Desktop (Python Version)
+# Bibliothèque Ebook Desktop - Vellum (Reflex + pywebview)
 
-Cette version autonome en Python regroupe le design frontend d'Angular et la logique backend de NestJS sous forme d'une application de bureau fluide utilisant `pywebview` pour l'affichage, `FastAPI` pour le serveur d'API local et `SQLAlchemy` avec `SQLite` pour la gestion des métadonnées.
+Cette version autonome regroupe le frontend réalisé en **Reflex** (Python UI) et la logique backend sous forme d'une application de bureau fluide utilisant `pywebview` pour l'affichage desktop, `FastAPI` pour les API REST et `SQLAlchemy` avec `SQLite` pour la gestion des métadonnées.
 
 ## Prérequis
 
-- [uv](https://github.com/astral-sh/uv) (gestionnaire de paquets ultra-rapide pour Python)
+- [uv](https://github.com/astral-sh/uv) (gestionnaire de paquets Python)
 - Python >= 3.10
 
 ## Lancement de l'application
 
-Pour installer les dépendances et exécuter l'application de bureau en une seule commande, lancez :
+Pour installer les dépendances et exécuter l'application de bureau en une seule commande, lancez depuis le dossier `backend` :
 
 ```bash
-uv run library-desktop
+uv run vellum
 ```
 
 ou
 
 ```bash
-uv run python -m library_desktop
+uv run python -m vellum.main
 ```
-

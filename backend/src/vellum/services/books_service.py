@@ -270,12 +270,12 @@ class BooksService:
         first_fmt = book.formats[0]
         input_path = os.path.join(self.library_path, first_fmt.filepath)
         
-        output_path_abs, output_filename = self.plugins_service.run_transformation_plugin(input_path)
+        output_path_abs, output_filename = self.plugins_service.run_transformation_plugin(input_path, plugin_id=plugin_id, db=self.db)
         filesize = os.path.getsize(output_path_abs)
         
         new_book_id = str(uuid.uuid4())
         clean_author = self.sanitize_filename(book.author)
-        clean_title = self.sanitize_filename(f"{book.title} (Translated)")
+        clean_title = self.sanitize_filename(f"{book.title} ({plugin.name})")
         
         new_book_dir_rel = os.path.join(clean_author, f"{clean_title} ({new_book_id})")
         new_book_dir_abs = os.path.join(self.library_path, new_book_dir_rel)

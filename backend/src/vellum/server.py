@@ -108,6 +108,37 @@ def set_library_path(payload: LibraryPathPayload):
 def get_plugins_list(plugins_service: PluginsService = Depends(get_plugins_service)):
     return plugins_service.get_plugins()
 
+@app.get("/books/plugins/{plugin_id}/config")
+def get_plugin_config(
+    plugin_id: str,
+    db=Depends(get_db),
+    plugins_service: PluginsService = Depends(get_plugins_service)
+):
+    plugin = plugins_service.get_plugin_by_id(plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    values = plugins_service.get_plugin_params(db, plugin_id)
+    return {
+        "plugin_id": plugin_id,
+        "name": plugin.name,
+        "description": plugin.description,
+        "schema": plugin.config_schema,
+        "values": values
+    }
+
+@app.post("/books/plugins/{plugin_id}/config")
+def save_plugin_config(
+    plugin_id: str,
+    payload: dict,
+    db=Depends(get_db),
+    plugins_service: PluginsService = Depends(get_plugins_service)
+):
+    plugin = plugins_service.get_plugin_by_id(plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    saved = plugins_service.save_plugin_params(db, plugin_id, payload)
+    return {"success": True, "values": saved}
+
 @app.get("/books/{book_id}")
 def get_book(book_id: str, books_service: BooksService = Depends(get_books_service)):
     book = books_service.get_book_by_id(book_id)
@@ -187,7 +218,4 @@ def run_plugin(book_id: str, plugin_id: str, books_service: BooksService = Depen
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# Mount static files for the frontend
-static_path = os.path.join(os.path.dirname(__file__), "static")
-os.makedirs(static_path, exist_ok=True)
-app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
+

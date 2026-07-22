@@ -14,6 +14,7 @@ def init_db(library_path: str):
     
     # Import models here to register them with Base before creating tables
     from ..models.book import Book, BookFormat, Tag
+    from ..models.param import Param
     
     Base.metadata.create_all(_engine)
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
