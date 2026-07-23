@@ -1,6 +1,6 @@
 from datetime import datetime
 import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey, Table
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, Table
 from sqlalchemy.orm import relationship
 from ..database.connection import Base
 
@@ -36,6 +36,13 @@ class Book(Base):
     publishDate = Column(String, nullable=True)
     description = Column(String, nullable=True)
     coverPath = Column(String, nullable=True)
+    series = Column(String, nullable=True)
+    series_index = Column(Float, nullable=True)
+    rating = Column(Integer, nullable=True, default=0)
+    isbn = Column(String, nullable=True)
+    language = Column(String, nullable=True, default="fr")
+    read_progress = Column(Float, nullable=True, default=0.0)
+    last_read_at = Column(String, nullable=True)
     addedAt = Column(String, default=lambda: datetime.utcnow().isoformat())
 
     formats = relationship("BookFormat", back_populates="book", cascade="all, delete-orphan")
@@ -50,6 +57,13 @@ class Book(Base):
             "publishDate": self.publishDate,
             "description": self.description,
             "coverPath": self.coverPath,
+            "series": self.series or "",
+            "series_index": self.series_index or 0.0,
+            "rating": self.rating or 0,
+            "isbn": self.isbn or "",
+            "language": self.language or "fr",
+            "read_progress": self.read_progress or 0.0,
+            "last_read_at": self.last_read_at or "",
             "addedAt": self.addedAt,
             "tags": [t.name for t in self.tags],
             "formats": [

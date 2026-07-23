@@ -20,6 +20,11 @@ class BookModel(BaseModel):
     publishDate: str = ""
     description: str = ""
     coverPath: str = ""
+    series: str = ""
+    series_index: float = 0.0
+    rating: int = 0
+    isbn: str = ""
+    language: str = "fr"
     tags: list[str] = []
     formats: list[BookFormatModel] = []
 
@@ -37,6 +42,7 @@ class PluginModel(BaseModel):
     description: str = ""
     version: str = ""
     type: str = ""
+    category: str = ""
     config_schema: list[PluginFieldModel] = []
 
 class AppState(rx.State):
@@ -73,6 +79,11 @@ class AppState(rx.State):
     edit_publish_date: str = ""
     edit_description: str = ""
     edit_tags: str = ""
+    edit_series: str = ""
+    edit_series_index: str = "1.0"
+    edit_rating: int = 0
+    edit_isbn: str = ""
+    edit_language: str = "fr"
 
     # EPUB Reader state
     reading_book: dict = {}
@@ -86,6 +97,24 @@ class AppState(rx.State):
     active_plugin_id: str = ""
     plugin_save_status: str = ""
 
+    # USB Devices & Kindle
+    connected_devices: list[dict] = []
+    selected_device_folder: str = ""
+    kindle_email: str = ""
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    kindle_status: str = ""
+    device_status: str = ""
+
+    # Conversion
+    convert_status: str = ""
+    selected_convert_format: str = "mobi"
+
+    # OPDS
+    opds_url: str = "http://127.0.0.1:8001/opds/v1/catalog.xml"
+
     async def on_load(self):
         """Initial load handler."""
         await self.load_library_path()
@@ -93,6 +122,79 @@ class AppState(rx.State):
         await self.load_books()
         await self.load_plugins()
         await self.load_plugin_configs()
+        await self.load_connected_devices()
+
+    async def load_connected_devices(self):
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{self.api_url}/devices")
+                if res.status_code == 200:
+                    self.connected_devices = res.json()
+                    if self.connected_devices:
+                        self.selected_device_folder = self.connected_devices[0].get("target_folder", "")
+        except Exception as e:
+            print(f"Error loading devices: {e}")
+
+    async def send_to_connected_device(self):
+        if not self.has_selected_book or not self.selected_device_folder:
+            self.device_status = "❌ Veuillez sélectionner un livre et un appareil."
+            return
+        book_id = self.selected_book.id
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(
+                    f"{self.api_url}/books/{book_id}/send-to-device",
+                    json={"target_folder": self.selected_device_folder}
+                )
+                if res.status_code == 200:
+                    self.device_status = "✅ Livre copié avec succès sur la liseuse !"
+                else:
+                    self.device_status = f"❌ Erreur: {res.json().get('detail')}"
+        except Exception as e:
+            self.device_status = f"❌ Échec de la copie: {e}"
+
+    async def send_to_kindle(self):
+        if not self.has_selected_book or not self.kindle_email:
+            self.kindle_status = "❌ Veuillez saisir une adresse e-mail Kindle."
+            return
+        book_id = self.selected_book.id
+        payload = {
+            "kindle_email": self.kindle_email,
+            "smtp_host": self.smtp_host,
+            "smtp_port": int(self.smtp_port),
+            "smtp_user": self.smtp_user,
+            "smtp_pass": self.smtp_pass
+        }
+        self.kindle_status = "⏳ Envoi du livre par e-mail en cours..."
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                res = await client.post(f"{self.api_url}/books/{book_id}/send-to-kindle", json=payload)
+                if res.status_code == 200:
+                    self.kindle_status = f"✅ Livre envoyé à {self.kindle_email} !"
+                else:
+                    self.kindle_status = f"❌ Erreur d'envoi: {res.json().get('detail')}"
+        except Exception as e:
+            self.kindle_status = f"❌ Échec de l'envoi Kindle: {e}"
+
+    async def convert_book_to_format(self, target_fmt: str):
+        if not self.has_selected_book:
+            return
+        book_id = self.selected_book.id
+        self.convert_status = f"⏳ Conversion du livre vers {target_fmt.upper()} en cours..."
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                res = await client.post(f"{self.api_url}/books/{book_id}/convert/{target_fmt}")
+                if res.status_code == 200:
+                    raw = res.json()
+                    fmts = [BookFormatModel(**f) for f in raw.get("formats", [])]
+                    raw["formats"] = fmts
+                    self.selected_book = BookModel(**raw)
+                    self.convert_status = f"✅ Conversion vers {target_fmt.upper()} réussie !"
+                    await self.load_books()
+                else:
+                    self.convert_status = f"❌ Erreur: {res.json().get('detail')}"
+        except Exception as e:
+            self.convert_status = f"❌ Échec de la conversion: {e}"
 
     async def load_plugin_configs(self):
         try:
@@ -246,7 +348,15 @@ class AppState(rx.State):
         self.edit_publish_date = self.selected_book.publishDate or ""
         self.edit_description = self.selected_book.description or ""
         self.edit_tags = ", ".join(self.selected_book.tags) if self.selected_book.tags else ""
+        self.edit_series = self.selected_book.series or ""
+        self.edit_series_index = str(self.selected_book.series_index or 1.0)
+        self.edit_rating = self.selected_book.rating or 0
+        self.edit_isbn = self.selected_book.isbn or ""
+        self.edit_language = self.selected_book.language or "fr"
         self.show_edit_dialog = True
+
+    def set_edit_rating(self, val: int):
+        self.edit_rating = val
 
     def close_edit_dialog(self):
         self.show_edit_dialog = False
@@ -257,13 +367,23 @@ class AppState(rx.State):
         book_id = self.selected_book.id
         tags_list = [t.strip() for t in self.edit_tags.split(",") if t.strip()]
 
+        try:
+            s_idx = float(self.edit_series_index)
+        except ValueError:
+            s_idx = 1.0
+
         payload = {
             "title": self.edit_title,
             "author": self.edit_author,
             "publisher": self.edit_publisher or None,
             "publishDate": self.edit_publish_date or None,
             "description": self.edit_description or None,
-            "tags": tags_list
+            "tags": tags_list,
+            "series": self.edit_series or None,
+            "series_index": s_idx,
+            "rating": self.edit_rating,
+            "isbn": self.edit_isbn or None,
+            "language": self.edit_language or "fr"
         }
 
         try:

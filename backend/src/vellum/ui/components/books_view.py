@@ -22,7 +22,11 @@ def book_card(book: BookModel) -> rx.Component:
         rx.box(
             rx.box(book.title, class_name="book-card-title", title=book.title),
             rx.box(book.author, class_name="book-card-author", title=book.author),
-            rx.box(
+            rx.cond(
+                book.series != "",
+                rx.text(f"{book.series} #{book.series_index}", font_size="11px", color="var(--accent)", font_weight="600"),
+            ),
+            rx.hstack(
                 rx.text(
                     rx.cond(
                         book.formats.length() > 0,
@@ -31,7 +35,13 @@ def book_card(book: BookModel) -> rx.Component:
                     ),
                     class_name="format-badge",
                 ),
-                class_name="book-card-formats",
+                rx.cond(
+                    book.rating > 0,
+                    rx.badge(f"⭐ {book.rating}", size="1", color_scheme="amber", variant="soft"),
+                ),
+                spacing="2",
+                align="center",
+                margin_top="4px",
             ),
             class_name="book-card-info",
         ),
@@ -81,6 +91,8 @@ def books_table() -> rx.Component:
                     rx.table.row(
                         rx.table.column_header_cell("Titre"),
                         rx.table.column_header_cell("Auteur"),
+                        rx.table.column_header_cell("Série / Saga"),
+                        rx.table.column_header_cell("Note"),
                         rx.table.column_header_cell("Éditeur"),
                         rx.table.column_header_cell("Formats"),
                     ),
@@ -91,6 +103,8 @@ def books_table() -> rx.Component:
                         lambda book: rx.table.row(
                             rx.table.cell(rx.text(book.title, font_weight="600")),
                             rx.table.cell(book.author),
+                            rx.table.cell(rx.cond(book.series != "", f"{book.series} #{book.series_index}", "-")),
+                            rx.table.cell(rx.cond(book.rating > 0, f"⭐ {book.rating}", "-")),
                             rx.table.cell(rx.cond(book.publisher != "", book.publisher, "-")),
                             rx.table.cell(
                                 rx.text(

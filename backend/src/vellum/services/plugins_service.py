@@ -8,12 +8,22 @@ from sqlalchemy.orm import Session
 from ..models.param import Param
 
 class LibraryPlugin:
-    def __init__(self, id: str, name: str, description: str, version: str, type: str, config_schema: Optional[List[dict]] = None):
+    def __init__(
+        self, 
+        id: str, 
+        name: str, 
+        description: str, 
+        version: str, 
+        type: str, 
+        category: str,
+        config_schema: Optional[List[dict]] = None
+    ):
         self.id = id
         self.name = name
         self.description = description
         self.version = version
         self.type = type
+        self.category = category  # 'import', 'metadata', 'liseuse', 'export', 'transformation'
         self.config_schema = config_schema or []
 
 def clean_epub_oceanofpdf(input_path: str, params: dict) -> tuple[str, str]:
@@ -28,7 +38,6 @@ def clean_epub_oceanofpdf(input_path: str, params: dict) -> tuple[str, str]:
 
     replacement = params.get("custom_replacement", "")
 
-    # Patterns to match OceanOFPDF links, URLs, text mentions, and paragraphs
     link_pattern = re.compile(r'<a[^>]*href=["\'][^"\']*oceanofpdf[^"\']*["\'][^>]*>.*?</a>', re.IGNORECASE | re.DOTALL)
     url_pattern = re.compile(r'https?://(?:www\.)?oceanofpdf\.com[^\s<"\'\]]*', re.IGNORECASE)
     para_pattern = re.compile(r'<p[^>]*>[^<]*oceanofpdf[^<]*</p>', re.IGNORECASE | re.DOTALL)
@@ -75,13 +84,14 @@ class PluginsService:
         self.register_default_plugins()
 
     def register_default_plugins(self):
-        # 1. Google Books Metadata Enricher Plugin
+        # --- CATEGORY: IMPORT ---
         google_books = LibraryPlugin(
             id="google-books-enricher",
             name="Google Books Metadata Enricher",
             description="Enrichit automatiquement les métadonnées et télécharge des tags supplémentaires depuis Google Books à l'importation.",
             version="1.0.0",
             type="import",
+            category="import",
             config_schema=[
                 {
                     "key": "api_key",
@@ -108,13 +118,169 @@ class PluginsService:
             ]
         )
 
-        # 2. EPUB Translation Plugin
+        # --- CATEGORY: METADATA ---
+        metadata_manager = LibraryPlugin(
+            id="series-isbn-manager",
+            name="Gestionnaire de Séries & ISBN",
+            description="Détecte automatiquement les sagas, numéros de tomes et numéros ISBN depuis les fichiers d'origine.",
+            version="1.0.0",
+            type="metadata",
+            category="metadata",
+            config_schema=[
+                {
+                    "key": "auto_detect_series",
+                    "label": "Détection automatique des séries",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Analyser le titre et le nom de fichier pour extraire le tome (ex: 'Dune #1')."
+                },
+                {
+                    "key": "default_rating",
+                    "label": "Note par défaut pour les nouveaux livres",
+                    "type": "select",
+                    "options": ["0", "1", "2", "3", "4", "5"],
+                    "default": "0",
+                    "description": "Évaluation initiale attribuée aux livres importés."
+                }
+            ]
+        )
+
+        # --- CATEGORY: LISEUSE ---
+        usb_transfer = LibraryPlugin(
+            id="usb-device-transfer",
+            name="Transfert Liseuse USB (Kindle / Kobo)",
+            description="Détecte automatiquement les liseuses USB connectées et copie les livres dans le bon répertoire.",
+            version="1.0.0",
+            type="liseuse",
+            category="liseuse",
+            config_schema=[
+                {
+                    "key": "auto_detect_usb",
+                    "label": "Détection automatique au branchement",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Scanner les volumes /Volumes/ à l'ouverture de l'application."
+                },
+                {
+                    "key": "convert_before_transfer",
+                    "label": "Convertir automatiquement en format compatible",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Convertir en MOBI/AZW3 avant envoi vers Kindle, ou en EPUB vers Kobo."
+                }
+            ]
+        )
+
+        send_to_kindle = LibraryPlugin(
+            id="send-to-kindle-email",
+            name="Send-to-Kindle (Email / SMTP)",
+            description="Envoie vos e-books directement sur votre liseuse Kindle via le réseau e-mail Amazon.",
+            version="1.0.0",
+            type="liseuse",
+            category="liseuse",
+            config_schema=[
+                {
+                    "key": "kindle_email",
+                    "label": "Adresse E-mail Kindle par défaut",
+                    "type": "text",
+                    "default": "",
+                    "description": "Adresse e-mail unique fournie par Amazon (ex: mon_nom@kindle.com)."
+                },
+                {
+                    "key": "smtp_host",
+                    "label": "Serveur SMTP d'envoi",
+                    "type": "text",
+                    "default": "smtp.gmail.com",
+                    "description": "Serveur SMTP utilisé pour distribuer le mail."
+                },
+                {
+                    "key": "smtp_port",
+                    "label": "Port SMTP",
+                    "type": "text",
+                    "default": "587",
+                    "description": "Port de connexion SMTP (587 pour TLS, 465 pour SSL)."
+                }
+            ]
+        )
+
+        # --- CATEGORY: EXPORT ---
+        opds_server = LibraryPlugin(
+            id="opds-web-server",
+            name="Serveur Catalogue OPDS 1.2 Web",
+            description="Génère un flux XML OPDS permettant d'accéder à votre bibliothèque depuis des tablettes ou KOReader sur le Wi-Fi.",
+            version="1.0.0",
+            type="export",
+            category="export",
+            config_schema=[
+                {
+                    "key": "enable_opds",
+                    "label": "Activer le flux OPDS",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Rendre le catalogue accessible via http://127.0.0.1:8001/opds/v1/catalog.xml."
+                },
+                {
+                    "key": "max_catalog_items",
+                    "label": "Nombre maximum d'éléments dans le flux",
+                    "type": "text",
+                    "default": "500",
+                    "description": "Limite le nombre de livres affichés dans les applications clientes."
+                }
+            ]
+        )
+
+        # --- CATEGORY: TRANSFORMATION ---
+        universal_converter = LibraryPlugin(
+            id="universal-converter",
+            name="Convertisseur Universel de Formats",
+            description="Convertit vos livres entre les formats EPUB, MOBI, AZW3, PDF et TXT.",
+            version="1.0.0",
+            type="transformation",
+            category="transformation",
+            config_schema=[
+                {
+                    "key": "preferred_format",
+                    "label": "Format de conversion préféré",
+                    "type": "select",
+                    "options": ["mobi", "epub", "azw3", "pdf", "txt"],
+                    "default": "mobi",
+                    "description": "Format cible par défaut lors de la conversion rapide."
+                }
+            ]
+        )
+
+        oceanofpdf_cleaner = LibraryPlugin(
+            id="oceanofpdf-cleaner",
+            name="Nettoyeur OceanOFPDF",
+            description="Supprime automatiquement les liens, filigranes et paragraphes 'OceanofPDF' des fichiers EPUB.",
+            version="1.0.0",
+            type="transformation",
+            category="transformation",
+            config_schema=[
+                {
+                    "key": "remove_whole_paragraph",
+                    "label": "Supprimer les paragraphes isolés OceanOFPDF",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Retire intégralement la balise <p> contenant une mention de filigrane OceanOFPDF."
+                },
+                {
+                    "key": "custom_replacement",
+                    "label": "Texte de remplacement (Optionnel)",
+                    "type": "text",
+                    "default": "",
+                    "description": "Remplace le lien/texte OceanOFPDF par ce texte."
+                }
+            ]
+        )
+
         epub_translator = LibraryPlugin(
             id="epub-translator-fr",
             name="Traducteur EPUB (FR)",
             description="Traduit le contenu d'un livre EPUB à l'aide d'un moteur d'IA.",
             version="1.0.0",
             type="transformation",
+            category="transformation",
             config_schema=[
                 {
                     "key": "target_language",
@@ -131,43 +297,20 @@ class PluginsService:
                     "options": ["Default AI", "GPT-4o", "DeepL API", "Local Ollama"],
                     "default": "Default AI",
                     "description": "Sélectionnez le service d'IA pour effectuer la traduction."
-                },
-                {
-                    "key": "api_token",
-                    "label": "Jeton / Clé API (Optionnel)",
-                    "type": "text",
-                    "default": "",
-                    "description": "Jeton d'authentification pour le service distant de traduction."
                 }
             ]
         )
 
-        # 3. OceanOFPDF Cleaner Plugin
-        oceanofpdf_cleaner = LibraryPlugin(
-            id="oceanofpdf-cleaner",
-            name="Nettoyeur OceanOFPDF",
-            description="Supprime automatiquement les liens, filigranes et paragraphes 'OceanofPDF' des fichiers EPUB.",
-            version="1.0.0",
-            type="transformation",
-            config_schema=[
-                {
-                    "key": "remove_whole_paragraph",
-                    "label": "Supprimer les paragraphes isolés OceanOFPDF",
-                    "type": "boolean",
-                    "default": True,
-                    "description": "Retire intégralement la balise <p> contenant une mention de filigrane OceanOFPDF."
-                },
-                {
-                    "key": "custom_replacement",
-                    "label": "Texte de remplacement (Optionnel)",
-                    "type": "text",
-                    "default": "",
-                    "description": "Remplace le lien/texte OceanOFPDF par ce texte. Laisser vide pour supprimer silencieusement."
-                }
-            ]
-        )
-
-        self.plugins.extend([google_books, epub_translator, oceanofpdf_cleaner])
+        self.plugins.extend([
+            google_books, 
+            metadata_manager, 
+            usb_transfer, 
+            send_to_kindle, 
+            opds_server, 
+            universal_converter, 
+            oceanofpdf_cleaner, 
+            epub_translator
+        ])
 
     def get_plugins(self) -> List[dict]:
         return [
@@ -177,6 +320,7 @@ class PluginsService:
                 "description": p.description,
                 "version": p.version,
                 "type": p.type,
+                "category": p.category,
                 "config_schema": p.config_schema
             }
             for p in self.plugins
@@ -233,7 +377,6 @@ class PluginsService:
             params = self.get_plugin_params(db, plugin_id) if db else {}
             return clean_epub_oceanofpdf(input_path, params)
 
-        # Default fallback / Translation plugin
         dir_name = os.path.dirname(input_path)
         base, ext = os.path.splitext(os.path.basename(input_path))
         output_filename = f"{base} - FR{ext}"

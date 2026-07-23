@@ -22,7 +22,7 @@ class BooksService:
         if search:
             q = f"%{search.lower()}%"
             query = query.filter(
-                Book.title.ilike(q) | Book.author.ilike(q) | Book.description.ilike(q)
+                Book.title.ilike(q) | Book.author.ilike(q) | Book.description.ilike(q) | Book.series.ilike(q) | Book.isbn.ilike(q)
             )
         if tag:
             query = query.join(Book.tags).filter(Tag.name == tag)
@@ -136,7 +136,21 @@ class BooksService:
                 except:
                     pass
 
-    def update_book(self, book_id: str, title: str, author: str, publisher: Optional[str], publish_date: Optional[str], description: Optional[str], tags: List[str]) -> Book:
+    def update_book(
+        self, 
+        book_id: str, 
+        title: str, 
+        author: str, 
+        publisher: Optional[str], 
+        publish_date: Optional[str], 
+        description: Optional[str], 
+        tags: List[str],
+        series: Optional[str] = None,
+        series_index: Optional[float] = 0.0,
+        rating: Optional[int] = 0,
+        isbn: Optional[str] = None,
+        language: Optional[str] = "fr"
+    ) -> Book:
         book = self.get_book_by_id(book_id)
         if not book:
             raise Exception("Book not found")
@@ -149,6 +163,11 @@ class BooksService:
         book.publisher = publisher
         book.publishDate = publish_date
         book.description = description
+        book.series = series
+        book.series_index = series_index
+        book.rating = rating
+        book.isbn = isbn
+        book.language = language
         
         book.tags.clear()
         for tag_name in tags:
@@ -157,6 +176,17 @@ class BooksService:
                 tag = Tag(name=tag_name)
                 self.db.add(tag)
             book.tags.append(tag)
+
+    def update_reading_progress(self, book_id: str, progress: float) -> Book:
+        from datetime import datetime
+        book = self.get_book_by_id(book_id)
+        if not book:
+            raise Exception("Book not found")
+        book.read_progress = max(0.0, min(100.0, progress))
+        book.last_read_at = datetime.utcnow().isoformat()
+        self.db.commit()
+        self.db.refresh(book)
+        return book
             
         if old_author != author or old_title != title:
             if book.formats:

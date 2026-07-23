@@ -4,12 +4,26 @@ from typing import Optional, List
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from .database.connection import get_session, init_db
 from .services.plugins_service import PluginsService
 from .services.books_service import BooksService
+from .services.device_service import DeviceService
+from .services.email_service import EmailService
+from .services.opds_service import OPDSService
+from .services.converter_service import ConverterService
+
+class KindlePayload(BaseModel):
+    kindle_email: str
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+
+class DeviceTransferPayload(BaseModel):
+    target_folder: str
 
 app = FastAPI(title="Ebook Library Backend")
 
@@ -37,6 +51,11 @@ class BookUpdatePayload(BaseModel):
     publishDate: Optional[str] = None
     description: Optional[str] = None
     tags: List[str] = []
+    series: Optional[str] = None
+    series_index: Optional[float] = 0.0
+    rating: Optional[int] = 0
+    isbn: Optional[str] = None
+    language: Optional[str] = "fr"
 
 def load_config() -> str:
     if os.path.exists(CONFIG_FILE):
@@ -188,7 +207,12 @@ def update_book(book_id: str, payload: BookUpdatePayload, books_service: BooksSe
             payload.publisher,
             payload.publishDate,
             payload.description,
-            payload.tags
+            payload.tags,
+            payload.series,
+            payload.series_index,
+            payload.rating,
+            payload.isbn,
+            payload.language
         )
         return book.to_dict()
     except Exception as e:
@@ -214,6 +238,90 @@ def delete_book(book_id: str, books_service: BooksService = Depends(get_books_se
 def run_plugin(book_id: str, plugin_id: str, books_service: BooksService = Depends(get_books_service)):
     try:
         book = books_service.run_plugin(book_id, plugin_id)
+        return book.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- Phase 2: USB Device Transfer & Send-to-Kindle ---
+@app.get("/devices")
+def list_devices():
+    return DeviceService.list_connected_devices()
+
+@app.post("/books/{book_id}/send-to-device")
+def send_to_device(book_id: str, payload: DeviceTransferPayload, books_service: BooksService = Depends(get_books_service)):
+    book = books_service.get_book_by_id(book_id)
+    if not book or not book.formats:
+        raise HTTPException(status_code=404, detail="Book or file format not found")
+    first_fmt = book.formats[0]
+    abs_filepath = os.path.join(current_library_path, first_fmt.filepath)
+    try:
+        dest = DeviceService.send_to_device(abs_filepath, payload.target_folder)
+        return {"success": True, "destination": dest}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/books/{book_id}/send-to-kindle")
+def send_to_kindle(book_id: str, payload: KindlePayload, books_service: BooksService = Depends(get_books_service)):
+    book = books_service.get_book_by_id(book_id)
+    if not book or not book.formats:
+        raise HTTPException(status_code=404, detail="Book or file format not found")
+    first_fmt = book.formats[0]
+    abs_filepath = os.path.join(current_library_path, first_fmt.filepath)
+    try:
+        EmailService.send_to_kindle(
+            smtp_host=payload.smtp_host,
+            smtp_port=payload.smtp_port,
+            smtp_user=payload.smtp_user,
+            smtp_pass=payload.smtp_pass,
+            kindle_email=payload.kindle_email,
+            book_filepath=abs_filepath
+        )
+        return {"success": True, "message": f"Book sent to {payload.kindle_email}"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- Phase 3: OPDS 1.2 Feed ---
+@app.get("/opds/v1/catalog.xml")
+def get_opds_catalog(books_service: BooksService = Depends(get_books_service)):
+    all_books = books_service.get_books(limit=500)
+    base_url = "http://127.0.0.1:8001"
+    xml_content = OPDSService.generate_opds_feed(all_books, base_url)
+    return Response(content=xml_content, media_type="application/atom+xml")
+
+# --- Phase 4: Universal Converter ---
+@app.post("/books/{book_id}/convert/{target_format}")
+def convert_book_format(book_id: str, target_format: str, books_service: BooksService = Depends(get_books_service)):
+    book = books_service.get_book_by_id(book_id)
+    if not book or not book.formats:
+        raise HTTPException(status_code=404, detail="Book or format not found")
+    first_fmt = book.formats[0]
+    abs_filepath = os.path.join(current_library_path, first_fmt.filepath)
+    try:
+        out_abs, out_filename = ConverterService.convert_ebook(abs_filepath, target_format)
+        filesize = os.path.getsize(out_abs)
+        rel_filepath = os.path.relpath(out_abs, current_library_path)
+
+        # Register format in DB
+        from .models.book import BookFormat
+        new_fmt = BookFormat(
+            book_id=book.id,
+            format=target_format.lower(),
+            filename=out_filename,
+            filepath=rel_filepath,
+            filesize=filesize
+        )
+        books_service.db.add(new_fmt)
+        books_service.db.commit()
+        books_service.db.refresh(book)
+        return book.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- Phase 5: Reading Progress ---
+@app.post("/books/{book_id}/progress")
+def update_progress(book_id: str, progress: float, books_service: BooksService = Depends(get_books_service)):
+    try:
+        book = books_service.update_reading_progress(book_id, progress)
         return book.to_dict()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
