@@ -45,6 +45,24 @@ class PluginModel(BaseModel):
     category: str = ""
     config_schema: list[PluginFieldModel] = []
 
+class TopAuthorModel(BaseModel):
+    author: str = ""
+    count: int = 0
+
+class AnalyticsModel(BaseModel):
+    total_books: int = 0
+    total_formats: int = 0
+    total_size_mb: float = 0.0
+    read_count: int = 0
+    reading_count: int = 0
+    unread_count: int = 0
+    top_authors: list[TopAuthorModel] = []
+
+class DuplicateItemModel(BaseModel):
+    original: BookModel = BookModel()
+    duplicate: BookModel = BookModel()
+    reason: str = ""
+
 class AppState(rx.State):
     books: list[BookModel] = []
     library_path: str = ""
@@ -60,6 +78,25 @@ class AppState(rx.State):
     theme: str = "dark"      # "dark" or "light"
     plugins: list[PluginModel] = []
     is_plugin_running: bool = False
+
+    # Multi-selection & Bulk operations
+    selected_book_ids: list[str] = []
+    show_bulk_edit_dialog: bool = False
+    bulk_author: str = ""
+    bulk_series: str = ""
+    bulk_rating: int = -1
+    bulk_tags: str = ""
+    bulk_status: str = ""
+
+    # Smart Filters
+    filter_rating_min: int = 0
+    filter_status: str = "all"  # "all", "unread", "reading", "read"
+
+    # Analytics & Duplicates Dialog States
+    show_stats_dialog: bool = False
+    show_duplicates_dialog: bool = False
+    analytics_data: AnalyticsModel = AnalyticsModel()
+    duplicates_data: list[DuplicateItemModel] = []
 
     # Dialog states
     show_edit_dialog: bool = False
@@ -108,12 +145,72 @@ class AppState(rx.State):
     kindle_status: str = ""
     device_status: str = ""
 
-    # Conversion
+    # Conversion & OPDS
     convert_status: str = ""
     selected_convert_format: str = "mobi"
-
-    # OPDS
     opds_url: str = "http://127.0.0.1:8001/opds/v1/catalog.xml"
+
+    # Setters
+    def set_search_query(self, val: str):
+        self.search_query = val
+
+    def set_edit_title(self, val: str):
+        self.edit_title = val
+
+    def set_edit_author(self, val: str):
+        self.edit_author = val
+
+    def set_edit_publisher(self, val: str):
+        self.edit_publisher = val
+
+    def set_edit_publish_date(self, val: str):
+        self.edit_publish_date = val
+
+    def set_edit_description(self, val: str):
+        self.edit_description = val
+
+    def set_edit_tags(self, val: str):
+        self.edit_tags = val
+
+    def set_edit_series(self, val: str):
+        self.edit_series = val
+
+    def set_edit_series_index(self, val: str):
+        self.edit_series_index = val
+
+    def set_edit_rating(self, val: int):
+        self.edit_rating = val
+
+    def set_edit_isbn(self, val: str):
+        self.edit_isbn = val
+
+    def set_edit_language(self, val: str):
+        self.edit_language = val
+
+    def set_kindle_email(self, val: str):
+        self.kindle_email = val
+
+    def set_smtp_host(self, val: str):
+        self.smtp_host = val
+
+    def set_smtp_port(self, val: str):
+        if val.isdigit():
+            self.smtp_port = int(val)
+
+    def set_smtp_user(self, val: str):
+        self.smtp_user = val
+
+    def set_smtp_pass(self, val: str):
+        self.smtp_pass = val
+
+    def set_bulk_author(self, val: str):
+        self.bulk_author = val
+
+    def set_bulk_series(self, val: str):
+        self.bulk_series = val
+
+    def set_bulk_tags(self, val: str):
+        self.bulk_tags = val
 
     async def on_load(self):
         """Initial load handler."""
@@ -189,12 +286,110 @@ class AppState(rx.State):
                     fmts = [BookFormatModel(**f) for f in raw.get("formats", [])]
                     raw["formats"] = fmts
                     self.selected_book = BookModel(**raw)
-                    self.convert_status = f"✅ Conversion vers {target_fmt.upper()} réussie !"
-                    await self.load_books()
                 else:
                     self.convert_status = f"❌ Erreur: {res.json().get('detail')}"
         except Exception as e:
             self.convert_status = f"❌ Échec de la conversion: {e}"
+
+    def toggle_select_book_id(self, book_id: str):
+        ids = list(self.selected_book_ids)
+        if book_id in ids:
+            ids.remove(book_id)
+        else:
+            ids.append(book_id)
+        self.selected_book_ids = ids
+
+    def select_all_visible_books(self):
+        self.selected_book_ids = [b.id for b in self.books]
+
+    def clear_book_selection(self):
+        self.selected_book_ids = []
+
+    def open_bulk_edit_dialog(self):
+        if not self.selected_book_ids:
+            return
+        self.bulk_author = ""
+        self.bulk_series = ""
+        self.bulk_rating = -1
+        self.bulk_tags = ""
+        self.bulk_status = ""
+        self.show_bulk_edit_dialog = True
+
+    def close_bulk_edit_dialog(self):
+        self.show_bulk_edit_dialog = False
+
+    def set_bulk_rating(self, rating: int):
+        self.bulk_rating = rating
+
+    async def save_bulk_edit(self):
+        if not self.selected_book_ids:
+            return
+        tags_list = [t.strip() for t in self.bulk_tags.split(",") if t.strip()]
+        payload = {
+            "book_ids": self.selected_book_ids,
+            "author": self.bulk_author or None,
+            "series": self.bulk_series or None,
+            "rating": self.bulk_rating if self.bulk_rating >= 0 else None,
+            "add_tags": tags_list
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(f"{self.api_url}/books/bulk-update", json=payload)
+                if res.status_code == 200:
+                    self.show_bulk_edit_dialog = False
+                    self.clear_book_selection()
+                    await self.load_tags()
+                    await self.load_books()
+        except Exception as e:
+            self.bulk_status = f"❌ Échec: {e}"
+
+    async def delete_selected_books(self):
+        if not self.selected_book_ids:
+            return
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(f"{self.api_url}/books/bulk-delete", json={"book_ids": self.selected_book_ids})
+                if res.status_code == 200:
+                    self.clear_book_selection()
+                    await self.load_tags()
+                    await self.load_books()
+        except Exception as e:
+            print(f"Error bulk deleting: {e}")
+
+    async def open_stats_dialog(self):
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{self.api_url}/analytics/stats")
+                if res.status_code == 200:
+                    raw = res.json()
+                    authors = [TopAuthorModel(**a) for a in raw.get("top_authors", [])]
+                    raw["top_authors"] = authors
+                    self.analytics_data = AnalyticsModel(**raw)
+                    self.show_stats_dialog = True
+        except Exception as e:
+            print(f"Error loading analytics: {e}")
+
+    def close_stats_dialog(self):
+        self.show_stats_dialog = False
+
+    async def open_duplicates_dialog(self):
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(f"{self.api_url}/books/duplicates")
+                if res.status_code == 200:
+                    raw_list = res.json()
+                    parsed = []
+                    for item in raw_list:
+                        orig = BookModel(**item.get("original", {}))
+                        dupe = BookModel(**item.get("duplicate", {}))
+                        parsed.append(DuplicateItemModel(original=orig, duplicate=dupe, reason=item.get("reason", "")))
+                    self.duplicates_data = parsed
+                    self.show_duplicates_dialog = True
+        except Exception as e:
+            print(f"Error loading duplicates: {e}")
+
+    def close_duplicates_dialog(self):
+        self.show_duplicates_dialog = False
 
     async def load_plugin_configs(self):
         try:

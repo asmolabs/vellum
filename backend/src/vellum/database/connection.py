@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -17,6 +17,25 @@ def init_db(library_path: str):
     from ..models.param import Param
     
     Base.metadata.create_all(_engine)
+
+    # Auto-migrate newly added columns for existing databases
+    with _engine.connect() as conn:
+        columns_to_add = [
+            ("series", "VARCHAR"),
+            ("series_index", "FLOAT DEFAULT 0.0"),
+            ("rating", "INTEGER DEFAULT 0"),
+            ("isbn", "VARCHAR"),
+            ("language", "VARCHAR DEFAULT 'fr'"),
+            ("read_progress", "FLOAT DEFAULT 0.0"),
+            ("last_read_at", "VARCHAR")
+        ]
+        for col_name, col_type in columns_to_add:
+            try:
+                conn.execute(text(f"ALTER TABLE books ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists in table
+
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 
 def get_session():

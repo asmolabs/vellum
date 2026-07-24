@@ -118,6 +118,32 @@ class PluginsService:
             ]
         )
 
+        openlibrary_scrapar = LibraryPlugin(
+            id="openlibrary-goodreads-scraper",
+            name="Scraper OpenLibrary & Goodreads",
+            description="Recherche les couvertures HD et métadonnées complémentaires depuis OpenLibrary et Goodreads via ISBN.",
+            version="1.0.0",
+            type="import",
+            category="import",
+            config_schema=[
+                {
+                    "key": "fallback_cover",
+                    "label": "Télécharger couvertures HD OpenLibrary",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Télécharger la couverture haute résolution si absente dans l'EPUB."
+                },
+                {
+                    "key": "search_source",
+                    "label": "Source de métadonnées prioritaire",
+                    "type": "select",
+                    "options": ["OpenLibrary API", "Goodreads", "Combined"],
+                    "default": "OpenLibrary API",
+                    "description": "Base de données d'ouvrages à consulter en priorité."
+                }
+            ]
+        )
+
         # --- CATEGORY: METADATA ---
         metadata_manager = LibraryPlugin(
             id="series-isbn-manager",
@@ -229,6 +255,42 @@ class PluginsService:
             ]
         )
 
+        zip_exporter = LibraryPlugin(
+            id="library-zip-exporter",
+            name="Exportateur ZIP de Bibliothèque",
+            description="Exporte votre bibliothèque complète ou une sélection de livres au format archive ZIP compressée.",
+            version="1.0.0",
+            type="export",
+            category="export",
+            config_schema=[
+                {
+                    "key": "include_covers",
+                    "label": "Inclure les couvertures",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Conserver les images de couverture dans l'archive ZIP."
+                }
+            ]
+        )
+
+        duplicate_finder = LibraryPlugin(
+            id="duplicate-finder",
+            name="Détecteur de Doublons",
+            description="Analyse votre collection à la recherche de doublons (titres ou auteurs identiques) pour nettoyer la base.",
+            version="1.0.0",
+            type="metadata",
+            category="metadata",
+            config_schema=[
+                {
+                    "key": "strict_matching",
+                    "label": "Correspondance stricte (Titre + Auteur)",
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Nécessite à la fois un titre et un auteur identiques."
+                }
+            ]
+        )
+
         # --- CATEGORY: TRANSFORMATION ---
         universal_converter = LibraryPlugin(
             id="universal-converter",
@@ -303,10 +365,13 @@ class PluginsService:
 
         self.plugins.extend([
             google_books, 
+            openlibrary_scrapar,
             metadata_manager, 
+            duplicate_finder,
             usb_transfer, 
             send_to_kindle, 
             opds_server, 
+            zip_exporter,
             universal_converter, 
             oceanofpdf_cleaner, 
             epub_translator

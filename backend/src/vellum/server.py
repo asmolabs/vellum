@@ -14,6 +14,8 @@ from .services.device_service import DeviceService
 from .services.email_service import EmailService
 from .services.opds_service import OPDSService
 from .services.converter_service import ConverterService
+from .services.analytics_service import AnalyticsService
+from .services.export_service import ExportService
 
 class KindlePayload(BaseModel):
     kindle_email: str
@@ -24,6 +26,17 @@ class KindlePayload(BaseModel):
 
 class DeviceTransferPayload(BaseModel):
     target_folder: str
+
+class BulkUpdatePayload(BaseModel):
+    book_ids: List[str]
+    author: Optional[str] = None
+    publisher: Optional[str] = None
+    series: Optional[str] = None
+    rating: Optional[int] = None
+    add_tags: List[str] = []
+
+class BulkDeletePayload(BaseModel):
+    book_ids: List[str]
 
 app = FastAPI(title="Ebook Library Backend")
 
@@ -318,11 +331,44 @@ def convert_book_format(book_id: str, target_format: str, books_service: BooksSe
         raise HTTPException(status_code=400, detail=str(e))
 
 # --- Phase 5: Reading Progress ---
-@app.post("/books/{book_id}/progress")
-def update_progress(book_id: str, progress: float, books_service: BooksService = Depends(get_books_service)):
+# --- Phase 6: Bulk Operations ---
+@app.post("/books/bulk-update")
+def bulk_update_books(payload: BulkUpdatePayload, books_service: BooksService = Depends(get_books_service)):
     try:
-        book = books_service.update_reading_progress(book_id, progress)
-        return book.to_dict()
+        count = books_service.bulk_update_books(
+            book_ids=payload.book_ids,
+            author=payload.author,
+            publisher=payload.publisher,
+            series=payload.series,
+            rating=payload.rating,
+            add_tags=payload.add_tags
+        )
+        return {"success": True, "updated_count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/books/bulk-delete")
+def bulk_delete_books(payload: BulkDeletePayload, books_service: BooksService = Depends(get_books_service)):
+    try:
+        count = books_service.bulk_delete_books(payload.book_ids)
+        return {"success": True, "deleted_count": count}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- Phase 9 & 10: Analytics, Duplicates & ZIP Export ---
+@app.get("/analytics/stats")
+def get_analytics(db=Depends(get_db)):
+    return AnalyticsService.get_library_stats(db)
+
+@app.get("/books/duplicates")
+def get_duplicates(books_service: BooksService = Depends(get_books_service)):
+    return ExportService.find_duplicates(books_service)
+
+@app.get("/books/export/zip")
+def export_zip(books_service: BooksService = Depends(get_books_service)):
+    try:
+        zip_path = ExportService.export_books_to_zip(books_service)
+        return FileResponse(zip_path, filename="vellum_library_backup.zip", media_type="application/zip")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

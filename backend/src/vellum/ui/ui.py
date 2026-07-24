@@ -4,7 +4,7 @@ from .components.sidebar import sidebar
 from .components.header import header
 from .components.books_view import books_view
 from .components.detail_drawer import detail_drawer
-from .components.dialogs import edit_dialog, confirm_delete_dialog, settings_dialog
+from .components.dialogs import edit_dialog, confirm_delete_dialog, settings_dialog, bulk_edit_dialog, stats_dialog, duplicates_dialog
 from .components.reader import reader_overlay
 
 def index() -> rx.Component:
@@ -18,6 +18,9 @@ def index() -> rx.Component:
         detail_drawer(),
         edit_dialog(),
         confirm_delete_dialog(),
+        bulk_edit_dialog(),
+        stats_dialog(),
+        duplicates_dialog(),
         settings_dialog(),
         reader_overlay(),
         class_name=rx.cond(AppState.theme == "light", "app-container light-theme", "app-container"),

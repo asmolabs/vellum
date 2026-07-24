@@ -16,7 +16,25 @@ def book_card(book: BookModel) -> rx.Component:
                     class_name="no-cover-placeholder",
                 ),
             ),
+            # Checkbox overlay
+            rx.box(
+                rx.checkbox(
+                    checked=AppState.selected_book_ids.contains(book.id),
+                    on_change=lambda _: AppState.toggle_select_book_id(book.id),
+                    size="2",
+                ),
+                style={
+                    "position": "absolute",
+                    "top": "8px",
+                    "right": "8px",
+                    "z-index": "5",
+                    "background": "rgba(0,0,0,0.5)",
+                    "padding": "4px",
+                    "border-radius": "4px",
+                },
+            ),
             class_name="cover-wrapper",
+            style={"position": "relative"},
         ),
         # Book Card Info
         rx.box(
@@ -89,6 +107,13 @@ def books_table() -> rx.Component:
             rx.table.root(
                 rx.table.header(
                     rx.table.row(
+                        rx.table.column_header_cell(
+                            rx.checkbox(
+                                on_change=lambda _: AppState.select_all_visible_books(),
+                                size="1",
+                                title="Tout sélectionner",
+                            )
+                        ),
                         rx.table.column_header_cell("Titre"),
                         rx.table.column_header_cell("Auteur"),
                         rx.table.column_header_cell("Série / Saga"),
@@ -101,6 +126,13 @@ def books_table() -> rx.Component:
                     rx.foreach(
                         AppState.books,
                         lambda book: rx.table.row(
+                            rx.table.cell(
+                                rx.checkbox(
+                                    checked=AppState.selected_book_ids.contains(book.id),
+                                    on_change=lambda _: AppState.toggle_select_book_id(book.id),
+                                    size="1",
+                                )
+                            ),
                             rx.table.cell(rx.text(book.title, font_weight="600")),
                             rx.table.cell(book.author),
                             rx.table.cell(rx.cond(book.series != "", f"{book.series} #{book.series_index}", "-")),

@@ -119,7 +119,12 @@ def detail_drawer() -> rx.Component:
                         AppState.connected_devices.length() > 0,
                         rx.vstack(
                             rx.button(
-                                "📱 Copier sur " + AppState.connected_devices[0]["name"],
+                                rx.hstack(
+                                    rx.text("📱 Copier sur "),
+                                    rx.text(AppState.connected_devices[0]["name"]),
+                                    spacing="1",
+                                    align="center",
+                                ),
                                 on_click=AppState.send_to_connected_device,
                                 class_name="btn-secondary",
                                 size="1",

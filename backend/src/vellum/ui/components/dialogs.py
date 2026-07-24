@@ -175,6 +175,79 @@ def confirm_delete_dialog() -> rx.Component:
         open=AppState.show_confirm_delete,
     )
 
+def bulk_edit_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("📝 Édition par Lot (Bulk Edit)"),
+            rx.dialog.description("Modifiez simultanément les métadonnées de tous les livres sélectionnés."),
+            rx.vstack(
+                rx.vstack(
+                    rx.text("Nouvel Auteur (laisser vide pour ne pas modifier)", font_size="12px", font_weight="500"),
+                    rx.input(
+                        placeholder="ex: Frank Herbert",
+                        value=AppState.bulk_author,
+                        on_change=AppState.set_bulk_author,
+                        width="100%",
+                        size="1",
+                    ),
+                    width="100%",
+                ),
+                rx.vstack(
+                    rx.text("Nouvelle Série / Saga", font_size="12px", font_weight="500"),
+                    rx.input(
+                        placeholder="ex: Cycle de Dune",
+                        value=AppState.bulk_series,
+                        on_change=AppState.set_bulk_series,
+                        width="100%",
+                        size="1",
+                    ),
+                    width="100%",
+                ),
+                rx.vstack(
+                    rx.text("Attribuer des Tags (séparés par des virgules)", font_size="12px", font_weight="500"),
+                    rx.input(
+                        placeholder="ex: Science-Fiction, Favoris",
+                        value=AppState.bulk_tags,
+                        on_change=AppState.set_bulk_tags,
+                        width="100%",
+                        size="1",
+                    ),
+                    width="100%",
+                ),
+                rx.vstack(
+                    rx.text("Nouvelle Évaluation (Note)", font_size="12px", font_weight="500"),
+                    rx.hstack(
+                        rx.button("Ne pas modifier", size="1", variant=rx.cond(AppState.bulk_rating == -1, "solid", "soft"), on_click=lambda: AppState.set_bulk_rating(-1)),
+                        rx.button("⭐ (1)", size="1", variant=rx.cond(AppState.bulk_rating == 1, "solid", "soft"), on_click=lambda: AppState.set_bulk_rating(1)),
+                        rx.button("⭐⭐ (2)", size="1", variant=rx.cond(AppState.bulk_rating == 2, "solid", "soft"), on_click=lambda: AppState.set_bulk_rating(2)),
+                        rx.button("⭐⭐⭐ (3)", size="1", variant=rx.cond(AppState.bulk_rating == 3, "solid", "soft"), on_click=lambda: AppState.set_bulk_rating(3)),
+                        rx.button("⭐⭐⭐⭐ (4)", size="1", variant=rx.cond(AppState.bulk_rating == 4, "solid", "soft"), on_click=lambda: AppState.set_bulk_rating(4)),
+                        rx.button("⭐⭐⭐⭐⭐ (5)", size="1", variant=rx.cond(AppState.bulk_rating == 5, "solid", "soft"), on_click=lambda: AppState.set_bulk_rating(5)),
+                        spacing="1",
+                        wrap="wrap",
+                    ),
+                    width="100%",
+                ),
+                rx.cond(
+                    AppState.bulk_status != "",
+                    rx.text(AppState.bulk_status, font_size="12px", color="var(--danger)"),
+                ),
+                spacing="3",
+                width="100%",
+                margin_y="3",
+            ),
+            rx.hstack(
+                rx.button("Annuler", variant="soft", color_scheme="gray", on_click=AppState.close_bulk_edit_dialog, cursor="pointer"),
+                rx.button("Appliquer aux livres", on_click=AppState.save_bulk_edit, color_scheme="purple", cursor="pointer"),
+                justify="end",
+                spacing="3",
+                width="100%",
+            ),
+            max_width="480px",
+        ),
+        open=AppState.show_bulk_edit_dialog,
+    )
+
 def render_plugin_field(plugin_id: rx.Var, field: PluginFieldModel) -> rx.Component:
     val = AppState.plugin_configs[plugin_id][field.key].to(str)
 
@@ -271,12 +344,10 @@ def settings_dialog() -> rx.Component:
                 rx.vstack(
                     rx.text("📡 Serveur Web OPDS 1.2 (Accès Distant & Mobile)", font_size="13px", font_weight="600"),
                     rx.box(
-                        rx.text(
-                            "URL du catalogue : " + AppState.opds_url,
-                            font_size="12px",
-                            color="#c084fc",
-                            font_weight="500",
-                            style={"word-break": "break-all"},
+                        rx.hstack(
+                            rx.text("URL du catalogue : ", font_size="12px"),
+                            rx.text(AppState.opds_url, font_size="12px", color="#c084fc", font_weight="500", style={"word-break": "break-all"}),
+                            spacing="1",
                         ),
                         rx.text(
                             "Entrez cette URL dans vos applications e-reader mobiles (KOReader, Moon+ Reader, KyBook, Stanza) pour télécharger vos livres à distance via le Wi-Fi.",
@@ -415,4 +486,104 @@ def settings_dialog() -> rx.Component:
             max_width="550px",
         ),
         open=AppState.show_settings_dialog,
+    )
+
+def stats_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("📊 Statistiques Avancées de la Bibliothèque"),
+            rx.dialog.description("Aperçu de la taille, des lectures et de la répartition de vos ouvrages."),
+            rx.vstack(
+                rx.hstack(
+                    rx.box(
+                        rx.text("📚 Total Livres", font_size="11px", color="var(--text-muted)"),
+                        rx.heading(AppState.analytics_data.total_books.to(str), size="4", color="#c084fc"),
+                        padding="3", border_radius="8px", border="1px solid var(--border-color)", flex="1",
+                    ),
+                    rx.box(
+                        rx.text("💾 Taille Totale", font_size="11px", color="var(--text-muted)"),
+                        rx.hstack(
+                            rx.heading(AppState.analytics_data.total_size_mb.to(str), size="4", color="#38bdf8"),
+                            rx.text(" MB", font_size="14px", font_weight="600"),
+                            align="baseline",
+                        ),
+                        padding="3", border_radius="8px", border="1px solid var(--border-color)", flex="1",
+                    ),
+                    rx.box(
+                        rx.text("✅ Livres Lus", font_size="11px", color="var(--text-muted)"),
+                        rx.heading(AppState.analytics_data.read_count.to(str), size="4", color="#4ade80"),
+                        padding="3", border_radius="8px", border="1px solid var(--border-color)", flex="1",
+                    ),
+                    width="100%",
+                    spacing="3",
+                ),
+                rx.vstack(
+                    rx.text("Auteurs les plus représentés", font_size="13px", font_weight="600"),
+                    rx.foreach(
+                        AppState.analytics_data.top_authors,
+                        lambda item: rx.hstack(
+                            rx.text(item.author, font_size="12px", flex="1"),
+                            rx.badge(item.count.to(str), " livre(s)", size="1", variant="soft"),
+                            width="100%",
+                        ),
+                    ),
+                    width="100%",
+                    spacing="2",
+                    margin_top="3",
+                ),
+                spacing="4",
+                width="100%",
+                margin_y="4",
+            ),
+            rx.hstack(
+                rx.button("Fermer", on_click=AppState.close_stats_dialog, color_scheme="purple", cursor="pointer"),
+                justify="end",
+                width="100%",
+            ),
+            max_width="500px",
+        ),
+        open=AppState.show_stats_dialog,
+    )
+
+def duplicates_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("🔍 Détecteur de Doublons"),
+            rx.dialog.description("Analyse des doublons détectés dans votre collection."),
+            rx.vstack(
+                rx.cond(
+                    AppState.duplicates_data.length() == 0,
+                    rx.text("✅ Aucun doublon détecté dans votre bibliothèque !", font_size="13px", color="var(--success)"),
+                    rx.foreach(
+                        AppState.duplicates_data,
+                        lambda item: rx.box(
+                            rx.hstack(
+                                rx.text("⚠️ Doublon trouvé : ", font_weight="600", font_size="13px"),
+                                rx.text(item.duplicate.title, font_weight="600", font_size="13px"),
+                                spacing="1",
+                            ),
+                            rx.hstack(
+                                rx.text("Auteur: ", font_size="12px", color="var(--text-muted)"),
+                                rx.text(item.duplicate.author, font_size="12px", color="var(--text-muted)"),
+                                spacing="1",
+                            ),
+                            padding="3",
+                            border_radius="6px",
+                            border="1px solid var(--border-color)",
+                            width="100%",
+                        ),
+                    ),
+                ),
+                spacing="3",
+                width="100%",
+                margin_y="4",
+            ),
+            rx.hstack(
+                rx.button("Fermer", on_click=AppState.close_duplicates_dialog, color_scheme="purple", cursor="pointer"),
+                justify="end",
+                width="100%",
+            ),
+            max_width="480px",
+        ),
+        open=AppState.show_duplicates_dialog,
     )

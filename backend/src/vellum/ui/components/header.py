@@ -25,6 +25,19 @@ def header() -> rx.Component:
             spacing="4",
             flex="1",
         ),
+        # Bulk Selection Action Bar (when books are selected)
+        rx.cond(
+            AppState.selected_book_ids.length() > 0,
+            rx.hstack(
+                rx.badge(AppState.selected_book_ids.length().to(str) + " sélectionné(s)", color_scheme="purple", size="2"),
+                rx.button("📝 Éditer en lot", on_click=AppState.open_bulk_edit_dialog, size="1", color_scheme="purple", variant="soft"),
+                rx.button("🗑️ Supprimer", on_click=AppState.delete_selected_books, size="1", color_scheme="red", variant="soft"),
+                rx.button("✕ Annuler", on_click=AppState.clear_book_selection, size="1", variant="ghost"),
+                spacing="2",
+                align="center",
+                margin_left="4",
+            ),
+        ),
         # Action Buttons
         rx.hstack(
             rx.upload(
@@ -39,6 +52,27 @@ def header() -> rx.Component:
                 on_drop=AppState.handle_import(rx.upload_files(upload_id="header_import_upload")),
                 border="none",
                 padding="0",
+            ),
+            rx.button(
+                "📊",
+                on_click=AppState.open_stats_dialog,
+                class_name="header-action-btn",
+                title="Statistiques de la Bibliothèque",
+            ),
+            rx.button(
+                "🔍",
+                on_click=AppState.open_duplicates_dialog,
+                class_name="header-action-btn",
+                title="Détecter les Doublons",
+            ),
+            rx.link(
+                rx.button(
+                    "📦",
+                    class_name="header-action-btn",
+                    title="Exporter toute la bibliothèque en ZIP",
+                ),
+                href=f"{AppState.api_url}/books/export/zip",
+                is_external=True,
             ),
             rx.button(
                 "⚙️",

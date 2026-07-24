@@ -187,6 +187,49 @@ class BooksService:
         self.db.commit()
         self.db.refresh(book)
         return book
+
+    def bulk_update_books(
+        self,
+        book_ids: List[str],
+        author: Optional[str] = None,
+        publisher: Optional[str] = None,
+        series: Optional[str] = None,
+        rating: Optional[int] = None,
+        add_tags: List[str] = []
+    ) -> int:
+        count = 0
+        for b_id in book_ids:
+            book = self.get_book_by_id(b_id)
+            if not book:
+                continue
+            if author:
+                book.author = author
+            if publisher:
+                book.publisher = publisher
+            if series:
+                book.series = series
+            if rating is not None and rating >= 0:
+                book.rating = rating
+            for t_name in add_tags:
+                tag = self.db.query(Tag).filter(Tag.name == t_name).first()
+                if not tag:
+                    tag = Tag(name=t_name)
+                    self.db.add(tag)
+                if tag not in book.tags:
+                    book.tags.append(tag)
+            count += 1
+        self.db.commit()
+        return count
+
+    def bulk_delete_books(self, book_ids: List[str]) -> int:
+        count = 0
+        for b_id in book_ids:
+            try:
+                self.delete_book(b_id)
+                count += 1
+            except Exception:
+                pass
+        return count
             
         if old_author != author or old_title != title:
             if book.formats:
