@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.springframework.boot' version '3.4.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group = 'com.asmolabs.vellum'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+javafx {
+    version = "23.0.2"
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.web', 'javafx.graphics']
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Core & JPA
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    
+    // SQLite JDBC & Hibernate SQLite Dialect
+    implementation 'org.xerial:sqlite-jdbc:3.48.0.0'
+    implementation 'org.hibernate.orm:hibernate-community-dialects:6.6.9.Final'
+
+    // Jackson JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // JavaFX Material/Iconic support (optional or clean custom SVG/glyphs)
+    
+    // Test dependencies
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'com.asmolabs.vellum.VellumApplication'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

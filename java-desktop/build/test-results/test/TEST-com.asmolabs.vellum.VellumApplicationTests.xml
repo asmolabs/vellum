@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.asmolabs.vellum.VellumApplicationTests" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-08-19T05:47:51.034Z" hostname="Mac-mini-de-Laurent.local" time="2.776">
+  <properties/>
+  <testcase name="testPluginServiceRegistryAndParams()" classname="com.asmolabs.vellum.VellumApplicationTests" time="0.363"/>
+  <testcase name="testSpringContextLoads()" classname="com.asmolabs.vellum.VellumApplicationTests" time="0.002"/>
+  <testcase name="testLitestreamConfigGeneration()" classname="com.asmolabs.vellum.VellumApplicationTests" time="0.002"/>
+  <testcase name="testMetadataServiceFallbackParsing()" classname="com.asmolabs.vellum.VellumApplicationTests" time="0.003"/>
+  <testcase name="testBookCrudAndTagCount()" classname="com.asmolabs.vellum.VellumApplicationTests" time="0.071"/>
+  <system-out><![CDATA[07:47:51.087 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.asmolabs.vellum.VellumApplicationTests]: VellumApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+07:47:51.126 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.asmolabs.vellum.VellumApplication for test class com.asmolabs.vellum.VellumApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.3)
+
+2026-08-19T07:47:51.424+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] c.a.vellum.VellumApplicationTests        : Starting VellumApplicationTests using Java 21.0.9 with PID 29104 (started by asmolabs in /Users/asmolabs/Dev/Asmolabs/library/java-desktop)
+2026-08-19T07:47:51.425+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] c.a.vellum.VellumApplicationTests        : No active profile set, falling back to 1 default profile: "default"
+2026-08-19T07:47:51.585+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-08-19T07:47:51.615+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 27 ms. Found 4 JPA repository interfaces.
+2026-08-19T07:47:51.755+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] c.asmolabs.vellum.config.DatabaseConfig  : Initializing SQLite DataSource with URL: jdbc:sqlite:/Users/asmolabs/.vellum/metadata.db
+2026-08-19T07:47:51.802+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-08-19T07:47:51.825+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.8.Final
+2026-08-19T07:47:51.836+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-08-19T07:47:51.952+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-08-19T07:47:52.226+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'org.sqlite.SQLiteDataSource@3f6f3cc']
+	Database driver: undefined/unknown
+	Database version: 3.48
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-08-19T07:47:52.609+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-08-19T07:47:52.622+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-08-19T07:47:52.719+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-08-19T07:47:53.364+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] c.a.vellum.VellumApplicationTests        : Started VellumApplicationTests in 2.033 seconds (process running for 2.592)
+2026-08-19T07:47:53.736+02:00  INFO 29104 --- [vellum-desktop] [    Test worker] c.a.vellum.service.LitestreamService     : Generated Litestream configuration at /Users/asmolabs/.vellum/litestream.yml
+2026-08-19T07:47:53.738+02:00  WARN 29104 --- [vellum-desktop] [    Test worker] c.a.vellum.service.MetadataService       : Error parsing EPUB metadata for /var/folders/4d/82zz9r755td9702_cwtvtbf80000gn/T/junit-16445555728912454898/Victor Hugo - Les Miserables.epub: /var/folders/4d/82zz9r755td9702_cwtvtbf80000gn/T/junit-16445555728912454898/Victor Hugo - Les Miserables.epub
+]]></system-out>
+  <system-err><![CDATA[août 19, 2026 7:47:51 AM com.sun.javafx.application.PlatformImpl startup
+AVERTISSEMENT: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @1de5f259'
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build what is described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (/Users/asmolabs/.gradle/caches/modules-2/files-2.1/net.bytebuddy/byte-buddy-agent/1.15.11/a38b16385e867f59a641330f0362ebe742788ed8/byte-buddy-agent-1.15.11.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+]]></system-err>
+</testsuite>
