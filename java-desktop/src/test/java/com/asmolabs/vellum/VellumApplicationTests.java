@@ -209,6 +209,26 @@ class VellumApplicationTests {
         assertTrue(supportedExts.contains("pdf"));
         assertTrue(supportedExts.contains("cbz"));
         assertTrue(supportedExts.contains("cbr"));
+        assertTrue(supportedExts.contains("mobi"));
+        assertTrue(supportedExts.contains("azw3"));
+        assertTrue(supportedExts.contains("m4b"));
+        assertTrue(supportedExts.contains("mp3"));
+
+        // 1b. Test Audiobook ID3v2 format parsing
+        File mockMp3 = new File(tempDir.toFile(), "audiobook.mp3");
+        try (var fos = new java.io.FileOutputStream(mockMp3)) {
+            byte[] id3Header = new byte[]{'I', 'D', '3', 3, 0, 0, 0, 0, 0, 60};
+            fos.write(id3Header);
+            byte[] tit2 = new byte[]{'T', 'I', 'T', '2', 0, 0, 0, 12, 0, 0, 0, 'A', 'u', 'd', 'i', 'o', ' ', 'L', 'i', 'v', 'r', 'e'};
+            fos.write(tit2);
+            byte[] tpe1 = new byte[]{'T', 'P', 'E', '1', 0, 0, 0, 10, 0, 0, 0, 'N', 'a', 'r', 'r', 'a', 't', 'e', 'u', 'r'};
+            fos.write(tpe1);
+        }
+        assertTrue(metadataService.isFormatSupported(mockMp3));
+        MetadataService.ExtractedMetadata mp3Meta = metadataService.parseMetadata(mockMp3);
+        assertEquals("Audio Livre", mp3Meta.title());
+        assertEquals("Narrateur", mp3Meta.author());
+        assertTrue(mp3Meta.tags().contains("Livre Audio"));
 
         // 2. Create external format plugin for a new format (.fb2)
         File extPluginsDir = new File(appProperties.getPluginsPath());
