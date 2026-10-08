@@ -253,8 +253,9 @@ public class DetailDrawerView extends VBox {
             // Plugins menu
             pluginMenuBtn.getItems().clear();
             for (PluginService.LibraryPlugin plugin : pluginService.getRegisteredPlugins()) {
-                if ("transformation".equalsIgnoreCase(plugin.type())) {
-                    MenuItem item = new MenuItem("⚡ " + plugin.name());
+                if ("transformation".equalsIgnoreCase(plugin.type()) && plugin.enabled()) {
+                    String icon = plugin.external() ? "🔌 " : "⚡ ";
+                    MenuItem item = new MenuItem(icon + plugin.name());
                     item.setOnAction(e -> eventPublisher.publishEvent(new UiEvents.BookPluginRequested(book, plugin.id())));
                     pluginMenuBtn.getItems().add(item);
                 }

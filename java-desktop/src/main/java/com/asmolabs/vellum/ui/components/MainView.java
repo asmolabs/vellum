@@ -164,4 +164,9 @@ public class MainView extends BorderPane {
     public void onOpenSettingsRequested(UiEvents.OpenSettingsRequested event) {
         Platform.runLater(() -> SettingsDialog.show(this.getScene().getWindow(), appProperties, litestreamService, pluginService, this::refreshLibrary));
     }
+
+    @EventListener
+    public void onOpenStatsRequested(UiEvents.OpenStatsRequested event) {
+        Platform.runLater(() -> StatsDialog.show(this.getScene().getWindow(), bookService));
+    }
 }

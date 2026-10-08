@@ -10,7 +10,16 @@ import java.io.File;
 public class AppProperties {
 
     private String libraryPath = System.getProperty("user.home") + File.separator + ".vellum" + File.separator + "library";
+    private String pluginsPath = System.getProperty("user.home") + File.separator + ".vellum" + File.separator + "plugins";
     private LitestreamConfig litestream = new LitestreamConfig();
+
+    public String getPluginsPath() {
+        return pluginsPath;
+    }
+
+    public void setPluginsPath(String pluginsPath) {
+        this.pluginsPath = pluginsPath;
+    }
 
     public String getLibraryPath() {
         return libraryPath;

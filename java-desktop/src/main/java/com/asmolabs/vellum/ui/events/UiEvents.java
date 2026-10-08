@@ -12,4 +12,5 @@ public class UiEvents {
     public record LibraryChanged() {}
     public record FilterChanged(String search, String tag) {}
     public record OpenSettingsRequested() {}
+    public record OpenStatsRequested() {}
 }

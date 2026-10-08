@@ -33,6 +33,24 @@ public class Book {
     @Column(name = "addedAt")
     private String addedAt = Instant.now().toString();
 
+    @Column(name = "currentChapterIndex")
+    private Integer currentChapterIndex = 0;
+
+    @Column(name = "totalChapters")
+    private Integer totalChapters = 0;
+
+    @Column(name = "progressPercent")
+    private Double progressPercent = 0.0;
+
+    @Column(name = "lastReadAt")
+    private String lastReadAt;
+
+    @Column(name = "isFinished")
+    private Boolean isFinished = false;
+
+    @Column(name = "rating")
+    private Integer rating;
+
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<BookFormat> formats = new ArrayList<>();
 
@@ -135,6 +153,54 @@ public class Book {
 
     public void setAddedAt(String addedAt) {
         this.addedAt = addedAt;
+    }
+
+    public int getCurrentChapterIndex() {
+        return currentChapterIndex != null ? currentChapterIndex : 0;
+    }
+
+    public void setCurrentChapterIndex(Integer currentChapterIndex) {
+        this.currentChapterIndex = currentChapterIndex;
+    }
+
+    public int getTotalChapters() {
+        return totalChapters != null ? totalChapters : 0;
+    }
+
+    public void setTotalChapters(Integer totalChapters) {
+        this.totalChapters = totalChapters;
+    }
+
+    public double getProgressPercent() {
+        return progressPercent != null ? progressPercent : 0.0;
+    }
+
+    public void setProgressPercent(Double progressPercent) {
+        this.progressPercent = progressPercent;
+    }
+
+    public String getLastReadAt() {
+        return lastReadAt;
+    }
+
+    public void setLastReadAt(String lastReadAt) {
+        this.lastReadAt = lastReadAt;
+    }
+
+    public boolean isFinished() {
+        return isFinished != null && isFinished;
+    }
+
+    public void setFinished(Boolean finished) {
+        this.isFinished = finished;
+    }
+
+    public Integer getRating() {
+        return rating;
+    }
+
+    public void setRating(Integer rating) {
+        this.rating = rating;
     }
 
     public List<BookFormat> getFormats() {

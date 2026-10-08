@@ -85,7 +85,7 @@ public class SidebarView extends VBox {
 
         pathBox.getChildren().addAll(pathTitle, pathValueLabel, changePathBtn);
 
-        // 4. Navigation Section ("Tous les livres")
+        // 4. Navigation Section ("Tous les livres" & "Statistiques")
         Label navTitle = new Label("BIBLIOTHÈQUE");
         navTitle.getStyleClass().add("sidebar-section-title");
 
@@ -106,6 +106,15 @@ public class SidebarView extends VBox {
             tagsListView.getSelectionModel().clearSelection();
             eventPublisher.publishEvent(new UiEvents.FilterChanged(null, null));
         });
+
+        HBox statsItem = new HBox(8);
+        statsItem.setAlignment(Pos.CENTER_LEFT);
+        statsItem.setStyle("-fx-background-color: rgba(255, 255, 255, 0.03); -fx-padding: 8 10 8 10; -fx-background-radius: 6; -fx-cursor: hand;");
+
+        Label statsLabel = new Label("📊  Statistiques & Lectures");
+        statsLabel.setStyle("-fx-text-fill: -color-text-secondary; -fx-font-size: 13px;");
+        statsItem.getChildren().add(statsLabel);
+        statsItem.setOnMouseClicked(e -> eventPublisher.publishEvent(new UiEvents.OpenStatsRequested()));
 
         // 5. Tags List Section
         Label tagsTitle = new Label("GENRES & TAGS");
@@ -145,7 +154,7 @@ public class SidebarView extends VBox {
             }
         });
 
-        this.getChildren().addAll(logoBox, importBtn, pathBox, navTitle, allBooksItem, tagsTitle, tagsListView);
+        this.getChildren().addAll(logoBox, importBtn, pathBox, navTitle, allBooksItem, statsItem, tagsTitle, tagsListView);
     }
 
     public void refresh() {
@@ -164,10 +173,12 @@ public class SidebarView extends VBox {
 
     private void handleImport() {
         FileChooser fc = new FileChooser();
-        fc.setTitle("Importer un livre dans Vellum");
+        fc.setTitle("Importer un livre ou document dans Vellum");
         fc.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Ebooks (*.epub, *.mobi, *.azw3)", "*.epub", "*.mobi", "*.azw3"),
-                new FileChooser.ExtensionFilter("EPUB (*.epub)", "*.epub"),
+                new FileChooser.ExtensionFilter("Tous les formats supportés (*.epub, *.pdf, *.cbz, *.cbr, *.mobi)", "*.epub", "*.pdf", "*.cbz", "*.cbr", "*.mobi", "*.azw3"),
+                new FileChooser.ExtensionFilter("Ebooks EPUB (*.epub)", "*.epub"),
+                new FileChooser.ExtensionFilter("Documents PDF (*.pdf)", "*.pdf"),
+                new FileChooser.ExtensionFilter("Bandes Dessinées & Mangas (*.cbz, *.cbr)", "*.cbz", "*.cbr"),
                 new FileChooser.ExtensionFilter("Tous les fichiers", "*.*")
         );
 

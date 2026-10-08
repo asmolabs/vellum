@@ -103,7 +103,7 @@ public class BookService {
         }
 
         String sourceExt = getExtension(sourceFile.getName()).toLowerCase();
-        if (!List.of("epub", "mobi", "azw3").contains(sourceExt)) {
+        if (!List.of("epub", "mobi", "azw3", "pdf", "cbz", "cbr").contains(sourceExt)) {
             throw new IllegalArgumentException("Format non supporté: ." + sourceExt);
         }
 
@@ -361,6 +361,72 @@ public class BookService {
         newBook.addFormat(fmt);
 
         return bookRepository.save(newBook);
+    }
+
+    @Transactional
+    public Book updateReadingProgress(String bookId, int chapterIndex, int totalChapters) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new IllegalArgumentException("Livre introuvable: " + bookId));
+
+        book.setCurrentChapterIndex(chapterIndex);
+        book.setTotalChapters(totalChapters);
+        double pct = (totalChapters > 0) ? Math.min(100.0, ((chapterIndex + 1.0) / totalChapters) * 100.0) : 0.0;
+        book.setProgressPercent(Math.round(pct * 10.0) / 10.0);
+        book.setLastReadAt(java.time.Instant.now().toString());
+        if (chapterIndex >= totalChapters - 1 && totalChapters > 0) {
+            book.setFinished(true);
+        }
+
+        return bookRepository.save(book);
+    }
+
+    @Transactional
+    public void bulkAddTag(List<String> bookIds, String tagName) {
+        if (bookIds == null || bookIds.isEmpty() || tagName == null || tagName.isBlank()) return;
+        Tag tag = tagRepository.findById(tagName.trim())
+                .orElseGet(() -> tagRepository.save(new Tag(tagName.trim())));
+
+        for (String id : bookIds) {
+            bookRepository.findById(id).ifPresent(b -> {
+                b.addTag(tag);
+                bookRepository.save(b);
+            });
+        }
+    }
+
+    @Transactional
+    public void bulkDeleteBooks(List<String> bookIds) {
+        if (bookIds == null || bookIds.isEmpty()) return;
+        for (String id : bookIds) {
+            try {
+                deleteBook(id);
+            } catch (Exception e) {
+                log.warn("Failed to delete book {}: {}", id, e.getMessage());
+            }
+        }
+    }
+
+    public record ReadingStats(
+            long totalBooks,
+            long finishedBooks,
+            long inProgressBooks,
+            Map<String, Long> tagDistribution,
+            List<Book> recentlyRead
+    ) {}
+
+    public ReadingStats getReadingStats() {
+        List<Book> allBooks = bookRepository.findAll();
+        long finished = allBooks.stream().filter(Book::isFinished).count();
+        long inProgress = allBooks.stream().filter(b -> b.getProgressPercent() > 0 && !b.isFinished()).count();
+        Map<String, Long> tags = getTagsWithCounts();
+
+        List<Book> recent = allBooks.stream()
+                .filter(b -> b.getLastReadAt() != null)
+                .sorted(Comparator.comparing(Book::getLastReadAt).reversed())
+                .limit(5)
+                .toList();
+
+        return new ReadingStats(allBooks.size(), finished, inProgress, tags, recent);
     }
 
     private void deleteDirectoryRecursively(Path path) throws IOException {

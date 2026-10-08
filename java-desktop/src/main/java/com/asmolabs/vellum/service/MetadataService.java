@@ -9,6 +9,14 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDDocumentInformation;
+import org.apache.pdfbox.rendering.PDFRenderer;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URLDecoder;
@@ -45,6 +53,18 @@ public class MetadataService {
             } catch (Exception e) {
                 log.warn("Error parsing EPUB metadata for {}: {}", file.getAbsolutePath(), e.getMessage());
             }
+        } else if (".cbz".equals(ext) || ".cbr".equals(ext)) {
+            try {
+                return parseCbz(file);
+            } catch (Exception e) {
+                log.warn("Error parsing CBZ metadata for {}: {}", file.getAbsolutePath(), e.getMessage());
+            }
+        } else if (".pdf".equals(ext)) {
+            try {
+                return parsePdf(file);
+            } catch (Exception e) {
+                log.warn("Error parsing PDF metadata for {}: {}", file.getAbsolutePath(), e.getMessage());
+            }
         }
 
         // Fallback parser from filename: "Author - Title.ext"
@@ -54,6 +74,113 @@ public class MetadataService {
         String title = parts.length > 1 ? parts[1].trim() : baseName.trim();
 
         return new ExtractedMetadata(title, author, null, null, null, new ArrayList<>(), null, null);
+    }
+
+    private ExtractedMetadata parsePdf(File file) throws Exception {
+        String filename = file.getName();
+        String baseName = filename.contains(".") ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+        String[] parts = baseName.split(" - ", 2);
+        String defaultAuthor = parts.length > 1 ? parts[0].trim() : "Inconnu";
+        String defaultTitle = parts.length > 1 ? parts[1].trim() : baseName.trim();
+
+        try (PDDocument document = Loader.loadPDF(file)) {
+            PDDocumentInformation info = document.getDocumentInformation();
+            String title = (info != null && info.getTitle() != null && !info.getTitle().isBlank()) ? info.getTitle().trim() : defaultTitle;
+            String author = (info != null && info.getAuthor() != null && !info.getAuthor().isBlank()) ? info.getAuthor().trim() : defaultAuthor;
+            String subject = (info != null) ? info.getSubject() : null;
+            String producer = (info != null) ? info.getProducer() : null;
+
+            List<String> tags = new ArrayList<>();
+            tags.add("PDF");
+            if (info != null && info.getKeywords() != null && !info.getKeywords().isBlank()) {
+                String[] kw = info.getKeywords().split("[,;]");
+                for (String k : kw) {
+                    if (!k.trim().isBlank()) tags.add(k.trim());
+                }
+            }
+
+            // Render first page as cover
+            byte[] coverData = null;
+            if (document.getNumberOfPages() > 0) {
+                try {
+                    PDFRenderer renderer = new PDFRenderer(document);
+                    BufferedImage image = renderer.renderImageWithDPI(0, 110);
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    ImageIO.write(image, "jpg", baos);
+                    coverData = baos.toByteArray();
+                } catch (Exception e) {
+                    log.warn("Could not render first page of PDF: {}", e.getMessage());
+                }
+            }
+
+            return new ExtractedMetadata(title, author, producer, null, subject, tags, coverData, ".jpg");
+        }
+    }
+
+    private ExtractedMetadata parseCbz(File file) throws Exception {
+        String filename = file.getName();
+        String baseName = filename.contains(".") ? filename.substring(0, filename.lastIndexOf('.')) : filename;
+        String[] parts = baseName.split(" - ", 2);
+        String defaultAuthor = parts.length > 1 ? parts[0].trim() : "Inconnu";
+        String defaultTitle = parts.length > 1 ? parts[1].trim() : baseName.trim();
+
+        String title = defaultTitle;
+        String author = defaultAuthor;
+        String description = null;
+        List<String> tags = new ArrayList<>(List.of("BD / Manga"));
+        byte[] coverData = null;
+        String coverExt = ".jpg";
+
+        try (ZipFile zip = new ZipFile(file)) {
+            // Find ComicInfo.xml if present
+            ZipEntry comicInfo = zip.getEntry("ComicInfo.xml");
+            if (comicInfo != null) {
+                try (InputStream is = zip.getInputStream(comicInfo)) {
+                    DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+                    Document doc = dbf.newDocumentBuilder().parse(is);
+                    String xmlTitle = getFirstElementText(doc, "Title");
+                    String series = getFirstElementText(doc, "Series");
+                    String number = getFirstElementText(doc, "Number");
+                    String writer = getFirstElementText(doc, "Writer");
+                    String summary = getFirstElementText(doc, "Summary");
+                    String genre = getFirstElementText(doc, "Genre");
+
+                    if (xmlTitle != null && !xmlTitle.isBlank()) {
+                        title = (series != null ? series + " - " : "") + xmlTitle + (number != null ? " #" + number : "");
+                    }
+                    if (writer != null && !writer.isBlank()) author = writer;
+                    if (summary != null) description = summary;
+                    if (genre != null) {
+                        for (String g : genre.split("[,;]")) {
+                            if (!g.trim().isBlank()) tags.add(g.trim());
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Find first image entry as cover
+            List<ZipEntry> imageEntries = new ArrayList<>();
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry e = entries.nextElement();
+                String name = e.getName().toLowerCase();
+                if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp")) {
+                    imageEntries.add(e);
+                }
+            }
+            imageEntries.sort(Comparator.comparing(ZipEntry::getName));
+
+            if (!imageEntries.isEmpty()) {
+                ZipEntry firstImg = imageEntries.get(0);
+                try (InputStream is = zip.getInputStream(firstImg)) {
+                    coverData = is.readAllBytes();
+                    coverExt = getFileExtension(firstImg.getName());
+                    if (coverExt.isBlank()) coverExt = ".jpg";
+                }
+            }
+        }
+
+        return new ExtractedMetadata(title, author, null, null, description, tags, coverData, coverExt);
     }
 
     private ExtractedMetadata parseEpub(File epubFile) throws Exception {

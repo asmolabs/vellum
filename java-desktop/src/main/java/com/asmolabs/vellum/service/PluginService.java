@@ -1,20 +1,17 @@
 package com.asmolabs.vellum.service;
 
 import com.asmolabs.vellum.domain.entity.Param;
+import com.asmolabs.vellum.plugin.*;
+import com.asmolabs.vellum.plugin.external.ExternalPluginLoader;
 import com.asmolabs.vellum.repository.ParamRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
-import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class PluginService {
@@ -22,9 +19,33 @@ public class PluginService {
     private static final Logger log = LoggerFactory.getLogger(PluginService.class);
 
     private final ParamRepository paramRepository;
-    private final List<LibraryPlugin> registeredPlugins = new ArrayList<>();
+    private final ExternalPluginLoader externalPluginLoader;
+    private final List<VellumPlugin> internalPlugins;
+    private final Map<String, VellumPlugin> allPlugins = new ConcurrentHashMap<>();
 
-    public record ConfigField(String key, String label, String type, Object defaultValue, String description, List<String> options) {}
+    public record ConfigField(
+            String key,
+            String label,
+            String type,
+            Object defaultValue,
+            String description,
+            List<String> options,
+            Double min,
+            Double max,
+            Double step
+    ) {
+        public ConfigField(String key, String label, String type, Object defaultValue, String description, List<String> options) {
+            this(key, label, type, defaultValue, description, options, null, null, null);
+        }
+
+        public ConfigField(String key, String label, String type, Object defaultValue, String description) {
+            this(key, label, type, defaultValue, description, List.of(), null, null, null);
+        }
+
+        public static ConfigField fromPluginConfigField(com.asmolabs.vellum.plugin.ConfigField f) {
+            return new ConfigField(f.key(), f.label(), f.type(), f.defaultValue(), f.description(), f.options(), f.min(), f.max(), f.step());
+        }
+    }
 
     public record LibraryPlugin(
             String id,
@@ -32,76 +53,105 @@ public class PluginService {
             String description,
             String version,
             String type, // "import" or "transformation"
+            boolean external,
+            boolean enabled,
             List<ConfigField> configSchema
-    ) {}
-
-    public PluginService(ParamRepository paramRepository) {
-        this.paramRepository = paramRepository;
-        registerDefaultPlugins();
+    ) {
+        public LibraryPlugin(String id, String name, String description, String version, String type, List<ConfigField> configSchema) {
+            this(id, name, description, version, type, false, true, configSchema);
+        }
     }
 
-    private void registerDefaultPlugins() {
-        // 1. Google Books Metadata Enricher
-        registeredPlugins.add(new LibraryPlugin(
-                "google-books-enricher",
-                "Google Books Metadata Enricher",
-                "Enrichit automatiquement les métadonnées et télécharge des tags supplémentaires depuis Google Books à l'importation.",
-                "1.0.0",
-                "import",
-                List.of(
-                        new ConfigField("api_key", "Clé API Google Books", "text", "", "Insérez votre clé d'API optionnelle pour augmenter le quota d'enrichissement.", List.of()),
-                        new ConfigField("language", "Langue des métadonnées", "select", "fr", "Langue préférée pour les résumés et descriptions.", List.of("fr", "en", "es", "de")),
-                        new ConfigField("auto_add_tags", "Ajouter automatiquement des tags", "boolean", true, "Extraire et appliquer automatiquement les genres littéraires.", List.of())
-                )
-        ));
+    public PluginService(
+            ParamRepository paramRepository,
+            ExternalPluginLoader externalPluginLoader,
+            List<VellumPlugin> internalPlugins
+    ) {
+        this.paramRepository = paramRepository;
+        this.externalPluginLoader = externalPluginLoader;
+        this.internalPlugins = internalPlugins != null ? internalPlugins : List.of();
+        reloadPlugins();
+    }
 
-        // 2. EPUB Translation Plugin (FR)
-        registeredPlugins.add(new LibraryPlugin(
-                "epub-translator-fr",
-                "Traducteur EPUB (FR)",
-                "Traduit le contenu d'un livre EPUB à l'aide d'un moteur d'IA.",
-                "1.0.0",
-                "transformation",
-                List.of(
-                        new ConfigField("target_language", "Langue cible de traduction", "select", "Français", "Langue vers laquelle traduire les livres EPUB.", List.of("Français", "Anglais", "Espagnol", "Allemand", "Italien")),
-                        new ConfigField("ai_model", "Moteur d'IA", "select", "Default AI", "Sélectionnez le service d'IA pour effectuer la traduction.", List.of("Default AI", "GPT-4o", "DeepL API", "Local Ollama")),
-                        new ConfigField("api_token", "Jeton / Clé API (Optionnel)", "text", "", "Jeton d'authentification pour le service distant de traduction.", List.of())
-                )
-        ));
+    public synchronized void reloadPlugins() {
+        allPlugins.clear();
 
-        // 3. OceanOFPDF Cleaner Plugin
-        registeredPlugins.add(new LibraryPlugin(
-                "oceanofpdf-cleaner",
-                "Nettoyeur OceanOFPDF",
-                "Supprime automatiquement les liens, filigranes et paragraphes 'OceanofPDF' des fichiers EPUB.",
-                "1.0.0",
-                "transformation",
-                List.of(
-                        new ConfigField("remove_whole_paragraph", "Supprimer les paragraphes isolés OceanOFPDF", "boolean", true, "Retire intégralement la balise <p> contenant une mention de filigrane OceanOFPDF.", List.of()),
-                        new ConfigField("custom_replacement", "Texte de remplacement (Optionnel)", "text", "", "Remplace le lien/texte OceanOFPDF par ce texte. Laisser vide pour supprimer silencieusement.", List.of())
-                )
-        ));
+        // 1. Register internal Spring components
+        for (VellumPlugin plugin : internalPlugins) {
+            allPlugins.put(plugin.getId(), plugin);
+            log.info("Registered internal plugin: {} ({})", plugin.getName(), plugin.getId());
+        }
+
+        // 2. Discover and register external plugins
+        List<VellumPlugin> external = externalPluginLoader.loadExternalPlugins();
+        for (VellumPlugin plugin : external) {
+            allPlugins.put(plugin.getId(), plugin);
+            log.info("Registered external plugin: {} ({})", plugin.getName(), plugin.getId());
+        }
+    }
+
+    public File getPluginsDirectory() {
+        return externalPluginLoader.getPluginsDirectory();
     }
 
     public List<LibraryPlugin> getRegisteredPlugins() {
-        return registeredPlugins;
+        List<LibraryPlugin> list = new ArrayList<>();
+        for (VellumPlugin plugin : allPlugins.values()) {
+            PluginDescriptor desc = plugin.getDescriptor();
+            boolean enabled = isPluginEnabled(desc.id());
+
+            List<ConfigField> fields = desc.configSchema().stream()
+                    .map(ConfigField::fromPluginConfigField)
+                    .toList();
+
+            list.add(new LibraryPlugin(
+                    desc.id(),
+                    desc.name(),
+                    desc.description(),
+                    desc.version(),
+                    desc.getTypeString(),
+                    desc.external(),
+                    enabled,
+                    fields
+            ));
+        }
+
+        // Sort: internal first, then by name
+        list.sort(Comparator.comparing(LibraryPlugin::external).thenComparing(LibraryPlugin::name));
+        return list;
     }
 
-    public Optional<LibraryPlugin> getPluginById(String id) {
-        return registeredPlugins.stream().filter(p -> p.id().equals(id)).findFirst();
+    public Optional<VellumPlugin> getPluginById(String id) {
+        return Optional.ofNullable(allPlugins.get(id));
+    }
+
+    public boolean isPluginEnabled(String pluginId) {
+        Optional<Param> param = paramRepository.findByPluginIdAndKey(pluginId, "enabled");
+        if (param.isEmpty()) {
+            return true; // Enabled by default
+        }
+        Object val = param.get().getData().get("enabled");
+        return val == null || Boolean.parseBoolean(String.valueOf(val));
+    }
+
+    public void setPluginEnabled(String pluginId, boolean enabled) {
+        Param param = paramRepository.findByPluginIdAndKey(pluginId, "enabled")
+                .orElseGet(() -> new Param("plugin:" + pluginId + ":enabled", pluginId, "enabled", "{}"));
+        param.setData(Map.of("enabled", enabled));
+        paramRepository.save(param);
     }
 
     public Map<String, Object> getPluginParams(String pluginId) {
         Optional<Param> paramOpt = paramRepository.findByPluginIdAndKey(pluginId, "config");
         Map<String, Object> saved = paramOpt.map(Param::getData).orElseGet(HashMap::new);
 
-        Optional<LibraryPlugin> pluginOpt = getPluginById(pluginId);
+        Optional<VellumPlugin> pluginOpt = getPluginById(pluginId);
         if (pluginOpt.isEmpty()) {
             return saved;
         }
 
         Map<String, Object> merged = new HashMap<>();
-        for (ConfigField field : pluginOpt.get().configSchema()) {
+        for (com.asmolabs.vellum.plugin.ConfigField field : pluginOpt.get().getDescriptor().configSchema()) {
             merged.put(field.key(), saved.getOrDefault(field.key(), field.defaultValue()));
         }
         return merged;
@@ -118,78 +168,36 @@ public class PluginService {
 
     public Map<String, Object> runImportPlugins(File tempFile, Map<String, Object> metadata) {
         Map<String, Object> enriched = new HashMap<>(metadata);
-        @SuppressWarnings("unchecked")
-        List<String> tags = new ArrayList<>((List<String>) enriched.getOrDefault("tags", new ArrayList<String>()));
 
-        if (!tags.contains("Importé")) {
-            tags.add("Importé");
+        for (VellumPlugin plugin : allPlugins.values()) {
+            if (plugin instanceof MetadataEnricherPlugin enricher && isPluginEnabled(plugin.getId())) {
+                try {
+                    Map<String, Object> config = getPluginParams(plugin.getId());
+                    enriched = enricher.enrichMetadata(tempFile, enriched, config);
+                } catch (Exception e) {
+                    log.warn("Error running import enricher plugin {}: {}", plugin.getId(), e.getMessage());
+                }
+            }
         }
-        if (!tags.contains("Roman")) {
-            tags.add("Roman");
-        }
-        enriched.put("tags", tags);
 
-        if (enriched.get("description") == null || enriched.get("description").toString().isBlank()) {
-            enriched.put("description", "Description enrichie automatiquement par les métadonnées de la bibliothèque.");
-        }
         return enriched;
     }
 
-    public File runTransformationPlugin(File inputFile, String pluginId) throws IOException {
-        String baseName = inputFile.getName();
-        int dot = baseName.lastIndexOf('.');
-        String prefix = (dot > 0) ? baseName.substring(0, dot) : baseName;
-        String ext = (dot > 0) ? baseName.substring(dot) : ".epub";
-
-        if ("oceanofpdf-cleaner".equals(pluginId)) {
-            Map<String, Object> params = getPluginParams(pluginId);
-            boolean removePara = Boolean.parseBoolean(String.valueOf(params.getOrDefault("remove_whole_paragraph", true)));
-            String replacement = String.valueOf(params.getOrDefault("custom_replacement", ""));
-            File outputFile = new File(inputFile.getParentFile(), prefix + " (Cleaned)" + ext);
-            cleanEpubOceanOfPdf(inputFile, outputFile, removePara, replacement);
-            return outputFile;
+    public File runTransformationPlugin(File inputFile, String pluginId) throws Exception {
+        VellumPlugin plugin = allPlugins.get(pluginId);
+        if (plugin == null) {
+            throw new IllegalArgumentException("Plugin non trouvé : " + pluginId);
         }
 
-        // Translation / Default
-        File outputFile = new File(inputFile.getParentFile(), prefix + " - FR" + ext);
-        Files.copy(inputFile.toPath(), outputFile.toPath());
-        return outputFile;
-    }
-
-    private void cleanEpubOceanOfPdf(File inputEpub, File outputEpub, boolean removePara, String replacement) throws IOException {
-        Pattern linkPattern = Pattern.compile("<a[^>]*href=[\"'][^\"']*oceanofpdf[^\"']*[\"'][^>]*>.*?</a>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-        Pattern urlPattern = Pattern.compile("https?://(?:www\\.)?oceanofpdf\\.com[^\\s<\"'\\]]*", Pattern.CASE_INSENSITIVE);
-        Pattern paraPattern = Pattern.compile("<p[^>]*>[^<]*oceanofpdf[^<]*</p>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-        Pattern mentionPattern = Pattern.compile("oceanofpdf(?:\\.com)?", Pattern.CASE_INSENSITIVE);
-
-        try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(new FileInputStream(inputEpub)));
-             ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(outputEpub)))) {
-
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                zos.putNextEntry(new ZipEntry(entry.getName()));
-
-                String nameLower = entry.getName().toLowerCase();
-                if (nameLower.endsWith(".html") || nameLower.endsWith(".xhtml") || nameLower.endsWith(".htm")
-                        || nameLower.endsWith(".xml") || nameLower.endsWith(".ncx") || nameLower.endsWith(".opf")) {
-
-                    byte[] bytes = zis.readAllBytes();
-                    String content = new String(bytes, StandardCharsets.UTF_8);
-
-                    if (removePara) {
-                        content = paraPattern.matcher(content).replaceAll(replacement);
-                    }
-                    content = linkPattern.matcher(content).replaceAll(replacement);
-                    content = urlPattern.matcher(content).replaceAll(replacement);
-                    content = mentionPattern.matcher(content).replaceAll(replacement);
-
-                    zos.write(content.getBytes(StandardCharsets.UTF_8));
-                } else {
-                    zis.transferTo(zos);
-                }
-                zos.closeEntry();
-                zis.closeEntry();
-            }
+        if (!isPluginEnabled(pluginId)) {
+            throw new IllegalStateException("Le plugin " + plugin.getName() + " est désactivé.");
         }
+
+        if (!(plugin instanceof BookTransformationPlugin transformer)) {
+            throw new IllegalArgumentException("Le plugin " + pluginId + " n'est pas un plugin de transformation de livre.");
+        }
+
+        Map<String, Object> params = getPluginParams(pluginId);
+        return transformer.transform(inputFile, params);
     }
 }

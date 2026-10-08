@@ -64,7 +64,9 @@ class VellumApplicationTests {
     @BeforeEach
     void setUp() {
         appProperties.setLibraryPath(tempDir.resolve("library").toString());
+        appProperties.setPluginsPath(tempDir.resolve("plugins").toString());
         bookService.ensureLibraryDirectory();
+        bookRepository.deleteAll();
     }
 
     @Test
@@ -88,6 +90,7 @@ class VellumApplicationTests {
         var plugins = pluginService.getRegisteredPlugins();
         assertFalse(plugins.isEmpty());
         assertTrue(plugins.stream().anyMatch(p -> "oceanofpdf-cleaner".equals(p.id())));
+        assertFalse(plugins.stream().filter(p -> "oceanofpdf-cleaner".equals(p.id())).findFirst().orElseThrow().external());
 
         Map<String, Object> params = pluginService.getPluginParams("oceanofpdf-cleaner");
         assertNotNull(params);
@@ -95,6 +98,107 @@ class VellumApplicationTests {
         pluginService.savePluginParams("oceanofpdf-cleaner", Map.of("custom_replacement", "[Cleaned]"));
         Map<String, Object> updated = pluginService.getPluginParams("oceanofpdf-cleaner");
         assertEquals("[Cleaned]", updated.get("custom_replacement"));
+    }
+
+    @Test
+    void testPluginEnableDisable() {
+        assertTrue(pluginService.isPluginEnabled("oceanofpdf-cleaner"));
+        pluginService.setPluginEnabled("oceanofpdf-cleaner", false);
+        assertFalse(pluginService.isPluginEnabled("oceanofpdf-cleaner"));
+
+        pluginService.setPluginEnabled("oceanofpdf-cleaner", true);
+        assertTrue(pluginService.isPluginEnabled("oceanofpdf-cleaner"));
+    }
+
+    @Test
+    void testExternalPluginDiscoveryAndExecution() throws Exception {
+        // 1. Create external plugin directory with plugin.json and bash script
+        File extPluginsDir = new File(appProperties.getPluginsPath());
+        File myPluginDir = new File(extPluginsDir, "test-script-plugin");
+        myPluginDir.mkdirs();
+
+        String pluginJson = """
+            {
+              "id": "test-script-plugin",
+              "name": "Test External Script",
+              "description": "Script de test pour verifier le chargement dynamique",
+              "version": "1.0.0",
+              "type": "transformation",
+              "command": "sh script.sh",
+              "configSchema": [
+                {
+                  "key": "custom_opt",
+                  "label": "Option personnalisee",
+                  "type": "text",
+                  "defaultValue": "val",
+                  "description": "Description"
+                },
+                {
+                  "key": "api_secret",
+                  "label": "Cle API",
+                  "type": "password",
+                  "defaultValue": "secret123",
+                  "description": "Cle d'acces"
+                },
+                {
+                  "key": "threshold",
+                  "label": "Seuil",
+                  "type": "slider",
+                  "defaultValue": 0.75,
+                  "min": 0.0,
+                  "max": 1.0,
+                  "step": 0.05,
+                  "description": "Valeur du seuil"
+                },
+                {
+                  "key": "custom_rules",
+                  "label": "Regles",
+                  "type": "textarea",
+                  "defaultValue": "rule1\\nrule2",
+                  "description": "Regles multilignes"
+                }
+              ]
+            }
+            """.stripIndent();
+        java.nio.file.Files.writeString(new File(myPluginDir, "plugin.json").toPath(), pluginJson);
+
+        String scriptContent = """
+            #!/bin/sh
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+                --input) INPUT="$2"; shift 2;;
+                --output) OUTPUT="$2"; shift 2;;
+                --config) CONFIG="$2"; shift 2;;
+                *) shift;;
+              esac
+            done
+            cp "$INPUT" "$OUTPUT"
+            """.stripIndent();
+        File scriptFile = new File(myPluginDir, "script.sh");
+        java.nio.file.Files.writeString(scriptFile.toPath(), scriptContent);
+
+        // 2. Reload plugins
+        pluginService.reloadPlugins();
+
+        // 3. Verify external plugin registered
+        var plugins = pluginService.getRegisteredPlugins();
+        var extPlugin = plugins.stream().filter(p -> "test-script-plugin".equals(p.id())).findFirst();
+        assertTrue(extPlugin.isPresent());
+        assertTrue(extPlugin.get().external());
+        assertEquals("Test External Script", extPlugin.get().name());
+        assertEquals(4, extPlugin.get().configSchema().size());
+        assertTrue(extPlugin.get().configSchema().stream().anyMatch(f -> "slider".equals(f.type()) && f.min() == 0.0 && f.max() == 1.0));
+        assertTrue(extPlugin.get().configSchema().stream().anyMatch(f -> "password".equals(f.type())));
+        assertTrue(extPlugin.get().configSchema().stream().anyMatch(f -> "textarea".equals(f.type())));
+
+        // 4. Test transformation execution
+        File dummyInput = new File(tempDir.toFile(), "source.epub");
+        java.nio.file.Files.writeString(dummyInput.toPath(), "test epub content");
+
+        File transformed = pluginService.runTransformationPlugin(dummyInput, "test-script-plugin");
+        assertNotNull(transformed);
+        assertTrue(transformed.exists());
+        assertEquals("test epub content", java.nio.file.Files.readString(transformed.toPath()));
     }
 
     @Test
@@ -173,8 +277,38 @@ class VellumApplicationTests {
         );
         assertEquals("L'Étranger (Édition Définitive)", updated.getTitle());
 
+        // Test Reading Progress
+        Book progBook = bookService.updateReadingProgress(updated.getId(), 2, 10);
+        assertEquals(2, progBook.getCurrentChapterIndex());
+        assertEquals(30.0, progBook.getProgressPercent());
+        assertFalse(progBook.isFinished());
+
+        BookService.ReadingStats stats = bookService.getReadingStats();
+        assertEquals(1, stats.totalBooks());
+        assertEquals(1, stats.inProgressBooks());
+
+        // Test Bulk Operations
+        bookService.bulkAddTag(List.of(updated.getId()), "Favoris");
+        Book withFav = bookRepository.findById(updated.getId()).orElseThrow();
+        assertTrue(withFav.getTags().stream().anyMatch(t -> "Favoris".equals(t.getName())));
+
         // Delete
         bookService.deleteBook(imported.getId());
         assertTrue(bookRepository.findById(imported.getId()).isEmpty());
+    }
+
+    @Autowired
+    private com.asmolabs.vellum.web.opds.OpdsController opdsController;
+
+    @Test
+    void testOpdsCatalogFeed() {
+        String rootFeed = opdsController.getRootCatalog();
+        assertNotNull(rootFeed);
+        assertTrue(rootFeed.contains("Vellum Desktop Ebook Library"));
+        assertTrue(rootFeed.contains("/opds/books"));
+
+        String booksFeed = opdsController.getBooksCatalog(null, null);
+        assertNotNull(booksFeed);
+        assertTrue(booksFeed.contains("<feed"));
     }
 }
