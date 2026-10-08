@@ -103,8 +103,8 @@ public class BookService {
         }
 
         String sourceExt = getExtension(sourceFile.getName()).toLowerCase();
-        if (!List.of("epub", "mobi", "azw3", "pdf", "cbz", "cbr").contains(sourceExt)) {
-            throw new IllegalArgumentException("Format non supporté: ." + sourceExt);
+        if (!metadataService.isFormatSupported(sourceFile)) {
+            throw new IllegalArgumentException("Format non supporté: ." + sourceExt + " (aucun plugin de format activé).");
         }
 
         // 1. Parse Metadata

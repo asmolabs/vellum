@@ -57,6 +57,7 @@ public class ExternalPluginLoader {
                                 desc.type() != null ? desc.type() : PluginType.TRANSFORMATION,
                                 true,
                                 desc.command(),
+                                desc.supportedExtensions(),
                                 desc.configSchema()
                         );
                         plugins.add(new ExternalScriptPlugin(file, extDesc));
@@ -105,7 +106,12 @@ public class ExternalPluginLoader {
                     }
                     ```
                     
-                    Types de champs supportés pour l'UI :
+                    Types de plugins supportés (`type`) :
+                    * `format` : support d'un nouveau format de livre (définir `"supportedExtensions": ["mobi", "azw3"]`). Reçoit `--input`, `--metadata-out`, `--cover-out`.
+                    * `transformation` : conversion, nettoyage ou traduction. Reçoit `--input`, `--output`, `--config`.
+                    * `import` : enrichissement des métadonnées à l'importation. Reçoit `--input`, `--metadata-in`, `--metadata-out`, `--config`.
+
+                    Types de champs supportés pour l'UI (`configSchema`) :
                     * `text` : champ texte simple
                     * `password` / `secret` : champ masqué avec bouton œil 👁️
                     * `boolean` : case à cocher

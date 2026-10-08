@@ -202,6 +202,65 @@ class VellumApplicationTests {
     }
 
     @Test
+    void testBookFormatPluginsAndExternalFormatExtensibility() throws Exception {
+        // 1. Verify default internal format plugins
+        var supportedExts = metadataService.getSupportedExtensions();
+        assertTrue(supportedExts.contains("epub"));
+        assertTrue(supportedExts.contains("pdf"));
+        assertTrue(supportedExts.contains("cbz"));
+        assertTrue(supportedExts.contains("cbr"));
+
+        // 2. Create external format plugin for a new format (.fb2)
+        File extPluginsDir = new File(appProperties.getPluginsPath());
+        File fb2PluginDir = new File(extPluginsDir, "fb2-format-plugin");
+        fb2PluginDir.mkdirs();
+
+        String pluginJson = """
+            {
+              "id": "fb2-format-plugin",
+              "name": "FictionBook 2 Format Plugin",
+              "description": "Support du format FB2",
+              "version": "1.0.0",
+              "type": "format",
+              "supportedExtensions": ["fb2"],
+              "command": "sh parse_fb2.sh"
+            }
+            """.stripIndent();
+        java.nio.file.Files.writeString(new File(fb2PluginDir, "plugin.json").toPath(), pluginJson);
+
+        String scriptContent = """
+            #!/bin/sh
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+                --input) INPUT="$2"; shift 2;;
+                --metadata-out) META_OUT="$2"; shift 2;;
+                --cover-out) COVER_OUT="$2"; shift 2;;
+                *) shift;;
+              esac
+            done
+            echo '{"title":"Guerre et Paix","author":"Leon Tolstoi","publisher":"Test Ed","tags":["Classique","Russe"]}' > "$META_OUT"
+            """.stripIndent();
+        File scriptFile = new File(fb2PluginDir, "parse_fb2.sh");
+        java.nio.file.Files.writeString(scriptFile.toPath(), scriptContent);
+
+        // 3. Reload plugins
+        pluginService.reloadPlugins();
+
+        // 4. Verify FB2 is now recognized dynamically!
+        File mockFb2 = new File(tempDir.toFile(), "book.fb2");
+        java.nio.file.Files.writeString(mockFb2.toPath(), "<FictionBook>...</FictionBook>");
+
+        assertTrue(metadataService.isFormatSupported(mockFb2));
+        assertTrue(metadataService.getSupportedExtensions().contains("fb2"));
+
+        MetadataService.ExtractedMetadata meta = metadataService.parseMetadata(mockFb2);
+        assertNotNull(meta);
+        assertEquals("Guerre et Paix", meta.title());
+        assertEquals("Leon Tolstoi", meta.author());
+        assertTrue(meta.tags().contains("Classique"));
+    }
+
+    @Test
     void testMetadataServiceFallbackParsing() {
         File dummyFile = new File(tempDir.toFile(), "Victor Hugo - Les Miserables.epub");
         MetadataService.ExtractedMetadata meta = metadataService.parseMetadata(dummyFile);

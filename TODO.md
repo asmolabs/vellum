@@ -28,6 +28,10 @@ Dernière mise à jour : 8 octobre 2026
   - [x] Onglet de guide de connexion et copie d'URL dans les paramètres.
 - [x] **Système de Plugins & Extensions**
   - [x] Contrat d'interface unifié (`VellumPlugin`, `MetadataEnricherPlugin`, `BookTransformationPlugin`).
+  - [x] Architecture modulaire de formats (`BookFormatPlugin`) :
+    - [x] Découplage du parsing EPUB, PDF et CBZ/CBR en plugins de formats dédiés (`EpubFormatPlugin`, `PdfFormatPlugin`, `ComicFormatPlugin`).
+    - [x] Support dynamique des formats externes via scripts (`plugin.json` avec `type: "format"` et `supportedExtensions`).
+    - [x] Détection automatique des formats supportés à l'importation sans liste statique en dur.
   - [x] Plugins internes Spring (`OceanOfPdfCleanerPlugin`, `GoogleBooksEnricherPlugin`, `EpubTranslatorPlugin`).
   - [x] Chargeur de plugins externes (`ExternalPluginLoader`) pour scripts (Python, Bash avec manifeste `plugin.json`) et archives JAR.
   - [x] Rechargement à chaud des plugins et raccourci pour ouvrir le dossier `~/.vellum/plugins`.

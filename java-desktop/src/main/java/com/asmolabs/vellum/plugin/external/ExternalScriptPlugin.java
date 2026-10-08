@@ -1,6 +1,8 @@
 package com.asmolabs.vellum.plugin.external;
 
 import com.asmolabs.vellum.plugin.*;
+import com.asmolabs.vellum.plugin.format.BookFormatPlugin;
+import com.asmolabs.vellum.plugin.format.ExtractedMetadata;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -12,7 +14,7 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataEnricherPlugin {
+public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataEnricherPlugin, BookFormatPlugin {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalScriptPlugin.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -32,6 +34,98 @@ public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataE
 
     public File getPluginDirectory() {
         return pluginDirectory;
+    }
+
+    @Override
+    public List<String> getSupportedExtensions() {
+        return descriptor.supportedExtensions() != null ? descriptor.supportedExtensions() : List.of();
+    }
+
+    @Override
+    public ExtractedMetadata extractMetadata(File file) throws Exception {
+        if (descriptor.command() == null || descriptor.command().isBlank()) {
+            throw new IllegalStateException("External plugin " + getId() + " has no 'command' specified in plugin.json");
+        }
+
+        File tempMetaOut = File.createTempFile("vellum_meta_out_", ".json");
+        File tempCoverOut = File.createTempFile("vellum_cover_out_", ".jpg");
+
+        try {
+            List<String> commandTokens = parseCommand(descriptor.command());
+            List<String> fullCommand = new ArrayList<>(commandTokens);
+            fullCommand.add("--input");
+            fullCommand.add(file.getAbsolutePath());
+            fullCommand.add("--metadata-out");
+            fullCommand.add(tempMetaOut.getAbsolutePath());
+            fullCommand.add("--cover-out");
+            fullCommand.add(tempCoverOut.getAbsolutePath());
+
+            log.info("Executing external format extractor plugin [{}]: {}", getId(), fullCommand);
+
+            ProcessBuilder pb = new ProcessBuilder(fullCommand);
+            pb.directory(pluginDirectory);
+            Map<String, String> env = pb.environment();
+            env.put("VELLUM_INPUT_FILE", file.getAbsolutePath());
+            env.put("VELLUM_METADATA_OUT", tempMetaOut.getAbsolutePath());
+            env.put("VELLUM_COVER_OUT", tempCoverOut.getAbsolutePath());
+            env.put("VELLUM_PLUGIN_ID", getId());
+
+            Process process = pb.start();
+            String stdout = new String(process.getInputStream().readAllBytes());
+            String stderr = new String(process.getErrorStream().readAllBytes());
+
+            boolean finished = process.waitFor(60, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                throw new RuntimeException("Format plugin " + getId() + " timed out after 60s");
+            }
+
+            int exitCode = process.exitValue();
+            if (exitCode != 0) {
+                log.warn("Format plugin {} failed with code {}: {}", getId(), exitCode, stderr);
+                throw new RuntimeException("Format plugin " + getId() + " failed: " + stderr);
+            }
+
+            String title = null;
+            String author = null;
+            String publisher = null;
+            String publishDate = null;
+            String description = null;
+            List<String> tags = new ArrayList<>();
+
+            if (tempMetaOut.exists() && tempMetaOut.length() > 0) {
+                Map<String, Object> map = objectMapper.readValue(tempMetaOut, new TypeReference<Map<String, Object>>() {});
+                title = (String) map.get("title");
+                author = (String) map.get("author");
+                publisher = (String) map.get("publisher");
+                publishDate = (String) map.get("publishDate");
+                description = (String) map.get("description");
+                if (map.get("tags") instanceof List<?> list) {
+                    tags = list.stream().map(String::valueOf).toList();
+                }
+            } else if (!stdout.trim().isBlank() && stdout.trim().startsWith("{")) {
+                Map<String, Object> map = objectMapper.readValue(stdout.trim(), new TypeReference<Map<String, Object>>() {});
+                title = (String) map.get("title");
+                author = (String) map.get("author");
+                publisher = (String) map.get("publisher");
+                publishDate = (String) map.get("publishDate");
+                description = (String) map.get("description");
+                if (map.get("tags") instanceof List<?> list) {
+                    tags = list.stream().map(String::valueOf).toList();
+                }
+            }
+
+            byte[] coverData = null;
+            String coverExt = ".jpg";
+            if (tempCoverOut.exists() && tempCoverOut.length() > 0) {
+                coverData = Files.readAllBytes(tempCoverOut.toPath());
+            }
+
+            return new ExtractedMetadata(title, author, publisher, publishDate, description, tags, coverData, coverExt);
+        } finally {
+            tempMetaOut.delete();
+            tempCoverOut.delete();
+        }
     }
 
     @Override
@@ -85,7 +179,6 @@ public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataE
         }
 
         if (!outputFile.exists()) {
-            // Check if plugin modified in-place or printed output file path
             String trimmedOut = stdout.trim();
             File potentialOut = new File(trimmedOut);
             if (potentialOut.exists() && potentialOut.isFile()) {

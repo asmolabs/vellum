@@ -13,15 +13,32 @@ public record PluginDescriptor(
         PluginType type,
         boolean external,
         String command, // Only for external script plugins
+        List<String> supportedExtensions, // For FORMAT plugins: e.g. ["epub"], ["pdf"], ["cbz", "cbr"]
         List<ConfigField> configSchema
 ) {
     public PluginDescriptor {
         if (configSchema == null) {
             configSchema = List.of();
         }
+        if (supportedExtensions == null) {
+            supportedExtensions = List.of();
+        }
         if (version == null || version.isBlank()) {
             version = "1.0.0";
         }
+    }
+
+    public PluginDescriptor(
+            String id,
+            String name,
+            String description,
+            String version,
+            PluginType type,
+            boolean external,
+            String command,
+            List<ConfigField> configSchema
+    ) {
+        this(id, name, description, version, type, external, command, List.of(), configSchema);
     }
 
     public String getTypeString() {

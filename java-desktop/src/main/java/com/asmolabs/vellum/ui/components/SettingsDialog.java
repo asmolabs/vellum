@@ -183,8 +183,20 @@ public class SettingsDialog {
                     originBadge.setStyle("-fx-background-color: rgba(139, 92, 246, 0.2); -fx-text-fill: #c084fc; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px; -fx-font-weight: bold;");
                 }
 
-                Label typeBadge = new Label("import".equalsIgnoreCase(plugin.type()) ? "Import / Enrichissement" : "Transformation");
-                typeBadge.setStyle("-fx-background-color: rgba(255, 255, 255, 0.08); -fx-text-fill: #9ca3af; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;");
+                String typeStr;
+                String typeStyle;
+                if ("format".equalsIgnoreCase(plugin.type())) {
+                    typeStr = "Support de Format";
+                    typeStyle = "-fx-background-color: rgba(6, 182, 212, 0.2); -fx-text-fill: #22d3ee; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";
+                } else if ("import".equalsIgnoreCase(plugin.type())) {
+                    typeStr = "Import / Enrichissement";
+                    typeStyle = "-fx-background-color: rgba(59, 130, 246, 0.2); -fx-text-fill: #60a5fa; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";
+                } else {
+                    typeStr = "Transformation";
+                    typeStyle = "-fx-background-color: rgba(245, 158, 11, 0.2); -fx-text-fill: #fbbf24; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";
+                }
+                Label typeBadge = new Label(typeStr);
+                typeBadge.setStyle(typeStyle);
 
                 Region spacer = new Region();
                 HBox.setHgrow(spacer, Priority.ALWAYS);

@@ -3,6 +3,7 @@ package com.asmolabs.vellum.service;
 import com.asmolabs.vellum.domain.entity.Param;
 import com.asmolabs.vellum.plugin.*;
 import com.asmolabs.vellum.plugin.external.ExternalPluginLoader;
+import com.asmolabs.vellum.plugin.format.BookFormatPlugin;
 import com.asmolabs.vellum.repository.ParamRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -199,5 +200,25 @@ public class PluginService {
 
         Map<String, Object> params = getPluginParams(pluginId);
         return transformer.transform(inputFile, params);
+    }
+
+    public Optional<BookFormatPlugin> getFormatPluginFor(File file) {
+        if (file == null) return Optional.empty();
+        return allPlugins.values().stream()
+                .filter(p -> p instanceof BookFormatPlugin)
+                .map(p -> (BookFormatPlugin) p)
+                .filter(p -> isPluginEnabled(p.getId()))
+                .filter(p -> p.canHandle(file))
+                .findFirst();
+    }
+
+    public List<String> getSupportedFormatExtensions() {
+        Set<String> extensions = new LinkedHashSet<>();
+        for (VellumPlugin plugin : allPlugins.values()) {
+            if (plugin instanceof BookFormatPlugin formatPlugin && isPluginEnabled(plugin.getId())) {
+                extensions.addAll(formatPlugin.getSupportedExtensions().stream().map(String::toLowerCase).toList());
+            }
+        }
+        return new ArrayList<>(extensions);
     }
 }
