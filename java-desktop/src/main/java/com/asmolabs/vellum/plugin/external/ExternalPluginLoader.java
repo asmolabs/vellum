@@ -43,7 +43,7 @@ public class ExternalPluginLoader {
         }
 
         for (File file : files) {
-            if (file.isDirectory()) {
+            if (file.isDirectory() && !file.getName().startsWith(".")) {
                 File manifest = new File(file, "plugin.json");
                 if (manifest.exists()) {
                     try {
@@ -66,13 +66,32 @@ public class ExternalPluginLoader {
                         log.error("Failed to parse plugin.json in {}: {}", file.getAbsolutePath(), e.getMessage());
                     }
                 }
+
+                // Also check for JAR files inside plugin subdirectories
+                File[] subJars = file.listFiles((d, name) -> name.endsWith(".jar"));
+                if (subJars != null) {
+                    for (File jar : subJars) {
+                        List<VellumPlugin> jarPlugins = ExternalJarPluginLoader.loadFromJar(jar);
+                        plugins.addAll(jarPlugins);
+                    }
+                }
             } else if (file.getName().endsWith(".jar")) {
                 List<VellumPlugin> jarPlugins = ExternalJarPluginLoader.loadFromJar(file);
                 plugins.addAll(jarPlugins);
             }
         }
 
-        return plugins;
+        // 2. Discover and compile dynamic Java source plugins (.java files)
+        List<VellumPlugin> javaSourcePlugins = ExternalJavaSourcePluginLoader.loadFromSource(pluginsDir);
+        plugins.addAll(javaSourcePlugins);
+
+        // Deduplicate plugins by ID (latest takes precedence)
+        Map<String, VellumPlugin> deduplicated = new LinkedHashMap<>();
+        for (VellumPlugin p : plugins) {
+            deduplicated.put(p.getId(), p);
+        }
+
+        return new ArrayList<>(deduplicated.values());
     }
 
     private void createSamplePluginDocumentation(File pluginsDir) {
@@ -131,8 +150,44 @@ public class ExternalPluginLoader {
                     * `VELLUM_OUTPUT_FILE`
                     * `VELLUM_CONFIG_JSON`
                     
-                    ## 2. Plugins sous forme de JARs Java
-                    Déposez simplement votre fichier `*.jar` implémentant l'interface `com.asmolabs.vellum.plugin.VellumPlugin` dans ce dossier.
+                    ## 2. Plugins sous forme de JARs Java (.jar)
+                    Déposez simplement votre fichier `*.jar` implémentant l'interface `com.asmolabs.vellum.plugin.format.BookFormatPlugin` ou `com.asmolabs.vellum.plugin.VellumPlugin` dans ce dossier (ou un sous-dossier).
+                    
+                    Découverte automatique :
+                    * Via `java.util.ServiceLoader` (`META-INF/services/com.asmolabs.vellum.plugin.format.BookFormatPlugin`)
+                    * Via `META-INF/vellum-plugin.properties` (ex: `format.class=mon.package.MonFormatPlugin`)
+                    * Ou par détection automatique de la classe implémentant `BookFormatPlugin` dans le JAR.
+                    
+                    ## 3. Plugins sous forme de code Java à chaud (.java)
+                    Déposez directement un fichier source `.java` dans ce dossier (ou dans un sous-dossier) !
+                    Vellum le compile automatiquement et à chaud avec le JDK intégré au démarrage et au rechargement.
+                    
+                    Exemple de plugin de format en Java pur (`TextFormatPlugin.java`) :
+                    ```java
+                    package custom;
+                    
+                    import com.asmolabs.vellum.plugin.PluginDescriptor;
+                    import com.asmolabs.vellum.plugin.PluginType;
+                    import com.asmolabs.vellum.plugin.format.BookFormatPlugin;
+                    import com.asmolabs.vellum.plugin.format.ExtractedMetadata;
+                    import java.io.File;
+                    import java.nio.file.Files;
+                    import java.util.List;
+                    
+                    public class TextFormatPlugin implements BookFormatPlugin {
+                        @Override
+                        public PluginDescriptor getDescriptor() {
+                            return new PluginDescriptor("txt-format", "Format Fichier Texte (.txt)", "Support des fichiers texte brut", "1.0.0", PluginType.FORMAT, true, null, List.of("txt"), List.of());
+                        }
+                        @Override
+                        public List<String> getSupportedExtensions() { return List.of("txt"); }
+                        @Override
+                        public ExtractedMetadata extractMetadata(File file) throws Exception {
+                            String content = Files.readString(file.toPath());
+                            return new ExtractedMetadata(file.getName(), "Inconnu", null, null, content.substring(0, Math.min(200, content.length())), List.of("Texte"), null, null);
+                        }
+                    }
+                    ```
                     """.stripIndent();
                 Files.writeString(readme.toPath(), content);
             }

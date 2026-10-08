@@ -390,4 +390,82 @@ class VellumApplicationTests {
         assertNotNull(booksFeed);
         assertTrue(booksFeed.contains("<feed"));
     }
+
+    @Test
+    void testJavaFormatPluginsJarAndDynamicSource() throws Exception {
+        File extPluginsDir = new File(appProperties.getPluginsPath());
+        File txtPluginDir = new File(extPluginsDir, "txt-format-plugin");
+        txtPluginDir.mkdirs();
+
+        // 1. Create a dynamic .java source plugin
+        String javaSource = """
+            package custom.test;
+
+            import com.asmolabs.vellum.plugin.PluginDescriptor;
+            import com.asmolabs.vellum.plugin.PluginType;
+            import com.asmolabs.vellum.plugin.format.BookFormatPlugin;
+            import com.asmolabs.vellum.plugin.format.ExtractedMetadata;
+            import java.io.File;
+            import java.nio.file.Files;
+            import java.util.List;
+
+            public class DynamicTextFormatPlugin implements BookFormatPlugin {
+                @Override
+                public PluginDescriptor getDescriptor() {
+                    return new PluginDescriptor("dynamic-txt-format", "Dynamic Text Format", "Plugin Java dynamique pour TXT", "1.0.0", PluginType.FORMAT, true, null, List.of("txt"), List.of());
+                }
+
+                @Override
+                public List<String> getSupportedExtensions() {
+                    return List.of("txt");
+                }
+
+                @Override
+                public ExtractedMetadata extractMetadata(File file) throws Exception {
+                    String text = Files.readString(file.toPath());
+                    return new ExtractedMetadata("Titre Dynamique Java", "Auteur Dynamique", "Editeur Java", "2026", text, List.of("Brut", "Java"), null, null);
+                }
+            }
+            """.stripIndent();
+
+        File javaFile = new File(txtPluginDir, "DynamicTextFormatPlugin.java");
+        java.nio.file.Files.writeString(javaFile.toPath(), javaSource);
+
+        // 2. Reload plugins - triggers dynamic JDK compilation
+        pluginService.reloadPlugins();
+
+        // 3. Verify .txt is now supported dynamically
+        assertTrue(metadataService.getSupportedExtensions().contains("txt"));
+        File sampleTxt = new File(tempDir.toFile(), "sample.txt");
+        java.nio.file.Files.writeString(sampleTxt.toPath(), "Ceci est un document texte simple.");
+
+        assertTrue(metadataService.isFormatSupported(sampleTxt));
+        MetadataService.ExtractedMetadata meta = metadataService.parseMetadata(sampleTxt);
+        assertNotNull(meta);
+        assertEquals("Titre Dynamique Java", meta.title());
+        assertEquals("Auteur Dynamique", meta.author());
+        assertEquals("Editeur Java", meta.publisher());
+        assertTrue(meta.tags().contains("Java"));
+
+        // 4. Test external JAR packaging with properties/scanning fallback
+        File cacheClass = new File(extPluginsDir, ".cache/java-classes/custom/test/DynamicTextFormatPlugin.class");
+        assertTrue(cacheClass.exists(), "Dynamic compilation should have produced the .class file");
+
+        File jarFile = new File(extPluginsDir, "packaged-format.jar");
+        try (var jos = new java.util.jar.JarOutputStream(new java.io.FileOutputStream(jarFile))) {
+            jos.putNextEntry(new java.util.zip.ZipEntry("META-INF/vellum-plugin.properties"));
+            jos.write("format.class=custom.test.DynamicTextFormatPlugin\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            jos.closeEntry();
+
+            jos.putNextEntry(new java.util.zip.ZipEntry("custom/test/DynamicTextFormatPlugin.class"));
+            jos.write(java.nio.file.Files.readAllBytes(cacheClass.toPath()));
+            jos.closeEntry();
+        }
+
+        List<com.asmolabs.vellum.plugin.VellumPlugin> jarPlugins = com.asmolabs.vellum.plugin.external.ExternalJarPluginLoader.loadFromJar(jarFile);
+        assertFalse(jarPlugins.isEmpty());
+        assertTrue(jarPlugins.get(0) instanceof com.asmolabs.vellum.plugin.format.BookFormatPlugin);
+        assertTrue(jarPlugins.get(0).getDescriptor().external());
+        assertEquals("dynamic-txt-format", jarPlugins.get(0).getId());
+    }
 }

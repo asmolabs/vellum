@@ -32,6 +32,9 @@ Dernière mise à jour : 8 octobre 2026
     - [x] Découplage du parsing EPUB, PDF et CBZ/CBR en plugins de formats dédiés (`EpubFormatPlugin`, `PdfFormatPlugin`, `ComicFormatPlugin`).
     - [x] Support natif interne Amazon Kindle (`.mobi`, `.azw`, `.azw3`) via `MobiFormatPlugin` (parsing pur Java Palm PDB, en-têtes MOBI, tags EXTH et enregistrement d'image de couverture).
     - [x] Support natif interne Livres Audio (`.m4b`, `.m4a`, `.mp3`) via `AudiobookFormatPlugin` (parsing pur Java des tags ID3v2 pour MP3 et atomes MP4/QuickTime `moov.udta.meta.ilst` avec jaquette `covr`).
+    - [x] Support des formats externes en Java :
+      - [x] Archives JAR (`.jar`) avec découverte via `ServiceLoader<BookFormatPlugin>`, `vellum-plugin.properties` ou scan automatique de classes.
+      - [x] Compilation et rechargement dynamique à chaud de fichiers source `.java` sans packaging préalable (via le `JavaCompiler` JDK intégré).
     - [x] Support dynamique des formats externes via scripts (`plugin.json` avec `type: "format"` et `supportedExtensions`).
     - [x] Détection automatique des formats supportés à l'importation sans liste statique en dur.
   - [x] Plugins internes Spring (`OceanOfPdfCleanerPlugin`, `GoogleBooksEnricherPlugin`, `EpubTranslatorPlugin`).

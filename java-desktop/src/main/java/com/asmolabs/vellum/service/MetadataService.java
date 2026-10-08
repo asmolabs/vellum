@@ -62,7 +62,8 @@ public class MetadataService {
         if (formatPluginOpt.isPresent()) {
             BookFormatPlugin plugin = formatPluginOpt.get();
             try {
-                com.asmolabs.vellum.plugin.format.ExtractedMetadata pluginMeta = plugin.extractMetadata(file);
+                java.util.Map<String, Object> config = pluginService.getPluginParams(plugin.getId());
+                com.asmolabs.vellum.plugin.format.ExtractedMetadata pluginMeta = plugin.extractMetadata(file, config);
                 if (pluginMeta != null) {
                     String title = pluginMeta.title();
                     String author = pluginMeta.author();

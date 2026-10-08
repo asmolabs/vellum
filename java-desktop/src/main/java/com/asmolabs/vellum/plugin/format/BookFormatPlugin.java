@@ -4,6 +4,7 @@ import com.asmolabs.vellum.plugin.VellumPlugin;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 
 public interface BookFormatPlugin extends VellumPlugin {
 
@@ -20,6 +21,18 @@ public interface BookFormatPlugin extends VellumPlugin {
      * @throws Exception If parsing fails
      */
     ExtractedMetadata extractMetadata(File file) throws Exception;
+
+    /**
+     * Extracts book metadata with plugin configuration options.
+     *
+     * @param file The book file
+     * @param config The plugin settings map
+     * @return Extracted metadata and cover
+     * @throws Exception If parsing fails
+     */
+    default ExtractedMetadata extractMetadata(File file, Map<String, Object> config) throws Exception {
+        return extractMetadata(file);
+    }
 
     /**
      * Returns true if this format plugin can process the given file.
