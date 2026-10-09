@@ -260,6 +260,61 @@ public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataE
         return currentMetadata;
     }
 
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        String cmd = descriptor.command();
+        if (cmd == null || cmd.isBlank()) {
+            return TestResult.error("Aucune commande spécifiée dans plugin.json.");
+        }
+
+        List<String> tokens = parseCommand(cmd);
+        if (tokens.isEmpty()) {
+            return TestResult.error("Commande vide.");
+        }
+
+        String executable = tokens.get(0);
+
+        // 1. Try running the command with --test
+        try {
+            List<String> testCmd = new ArrayList<>(tokens);
+            testCmd.add("--test");
+            String configJson = objectMapper.writeValueAsString(config != null ? config : Map.of());
+            testCmd.add("--config");
+            testCmd.add(configJson);
+
+            ProcessBuilder pb = new ProcessBuilder(testCmd);
+            pb.directory(pluginDirectory);
+            pb.environment().put("VELLUM_CONFIG_JSON", configJson);
+
+            Process proc = pb.start();
+            boolean finished = proc.waitFor(3, TimeUnit.SECONDS);
+            if (finished && proc.exitValue() == 0) {
+                String out = new String(proc.getInputStream().readAllBytes()).trim();
+                return TestResult.ok(!out.isBlank() ? out : "Test exécuté avec succès par le script !");
+            }
+        } catch (Exception ignored) {
+            // If script doesn't support --test, fall through to executable check
+        }
+
+        // 2. Check if executable exists in PATH
+        try {
+            ProcessBuilder whichPb = new ProcessBuilder("which", executable);
+            Process whichProcess = whichPb.start();
+            if (whichProcess.waitFor(2, TimeUnit.SECONDS) && whichProcess.exitValue() == 0) {
+                String whichOut = new String(whichProcess.getInputStream().readAllBytes()).trim();
+                return TestResult.ok("Interpréteur disponible : " + whichOut);
+            }
+        } catch (Exception ignored) {}
+
+        // 3. Check if file exists relative to pluginDirectory
+        File localScript = new File(pluginDirectory, executable);
+        if (localScript.exists()) {
+            return TestResult.ok("Fichier de script détecté : " + localScript.getName());
+        }
+
+        return TestResult.error("Exécutable ou script introuvable : " + executable);
+    }
+
     private List<String> parseCommand(String commandLine) {
         List<String> tokens = new ArrayList<>();
         StringTokenizer tokenizer = new StringTokenizer(commandLine);

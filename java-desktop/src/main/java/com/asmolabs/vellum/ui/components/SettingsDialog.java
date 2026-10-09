@@ -3,6 +3,7 @@ package com.asmolabs.vellum.ui.components;
 import com.asmolabs.vellum.config.AppProperties;
 import com.asmolabs.vellum.service.LitestreamService;
 import com.asmolabs.vellum.service.PluginService;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -365,6 +366,53 @@ public class SettingsDialog {
                         pBox.getChildren().addAll(fLbl, tf);
                     }
                 }
+
+                // Test configuration action row
+                HBox testRow = new HBox(10);
+                testRow.setAlignment(Pos.CENTER_LEFT);
+                testRow.setStyle("-fx-padding: 4 0 0 0;");
+
+                Button testBtn = new Button("🧪 Tester la configuration");
+                testBtn.setStyle("-fx-background-color: #374151; -fx-text-fill: #e5e7eb; -fx-font-size: 11px; -fx-padding: 4 10; -fx-cursor: hand; -fx-background-radius: 4;");
+                testBtn.setOnMouseEntered(e -> testBtn.setStyle("-fx-background-color: #4b5563; -fx-text-fill: #ffffff; -fx-font-size: 11px; -fx-padding: 4 10; -fx-cursor: hand; -fx-background-radius: 4;"));
+                testBtn.setOnMouseExited(e -> testBtn.setStyle("-fx-background-color: #374151; -fx-text-fill: #e5e7eb; -fx-font-size: 11px; -fx-padding: 4 10; -fx-cursor: hand; -fx-background-radius: 4;"));
+
+                Label testResultBadge = new Label();
+                testResultBadge.setVisible(false);
+
+                testBtn.setOnAction(e -> {
+                    testResultBadge.setText("⏳ Test en cours...");
+                    testResultBadge.setStyle("-fx-background-color: rgba(107, 114, 128, 0.2); -fx-text-fill: #9ca3af; -fx-padding: 3 8; -fx-background-radius: 4; -fx-font-size: 11px;");
+                    testResultBadge.setVisible(true);
+
+                    Map<String, Object> currentFormVals = new HashMap<>();
+                    for (Map.Entry<String, Control> entry : fieldControls.entrySet()) {
+                        String key = entry.getKey();
+                        Control ctrl = entry.getValue();
+                        if (ctrl instanceof CheckBox cb) currentFormVals.put(key, cb.isSelected());
+                        else if (ctrl instanceof TextField tf) currentFormVals.put(key, tf.getText());
+                        else if (ctrl instanceof TextArea ta) currentFormVals.put(key, ta.getText());
+                        else if (ctrl instanceof ComboBox<?> cmb) currentFormVals.put(key, cmb.getValue());
+                        else if (ctrl instanceof Slider sl) currentFormVals.put(key, sl.getValue());
+                    }
+
+                    Thread.ofVirtual().start(() -> {
+                        var res = pluginService.testPluginConfiguration(plugin.id(), currentFormVals);
+                        Platform.runLater(() -> {
+                            testResultBadge.setVisible(true);
+                            if (res.success()) {
+                                testResultBadge.setText("✓ " + res.message());
+                                testResultBadge.setStyle("-fx-background-color: rgba(16, 185, 129, 0.2); -fx-text-fill: #34d399; -fx-padding: 3 8; -fx-background-radius: 4; -fx-font-size: 11px; -fx-font-weight: bold;");
+                            } else {
+                                testResultBadge.setText("✗ " + res.message());
+                                testResultBadge.setStyle("-fx-background-color: rgba(239, 68, 68, 0.2); -fx-text-fill: #f87171; -fx-padding: 3 8; -fx-background-radius: 4; -fx-font-size: 11px; -fx-font-weight: bold;");
+                            }
+                        });
+                    });
+                });
+
+                testRow.getChildren().addAll(testBtn, testResultBadge);
+                pBox.getChildren().add(testRow);
 
                 pluginInputs.put(plugin.id(), fieldControls);
                 pluginsListContainer.getChildren().add(pBox);

@@ -468,4 +468,26 @@ class VellumApplicationTests {
         assertTrue(jarPlugins.get(0).getDescriptor().external());
         assertEquals("dynamic-txt-format", jarPlugins.get(0).getId());
     }
+
+    @Test
+    void testPluginConfigurationDiagnostics() {
+        // 1. Test built-in translator with Default AI
+        var okResult = pluginService.testPluginConfiguration("epub-translator-fr", Map.of("ai_model", "Default AI"));
+        assertTrue(okResult.success());
+        assertTrue(okResult.message().contains("Default AI"));
+
+        // 2. Test built-in translator with GPT-4o without token (expected failure)
+        var failResult = pluginService.testPluginConfiguration("epub-translator-fr", Map.of("ai_model", "GPT-4o", "api_token", ""));
+        assertFalse(failResult.success());
+        assertTrue(failResult.message().contains("obligatoire"));
+
+        // 3. Test built-in translator with GPT-4o with token
+        var tokenOkResult = pluginService.testPluginConfiguration("epub-translator-fr", Map.of("ai_model", "GPT-4o", "api_token", "sk-12345"));
+        assertTrue(tokenOkResult.success());
+
+        // 4. Test unknown plugin
+        var notFound = pluginService.testPluginConfiguration("unknown-plugin-id", Map.of());
+        assertFalse(notFound.success());
+        assertTrue(notFound.message().contains("introuvable"));
+    }
 }

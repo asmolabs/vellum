@@ -59,4 +59,38 @@ public class EpubTranslatorPlugin implements BookTransformationPlugin {
         log.info("EpubTranslatorPlugin produced translated copy: {}", outputFile.getAbsolutePath());
         return outputFile;
     }
+
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        String model = String.valueOf(config.getOrDefault("ai_model", "Default AI"));
+        String token = String.valueOf(config.getOrDefault("api_token", "")).trim();
+
+        if ("Local Ollama".equalsIgnoreCase(model)) {
+            try {
+                java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                        .connectTimeout(java.time.Duration.ofSeconds(3))
+                        .build();
+                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create("http://localhost:11434/api/tags"))
+                        .timeout(java.time.Duration.ofSeconds(3))
+                        .GET()
+                        .build();
+                java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    return TestResult.ok("Serveur Ollama local actif sur http://localhost:11434 (HTTP 200) !");
+                } else {
+                    return TestResult.error("Ollama a répondu avec le statut HTTP " + response.statusCode());
+                }
+            } catch (Exception e) {
+                return TestResult.error("Impossible de joindre le démon Ollama local sur http://localhost:11434");
+            }
+        } else if ("GPT-4o".equalsIgnoreCase(model) || "DeepL API".equalsIgnoreCase(model)) {
+            if (token.isBlank()) {
+                return TestResult.error("Une clé d'API / jeton est obligatoire pour utiliser " + model);
+            }
+            return TestResult.ok("Clé configurée pour le service " + model + ".");
+        }
+
+        return TestResult.ok("Moteur par défaut prêt (Default AI).");
+    }
 }

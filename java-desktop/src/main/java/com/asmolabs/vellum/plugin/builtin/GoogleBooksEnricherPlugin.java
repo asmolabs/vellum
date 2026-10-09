@@ -70,4 +70,34 @@ public class GoogleBooksEnricherPlugin implements MetadataEnricherPlugin {
         log.debug("GoogleBooksEnricherPlugin enriched metadata for: {}", bookFile.getName());
         return enriched;
     }
+
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        String apiKey = String.valueOf(config.getOrDefault("api_key", "")).trim();
+        try {
+            String urlStr = "https://www.googleapis.com/books/v1/volumes?q=test&maxResults=1"
+                    + (!apiKey.isBlank() ? "&key=" + apiKey : "");
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(4))
+                    .build();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(urlStr))
+                    .timeout(java.time.Duration.ofSeconds(4))
+                    .header("User-Agent", "Vellum-Ebook-Manager/1.0")
+                    .GET()
+                    .build();
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                return TestResult.ok("Connexion réussie à Google Books API (HTTP 200) !" + (!apiKey.isBlank() ? " Clé API valide." : " (Mode public sans quota)"));
+            } else if (response.statusCode() == 400 && !apiKey.isBlank()) {
+                return TestResult.error("Clé API Google Books invalide ou refusée (HTTP 400).");
+            } else if (response.statusCode() == 403) {
+                return TestResult.error("Quota Google Books dépassé ou accès restreint (HTTP 403).");
+            } else {
+                return TestResult.error("Réponse inattendue de Google Books : HTTP " + response.statusCode());
+            }
+        } catch (Exception e) {
+            return TestResult.error("Impossible de joindre Google Books : " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+        }
+    }
 }

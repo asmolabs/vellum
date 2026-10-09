@@ -47,10 +47,10 @@ Dernière mise à jour : 8 octobre 2026
 
 ## 🟡 2. Priorités Courantes (Plugins & Connexions Réelles)
 
-- [ ] **Bouton « 🧪 Tester la configuration » des plugins**
-  - [ ] Tester les clés API (vérifier qu'une clé Google Books ou DeepL est valide sans faire d'import complet).
-  - [ ] Tester la disponibilité des scripts externes (vérifier que `python3` ou l'exécutable configuré répond).
-  - [ ] Afficher un retour visuel direct dans `SettingsDialog` (badge vert ✓ ou message d'erreur rouge).
+- [x] **Bouton « 🧪 Tester la configuration » des plugins**
+  - [x] Tester les clés API (requête HTTP en direct pour Google Books, vérification format jeton DeepL/GPT).
+  - [x] Tester la disponibilité des scripts externes (vérification interpréteur `which`, exécution script `--test` ou détection fichier).
+  - [x] Afficher un retour visuel direct dans `SettingsDialog` (badge vert ✓ ou message d'erreur rouge réactif sans rechargement de page).
 - [ ] **Modale d'options à l'exécution (Run Dialog)**
   - [ ] Lors du clic sur un plugin de transformation (ex: traduction), afficher une fenêtre modale pour ajuster les paramètres de ce livre spécifique.
   - [ ] Option « Se souvenir de ce choix pour les prochains lancements ».

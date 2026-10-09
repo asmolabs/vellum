@@ -221,4 +221,16 @@ public class PluginService {
         }
         return new ArrayList<>(extensions);
     }
+
+    public VellumPlugin.TestResult testPluginConfiguration(String pluginId, Map<String, Object> config) {
+        Optional<VellumPlugin> pluginOpt = getPluginById(pluginId);
+        if (pluginOpt.isEmpty()) {
+            return VellumPlugin.TestResult.error("Plugin introuvable : " + pluginId);
+        }
+        try {
+            return pluginOpt.get().testConfiguration(config != null ? config : getPluginParams(pluginId));
+        } catch (Exception e) {
+            return VellumPlugin.TestResult.error("Erreur lors de l'exécution du test : " + e.getMessage());
+        }
+    }
 }
