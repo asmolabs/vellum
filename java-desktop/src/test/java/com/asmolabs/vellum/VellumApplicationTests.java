@@ -49,6 +49,9 @@ class VellumApplicationTests {
     @Autowired
     private AppProperties appProperties;
 
+    @Autowired
+    private com.asmolabs.vellum.converter.ConversionService conversionService;
+
     @TempDir
     Path tempDir;
 
@@ -489,5 +492,61 @@ class VellumApplicationTests {
         var notFound = pluginService.testPluginConfiguration("unknown-plugin-id", Map.of());
         assertFalse(notFound.success());
         assertTrue(notFound.message().contains("introuvable"));
+    }
+
+    @Test
+    void testPureJavaFormatConversionEngines() throws Exception {
+        // 1. Verify converter engine matrix
+        assertTrue(conversionService.canConvert("cbz", "pdf"));
+        assertTrue(conversionService.canConvert("pdf", "cbz"));
+        assertTrue(conversionService.canConvert("epub", "txt"));
+        assertTrue(conversionService.canConvert("txt", "epub"));
+        assertTrue(conversionService.canConvert("mobi", "epub"));
+        assertTrue(conversionService.canConvert("epub", "pdf"));
+
+        // 2. Test TXT -> EPUB conversion
+        File srcTxt = new File(tempDir.toFile(), "roman.txt");
+        java.nio.file.Files.writeString(srcTxt.toPath(), "# Chapitre 1\nPremier paragraphe de test.\n\n# Chapitre 2\nSecond paragraphe de test.");
+        File convertedEpub = conversionService.convert(srcTxt, "epub");
+        assertNotNull(convertedEpub);
+        assertTrue(convertedEpub.exists());
+        assertTrue(convertedEpub.length() > 0);
+
+        // 3. Test EPUB -> TXT conversion
+        File convertedTxt = conversionService.convert(convertedEpub, "txt");
+        assertNotNull(convertedTxt);
+        assertTrue(convertedTxt.exists());
+        String txtText = java.nio.file.Files.readString(convertedTxt.toPath());
+        assertTrue(txtText.contains("Chapitre 1"));
+        assertTrue(txtText.contains("Premier paragraphe"));
+
+        // 4. Test CBZ -> PDF conversion
+        File mockCbz = new File(tempDir.toFile(), "manga.cbz");
+        try (var zos = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(mockCbz))) {
+            zos.putNextEntry(new java.util.zip.ZipEntry("page_01.jpg"));
+            var bim = new java.awt.image.BufferedImage(80, 80, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            javax.imageio.ImageIO.write(bim, "jpg", zos);
+            zos.closeEntry();
+        }
+        File convertedPdf = conversionService.convert(mockCbz, "pdf");
+        assertNotNull(convertedPdf);
+        assertTrue(convertedPdf.exists());
+        assertTrue(convertedPdf.length() > 0);
+
+        // 5. Test BookService transformation with attach_to_book: true
+        Book imported = bookService.importBook(convertedEpub);
+        assertEquals(1, imported.getFormats().size());
+        assertEquals("epub", imported.getFormats().get(0).getFormat());
+
+        // Configure plugin params to convert to txt and attach
+        pluginService.savePluginParams("java-format-converter", Map.of("target_format", "txt", "attach_to_book", true));
+
+        Book updatedBook = bookService.runTransformationPlugin(imported.getId(), "java-format-converter");
+        assertEquals(imported.getId(), updatedBook.getId(), "Should remain the same book entity when attached");
+        assertEquals(2, updatedBook.getFormats().size(), "Book should now have both EPUB and TXT formats");
+
+        var formats = updatedBook.getFormats().stream().map(f -> f.getFormat().toLowerCase()).toList();
+        assertTrue(formats.contains("epub"));
+        assertTrue(formats.contains("txt"));
     }
 }

@@ -313,6 +313,29 @@ public class BookService {
 
         File outputFile = pluginService.runTransformationPlugin(inputFile, pluginId);
 
+        String sourceExt = getExtension(inputFile.getName());
+        String ext = getExtension(outputFile.getName());
+
+        Map<String, Object> pluginParams = pluginService.getPluginParams(pluginId);
+        boolean attachToExisting = Boolean.parseBoolean(String.valueOf(pluginParams.getOrDefault("attach_to_book", "false")));
+
+        if (attachToExisting && !sourceExt.equalsIgnoreCase(ext)) {
+            // Attach format directly to the existing book
+            File bookDirAbs = inputFile.getParentFile();
+            String destFilename = sanitizeFilename(book.getTitle()) + "." + ext;
+            File destFileAbs = new File(bookDirAbs, destFilename);
+            Files.move(outputFile.toPath(), destFileAbs.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+            File libDir = new File(appProperties.getLibraryPath());
+            String destFileRel = libDir.toPath().relativize(destFileAbs.toPath()).toString();
+            long fileSize = destFileAbs.length();
+
+            book.getFormats().removeIf(f -> f.getFormat().equalsIgnoreCase(ext));
+            BookFormat fmt = new BookFormat(ext, destFilename, destFileRel, fileSize);
+            book.addFormat(fmt);
+            return bookRepository.save(book);
+        }
+
         String newBookId = UUID.randomUUID().toString();
         String cleanAuthor = sanitizeFilename(book.getAuthor());
         String cleanTitle = sanitizeFilename(book.getTitle() + " (Transformé)");
@@ -321,7 +344,6 @@ public class BookService {
         File newBookDirAbs = new File(appProperties.getLibraryPath(), newBookDirRel);
         newBookDirAbs.mkdirs();
 
-        String ext = getExtension(outputFile.getName());
         String filename = cleanTitle + " (" + newBookId + ")." + ext;
         File destFileAbs = new File(newBookDirAbs, filename);
         String destFileRel = newBookDirRel + File.separator + filename;
@@ -344,7 +366,20 @@ public class BookService {
 
         Book newBook = new Book();
         newBook.setId(newBookId);
-        newBook.setTitle(book.getTitle() + " (FR)");
+
+        String suffix;
+        if (pluginId.contains("translator")) {
+            suffix = " (Traduit)";
+            Tag traduitTag = tagRepository.findById("Traduit").orElseGet(() -> tagRepository.save(new Tag("Traduit")));
+            newBook.addTag(traduitTag);
+        } else if (!sourceExt.equalsIgnoreCase(ext)) {
+            suffix = " (" + ext.toUpperCase() + ")";
+            Tag convertTag = tagRepository.findById("Converti").orElseGet(() -> tagRepository.save(new Tag("Converti")));
+            newBook.addTag(convertTag);
+        } else {
+            suffix = " (Transformé)";
+        }
+        newBook.setTitle(book.getTitle() + suffix);
         newBook.setAuthor(book.getAuthor());
         newBook.setPublisher(book.getPublisher());
         newBook.setPublishDate(book.getPublishDate());
@@ -354,8 +389,6 @@ public class BookService {
         for (Tag tag : book.getTags()) {
             newBook.addTag(tag);
         }
-        Tag traduitTag = tagRepository.findById("Traduit").orElseGet(() -> tagRepository.save(new Tag("Traduit")));
-        newBook.addTag(traduitTag);
 
         BookFormat fmt = new BookFormat(ext, filename, destFileRel, fileSize);
         newBook.addFormat(fmt);

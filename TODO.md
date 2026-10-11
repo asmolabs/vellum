@@ -37,7 +37,15 @@ Dernière mise à jour : 8 octobre 2026
       - [x] Compilation et rechargement dynamique à chaud de fichiers source `.java` sans packaging préalable (via le `JavaCompiler` JDK intégré).
     - [x] Support dynamique des formats externes via scripts (`plugin.json` avec `type: "format"` et `supportedExtensions`).
     - [x] Détection automatique des formats supportés à l'importation sans liste statique en dur.
-  - [x] Plugins internes Spring (`OceanOfPdfCleanerPlugin`, `GoogleBooksEnricherPlugin`, `EpubTranslatorPlugin`).
+  - [x] Moteurs de conversion de formats en pur Java (`ConversionService` & `JavaFormatConverterPlugin`) :
+    - [x] `CbzToPdfConverter` : conversion de bandes dessinées CBZ en PDF via PDFBox.
+    - [x] `PdfToCbzConverter` : rendu haute qualité de pages PDF en images dans une archive CBZ.
+    - [x] `EpubToTextConverter` : extraction de texte/markdown propre depuis les chapitres EPUB.
+    - [x] `TextToEpubConverter` : composition d'ebooks EPUB 2/3 complets et valides depuis du texte ou markdown.
+    - [x] `MobiToEpubConverter` : décompression PalmDOC LZ77 et packaging MOBI/Kindle vers EPUB.
+    - [x] `EpubToPdfConverter` : pagination de texte EPUB en document PDF A4 via PDFBox.
+    - [x] Attachement automatique du format converti à la fiche du livre existant (multi-formats par livre).
+  - [x] Plugins internes Spring (`OceanOfPdfCleanerPlugin`, `GoogleBooksEnricherPlugin`, `EpubTranslatorPlugin`, `JavaFormatConverterPlugin`).
   - [x] Chargeur de plugins externes (`ExternalPluginLoader`) pour scripts (Python, Bash avec manifeste `plugin.json`) et archives JAR.
   - [x] Rechargement à chaud des plugins et raccourci pour ouvrir le dossier `~/.vellum/plugins`.
   - [x] Form Builder dynamique supportant : `text`, `password` (avec œil 👁️), `file` 📂, `directory`, `slider` 🎚️, `textarea` 📝, `select`, `boolean`.
