@@ -1,6 +1,8 @@
-package com.asmolabs.vellum.converter.builtin;
+package com.asmolabs.vellum.plugin.builtin.converter;
 
-import com.asmolabs.vellum.converter.FormatConverter;
+import com.asmolabs.vellum.plugin.PluginDescriptor;
+import com.asmolabs.vellum.plugin.PluginType;
+import com.asmolabs.vellum.plugin.converter.BookConverterPlugin;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -14,7 +16,26 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 @Component
-public class EpubToTextConverter implements FormatConverter {
+public class EpubToTextConverterPlugin implements BookConverterPlugin {
+
+    private final PluginDescriptor descriptor = new PluginDescriptor(
+            "converter-epub-to-txt",
+            "Convertisseur Texte (EPUB ➔ TXT/MD)",
+            "Extrait l'ensemble des chapitres d'un livre EPUB en document texte ou Markdown épuré.",
+            "1.0.0",
+            PluginType.CONVERSION,
+            false,
+            null,
+            List.of(),
+            "epub",
+            "txt",
+            List.of()
+    );
+
+    @Override
+    public PluginDescriptor getDescriptor() {
+        return descriptor;
+    }
 
     @Override
     public String getSourceFormat() {
@@ -32,7 +53,7 @@ public class EpubToTextConverter implements FormatConverter {
     }
 
     @Override
-    public File convert(File inputFile, File outputFile, Map<String, Object> options) throws Exception {
+    public File convert(File inputFile, File outputFile, Map<String, Object> config) throws Exception {
         StringBuilder sb = new StringBuilder();
 
         try (ZipFile zip = new ZipFile(inputFile)) {
@@ -63,6 +84,11 @@ public class EpubToTextConverter implements FormatConverter {
 
         Files.writeString(outputFile.toPath(), sb.toString(), StandardCharsets.UTF_8);
         return outputFile;
+    }
+
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        return TestResult.ok("Extracteur de texte EPUB prêt (décompression et parsing XHTML intégrés).");
     }
 
     private String findOpfPath(ZipFile zip) {
@@ -114,11 +140,9 @@ public class EpubToTextConverter implements FormatConverter {
     }
 
     private String htmlToPlainText(String html) {
-        // Strip scripts and styles
         String clean = html.replaceAll("(?is)<style[^>]*>.*?</style>", "")
                 .replaceAll("(?is)<script[^>]*>.*?</script>", "");
 
-        // Convert common structural tags
         clean = clean.replaceAll("(?i)<h1[^>]*>(.*?)</h1>", "\n\n# $1\n\n");
         clean = clean.replaceAll("(?i)<h2[^>]*>(.*?)</h2>", "\n\n## $1\n\n");
         clean = clean.replaceAll("(?i)<h3[^>]*>(.*?)</h3>", "\n\n### $1\n\n");
@@ -126,11 +150,8 @@ public class EpubToTextConverter implements FormatConverter {
         clean = clean.replaceAll("(?i)</p>", "\n");
         clean = clean.replaceAll("(?i)<br\\s*/?>", "\n");
         clean = clean.replaceAll("(?i)<li[^>]*>", "\n* ");
-
-        // Strip remaining HTML tags
         clean = clean.replaceAll("<[^>]+>", "");
 
-        // Decode basic HTML entities
         clean = clean.replace("&nbsp;", " ")
                 .replace("&amp;", "&")
                 .replace("&lt;", "<")
@@ -142,7 +163,6 @@ public class EpubToTextConverter implements FormatConverter {
                 .replace("&ldquo;", "“")
                 .replace("&rdquo;", "”");
 
-        // Clean up excessive blank lines
         clean = clean.replaceAll("\n{3,}", "\n\n").trim();
         return clean;
     }

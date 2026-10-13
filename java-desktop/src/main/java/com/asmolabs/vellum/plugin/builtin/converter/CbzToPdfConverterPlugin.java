@@ -1,6 +1,8 @@
-package com.asmolabs.vellum.converter.builtin;
+package com.asmolabs.vellum.plugin.builtin.converter;
 
-import com.asmolabs.vellum.converter.FormatConverter;
+import com.asmolabs.vellum.plugin.PluginDescriptor;
+import com.asmolabs.vellum.plugin.PluginType;
+import com.asmolabs.vellum.plugin.converter.BookConverterPlugin;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -20,9 +22,25 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 @Component
-public class CbzToPdfConverter implements FormatConverter {
+public class CbzToPdfConverterPlugin implements BookConverterPlugin {
 
-    private static final Logger log = LoggerFactory.getLogger(CbzToPdfConverter.class);
+    private static final Logger log = LoggerFactory.getLogger(CbzToPdfConverterPlugin.class);
+
+    private final PluginDescriptor descriptor = new PluginDescriptor(
+            "converter-cbz-to-pdf",
+            "Convertisseur BD (CBZ ➔ PDF)",
+            "Assemble les pages images d'une bande dessinée ou manga CBZ en document PDF pleine page via PDFBox.",
+            "1.0.0",
+            PluginType.CONVERSION,
+            false,
+            null,
+            List.of()
+    );
+
+    @Override
+    public PluginDescriptor getDescriptor() {
+        return descriptor;
+    }
 
     @Override
     public String getSourceFormat() {
@@ -35,7 +53,7 @@ public class CbzToPdfConverter implements FormatConverter {
     }
 
     @Override
-    public File convert(File inputFile, File outputFile, Map<String, Object> options) throws Exception {
+    public File convert(File inputFile, File outputFile, Map<String, Object> config) throws Exception {
         try (ZipFile zip = new ZipFile(inputFile);
              PDDocument doc = new PDDocument()) {
 
@@ -72,6 +90,11 @@ public class CbzToPdfConverter implements FormatConverter {
             doc.save(outputFile);
         }
         return outputFile;
+    }
+
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        return TestResult.ok("Moteur de conversion CBZ -> PDF prêt (PDFBox intégré).");
     }
 
     private boolean isImage(String name) {

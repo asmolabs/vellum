@@ -533,20 +533,28 @@ class VellumApplicationTests {
         assertTrue(convertedPdf.exists());
         assertTrue(convertedPdf.length() > 0);
 
-        // 5. Test BookService transformation with attach_to_book: true
+        // 5. Test BookService convertAndAttachFormat directly
         Book imported = bookService.importBook(convertedEpub);
         assertEquals(1, imported.getFormats().size());
         assertEquals("epub", imported.getFormats().get(0).getFormat());
 
-        // Configure plugin params to convert to txt and attach
-        pluginService.savePluginParams("java-format-converter", Map.of("target_format", "txt", "attach_to_book", true));
-
-        Book updatedBook = bookService.runTransformationPlugin(imported.getId(), "java-format-converter");
+        Book updatedBook = bookService.convertAndAttachFormat(imported.getId(), "txt");
         assertEquals(imported.getId(), updatedBook.getId(), "Should remain the same book entity when attached");
         assertEquals(2, updatedBook.getFormats().size(), "Book should now have both EPUB and TXT formats");
 
         var formats = updatedBook.getFormats().stream().map(f -> f.getFormat().toLowerCase()).toList();
         assertTrue(formats.contains("epub"));
         assertTrue(formats.contains("txt"));
+
+        // 6. Test converter plugins diagnostics & toggle
+        var testResult = pluginService.testPluginConfiguration("converter-cbz-to-pdf", Map.of());
+        assertTrue(testResult.success());
+        assertTrue(testResult.message().contains("CBZ"));
+
+        // Test disabling a converter plugin
+        pluginService.setPluginEnabled("converter-cbz-to-pdf", false);
+        assertFalse(conversionService.canConvert("cbz", "pdf"), "Converter should be unavailable when disabled");
+        pluginService.setPluginEnabled("converter-cbz-to-pdf", true);
+        assertTrue(conversionService.canConvert("cbz", "pdf"), "Converter should be restored when enabled");
     }
 }

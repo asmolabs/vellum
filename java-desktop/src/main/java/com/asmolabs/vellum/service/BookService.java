@@ -29,6 +29,7 @@ public class BookService {
     private final TagRepository tagRepository;
     private final MetadataService metadataService;
     private final PluginService pluginService;
+    private final com.asmolabs.vellum.converter.ConversionService conversionService;
     private final AppProperties appProperties;
 
     public BookService(
@@ -37,6 +38,7 @@ public class BookService {
             TagRepository tagRepository,
             MetadataService metadataService,
             PluginService pluginService,
+            com.asmolabs.vellum.converter.ConversionService conversionService,
             AppProperties appProperties
     ) {
         this.bookRepository = bookRepository;
@@ -44,10 +46,15 @@ public class BookService {
         this.tagRepository = tagRepository;
         this.metadataService = metadataService;
         this.pluginService = pluginService;
+        this.conversionService = conversionService;
         this.appProperties = appProperties;
 
         // Ensure library directory exists
         ensureLibraryDirectory();
+    }
+
+    public com.asmolabs.vellum.converter.ConversionService getConversionService() {
+        return conversionService;
     }
 
     public void ensureLibraryDirectory() {
@@ -460,6 +467,94 @@ public class BookService {
                 .toList();
 
         return new ReadingStats(allBooks.size(), finished, inProgress, tags, recent);
+    }
+
+    @Transactional
+    public Book addFormatToBook(String bookId, File newFormatFile) throws IOException {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new IllegalArgumentException("Livre introuvable: " + bookId));
+
+        if (newFormatFile == null || !newFormatFile.exists()) {
+            throw new IllegalArgumentException("Fichier source introuvable");
+        }
+
+        String ext = getExtension(newFormatFile.getName()).toLowerCase();
+        if (ext.isBlank()) {
+            throw new IllegalArgumentException("Le fichier n'a pas d'extension valide");
+        }
+
+        File bookDirAbs;
+        if (!book.getFormats().isEmpty()) {
+            BookFormat first = book.getFormats().get(0);
+            File firstFile = new File(appProperties.getLibraryPath(), first.getFilepath());
+            bookDirAbs = firstFile.getParentFile();
+        } else {
+            String cleanAuthor = sanitizeFilename(book.getAuthor());
+            String cleanTitle = sanitizeFilename(book.getTitle());
+            String rel = cleanAuthor + File.separator + cleanTitle + " (" + book.getId() + ")";
+            bookDirAbs = new File(appProperties.getLibraryPath(), rel);
+            bookDirAbs.mkdirs();
+        }
+
+        String targetFilename = sanitizeFilename(book.getTitle()) + "." + ext;
+        File destFileAbs = new File(bookDirAbs, targetFilename);
+        Files.copy(newFormatFile.toPath(), destFileAbs.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+        File libDir = new File(appProperties.getLibraryPath());
+        String destFileRel = libDir.toPath().relativize(destFileAbs.toPath()).toString();
+        long fileSize = destFileAbs.length();
+
+        book.getFormats().removeIf(f -> f.getFormat().equalsIgnoreCase(ext));
+        BookFormat fmt = new BookFormat(ext, targetFilename, destFileRel, fileSize);
+        book.addFormat(fmt);
+
+        return bookRepository.save(book);
+    }
+
+    @Transactional
+    public Book deleteFormatFromBook(String bookId, String formatExt) throws IOException {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new IllegalArgumentException("Livre introuvable: " + bookId));
+
+        if (book.getFormats().size() <= 1) {
+            throw new IllegalStateException("Impossible de supprimer le seul format restant du livre.");
+        }
+
+        Optional<BookFormat> toRemove = book.getFormats().stream()
+                .filter(f -> f.getFormat().equalsIgnoreCase(formatExt))
+                .findFirst();
+
+        if (toRemove.isPresent()) {
+            BookFormat fmt = toRemove.get();
+            File f = new File(appProperties.getLibraryPath(), fmt.getFilepath());
+            if (f.exists()) {
+                f.delete();
+            }
+            book.getFormats().remove(fmt);
+            return bookRepository.save(book);
+        }
+
+        return book;
+    }
+
+    @Transactional
+    public Book convertAndAttachFormat(String bookId, String targetFormat) throws Exception {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new IllegalArgumentException("Livre introuvable: " + bookId));
+
+        if (book.getFormats().isEmpty()) {
+            throw new IllegalStateException("Aucun format disponible pour la conversion");
+        }
+
+        BookFormat sourceFmt = book.getFormats().stream()
+                .filter(f -> conversionService.canConvert(f.getFormat(), targetFormat))
+                .findFirst()
+                .orElse(book.getFormats().get(0));
+
+        File inputFile = getFileForFormat(sourceFmt);
+        File convertedFile = conversionService.convert(inputFile, targetFormat, Map.of("title", book.getTitle(), "author", book.getAuthor()));
+
+        return addFormatToBook(bookId, convertedFile);
     }
 
     private void deleteDirectoryRecursively(Path path) throws IOException {

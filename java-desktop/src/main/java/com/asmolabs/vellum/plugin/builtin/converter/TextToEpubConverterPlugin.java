@@ -1,6 +1,9 @@
-package com.asmolabs.vellum.converter.builtin;
+package com.asmolabs.vellum.plugin.builtin.converter;
 
-import com.asmolabs.vellum.converter.FormatConverter;
+import com.asmolabs.vellum.plugin.ConfigField;
+import com.asmolabs.vellum.plugin.PluginDescriptor;
+import com.asmolabs.vellum.plugin.PluginType;
+import com.asmolabs.vellum.plugin.converter.BookConverterPlugin;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -13,7 +16,28 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Component
-public class TextToEpubConverter implements FormatConverter {
+public class TextToEpubConverterPlugin implements BookConverterPlugin {
+
+    private final PluginDescriptor descriptor = new PluginDescriptor(
+            "converter-txt-to-epub",
+            "Générateur EPUB (TXT/MD ➔ EPUB)",
+            "Structure un document texte brut ou Markdown en véritable livre numérique EPUB avec table des matières et chapitres.",
+            "1.0.0",
+            PluginType.CONVERSION,
+            false,
+            null,
+            List.of(),
+            "txt",
+            "epub",
+            List.of(
+                    new ConfigField("font_family", "Police de lecture", "select", "Georgia, serif", "Famille de police injectée dans la feuille de style.", List.of("Georgia, serif", "sans-serif", "monospace"))
+            )
+    );
+
+    @Override
+    public PluginDescriptor getDescriptor() {
+        return descriptor;
+    }
 
     @Override
     public String getSourceFormat() {
@@ -31,17 +55,20 @@ public class TextToEpubConverter implements FormatConverter {
     }
 
     @Override
-    public File convert(File inputFile, File outputFile, Map<String, Object> options) throws Exception {
+    public File convert(File inputFile, File outputFile, Map<String, Object> config) throws Exception {
         String content = Files.readString(inputFile.toPath(), StandardCharsets.UTF_8);
         String bookTitle = inputFile.getName().replaceFirst("[.][^.]+$", "");
         String bookAuthor = "Auteur inconnu";
 
-        if (options != null) {
-            if (options.containsKey("title")) bookTitle = String.valueOf(options.get("title"));
-            if (options.containsKey("author")) bookAuthor = String.valueOf(options.get("author"));
+        if (config != null) {
+            if (config.containsKey("title")) bookTitle = String.valueOf(config.get("title"));
+            if (config.containsKey("author")) bookAuthor = String.valueOf(config.get("author"));
         }
 
-        // Split into chapters
+        String fontFamily = (config != null && config.containsKey("font_family"))
+                ? String.valueOf(config.get("font_family"))
+                : "Georgia, serif";
+
         List<Chapter> chapters = splitIntoChapters(content, bookTitle);
 
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(outputFile))) {
@@ -70,11 +97,11 @@ public class TextToEpubConverter implements FormatConverter {
             writeZipEntry(zos, "META-INF/container.xml", containerXml);
 
             // 3. OEBPS/stylesheet.css
-            String css = """
+            String css = String.format("""
                 body {
-                  font-family: Georgia, serif;
+                  font-family: %s;
                   line-height: 1.6;
-                  margin: 5%;
+                  margin: 5%%;
                   color: #222;
                 }
                 h1, h2, h3 {
@@ -87,7 +114,7 @@ public class TextToEpubConverter implements FormatConverter {
                   margin: 0 0 1em 0;
                   text-indent: 1.2em;
                 }
-                """.stripIndent();
+                """, fontFamily);
             writeZipEntry(zos, "OEBPS/stylesheet.css", css);
 
             // 4. Chapters XHTML
@@ -107,6 +134,11 @@ public class TextToEpubConverter implements FormatConverter {
         }
 
         return outputFile;
+    }
+
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        return TestResult.ok("Générateur EPUB prêt (packaging OCF 2.0 / XHTML pur Java).");
     }
 
     private void writeZipEntry(ZipOutputStream zos, String name, String content) throws Exception {

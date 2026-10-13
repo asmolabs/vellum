@@ -148,7 +148,11 @@ public class MainView extends BorderPane {
                 Platform.runLater(() -> {
                     refreshLibrary();
                     detailDrawerView.showBook(transformed);
-                    Alert info = new Alert(Alert.AlertType.INFORMATION, "Plugin exécuté avec succès !\nNouveau livre créé : " + transformed.getTitle(), ButtonType.OK);
+                    boolean isSameBook = transformed.getId().equals(event.book().getId());
+                    String msg = isSameBook
+                            ? "Format converti et rattaché avec succès à la fiche de « " + transformed.getTitle() + " » !"
+                            : "Plugin exécuté avec succès !\nNouveau livre créé : " + transformed.getTitle();
+                    Alert info = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
                     info.showAndWait();
                 });
             } catch (Exception e) {

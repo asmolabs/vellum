@@ -1,6 +1,8 @@
-package com.asmolabs.vellum.converter.builtin;
+package com.asmolabs.vellum.plugin.builtin.converter;
 
-import com.asmolabs.vellum.converter.FormatConverter;
+import com.asmolabs.vellum.plugin.PluginDescriptor;
+import com.asmolabs.vellum.plugin.PluginType;
+import com.asmolabs.vellum.plugin.converter.BookConverterPlugin;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
@@ -14,7 +16,26 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Component
-public class MobiToEpubConverter implements FormatConverter {
+public class MobiToEpubConverterPlugin implements BookConverterPlugin {
+
+    private final PluginDescriptor descriptor = new PluginDescriptor(
+            "converter-mobi-to-epub",
+            "Convertisseur Kindle (MOBI/AZW ➔ EPUB)",
+            "Décompresse les enregistrements PalmDOC LZ77 de fichiers Kindle (MOBI, AZW, AZW3) et génère un conteneur EPUB standardisé.",
+            "1.0.0",
+            PluginType.CONVERSION,
+            false,
+            null,
+            List.of(),
+            "mobi",
+            "epub",
+            List.of()
+    );
+
+    @Override
+    public PluginDescriptor getDescriptor() {
+        return descriptor;
+    }
 
     @Override
     public String getSourceFormat() {
@@ -33,7 +54,7 @@ public class MobiToEpubConverter implements FormatConverter {
     }
 
     @Override
-    public File convert(File inputFile, File outputFile, Map<String, Object> options) throws Exception {
+    public File convert(File inputFile, File outputFile, Map<String, Object> config) throws Exception {
         String bookTitle = inputFile.getName().replaceFirst("[.][^.]+$", "");
         String bookAuthor = "Auteur inconnu";
 
@@ -101,7 +122,6 @@ public class MobiToEpubConverter implements FormatConverter {
 
         // Package into standard EPUB
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(outputFile))) {
-            // 1. mimetype (uncompressed)
             byte[] mimeBytes = "application/epub+zip".getBytes(StandardCharsets.US_ASCII);
             ZipEntry mimeEntry = new ZipEntry("mimetype");
             mimeEntry.setMethod(ZipEntry.STORED);
@@ -114,7 +134,6 @@ public class MobiToEpubConverter implements FormatConverter {
             zos.write(mimeBytes);
             zos.closeEntry();
 
-            // 2. container.xml
             String containerXml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -125,11 +144,9 @@ public class MobiToEpubConverter implements FormatConverter {
                 """.stripIndent();
             writeEntry(zos, "META-INF/container.xml", containerXml);
 
-            // 3. stylesheet.css
             String css = "body { font-family: Georgia, serif; line-height: 1.6; margin: 5%; }";
             writeEntry(zos, "OEBPS/stylesheet.css", css);
 
-            // 4. content.xhtml
             String xhtml = String.format("""
                 <?xml version="1.0" encoding="utf-8"?>
                 <!DOCTYPE html>
@@ -145,7 +162,6 @@ public class MobiToEpubConverter implements FormatConverter {
                 """, escapeXml(bookTitle), rawHtml);
             writeEntry(zos, "OEBPS/content.xhtml", xhtml);
 
-            // 5. content.opf
             String uuid = UUID.randomUUID().toString();
             String opf = String.format("""
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -168,10 +184,9 @@ public class MobiToEpubConverter implements FormatConverter {
                 """, escapeXml(bookTitle), escapeXml(bookAuthor), uuid);
             writeEntry(zos, "OEBPS/content.opf", opf);
 
-            // 6. toc.ncx
             String ncx = String.format("""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+                <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/\" version="2005-1">
                   <docTitle><text>%s</text></docTitle>
                   <navMap>
                     <navPoint id="nav1" playOrder="1">
@@ -185,6 +200,11 @@ public class MobiToEpubConverter implements FormatConverter {
         }
 
         return outputFile;
+    }
+
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        return TestResult.ok("Décompresseur PalmDOC LZ77 100% Java prêt (sans dépendance externe).");
     }
 
     public static byte[] decompressPalmDoc(byte[] compressed) {

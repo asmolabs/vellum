@@ -222,6 +222,25 @@ public class PluginService {
         return new ArrayList<>(extensions);
     }
 
+    public <T extends VellumPlugin> List<T> getPluginsOfType(Class<T> type) {
+        return allPlugins.values().stream()
+                .filter(type::isInstance)
+                .map(type::cast)
+                .filter(p -> isPluginEnabled(p.getId()))
+                .toList();
+    }
+
+    public List<com.asmolabs.vellum.plugin.converter.BookConverterPlugin> getEnabledConverters() {
+        return getPluginsOfType(com.asmolabs.vellum.plugin.converter.BookConverterPlugin.class);
+    }
+
+    public Optional<com.asmolabs.vellum.plugin.converter.BookConverterPlugin> getConverterPlugin(String fromExt, String toExt) {
+        if (fromExt == null || toExt == null) return Optional.empty();
+        return getEnabledConverters().stream()
+                .filter(c -> c.canConvert(fromExt, toExt))
+                .findFirst();
+    }
+
     public VellumPlugin.TestResult testPluginConfiguration(String pluginId, Map<String, Object> config) {
         Optional<VellumPlugin> pluginOpt = getPluginById(pluginId);
         if (pluginOpt.isEmpty()) {

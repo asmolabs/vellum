@@ -12,9 +12,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
+import com.asmolabs.vellum.plugin.converter.BookConverterPlugin;
 import java.util.concurrent.TimeUnit;
 
-public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataEnricherPlugin, BookFormatPlugin {
+public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataEnricherPlugin, BookFormatPlugin, BookConverterPlugin {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalScriptPlugin.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -258,6 +259,72 @@ public class ExternalScriptPlugin implements BookTransformationPlugin, MetadataE
         }
 
         return currentMetadata;
+    }
+
+    @Override
+    public String getSourceFormat() {
+        return descriptor.sourceFormat() != null ? descriptor.sourceFormat() : "";
+    }
+
+    @Override
+    public String getTargetFormat() {
+        return descriptor.targetFormat() != null ? descriptor.targetFormat() : "";
+    }
+
+    @Override
+    public File convert(File inputFile, File outputFile, Map<String, Object> config) throws Exception {
+        if (descriptor.command() == null || descriptor.command().isBlank()) {
+            throw new IllegalStateException("External plugin " + getId() + " has no 'command' specified in plugin.json");
+        }
+
+        String configJson = objectMapper.writeValueAsString(config != null ? config : Map.of());
+
+        List<String> commandTokens = parseCommand(descriptor.command());
+        List<String> fullCommand = new ArrayList<>(commandTokens);
+        fullCommand.add("--input");
+        fullCommand.add(inputFile.getAbsolutePath());
+        fullCommand.add("--output");
+        fullCommand.add(outputFile.getAbsolutePath());
+        fullCommand.add("--config");
+        fullCommand.add(configJson);
+
+        log.info("Executing external converter plugin [{}]: {}", getId(), fullCommand);
+
+        ProcessBuilder pb = new ProcessBuilder(fullCommand);
+        pb.directory(pluginDirectory);
+        Map<String, String> env = pb.environment();
+        env.put("VELLUM_INPUT_FILE", inputFile.getAbsolutePath());
+        env.put("VELLUM_OUTPUT_FILE", outputFile.getAbsolutePath());
+        env.put("VELLUM_CONFIG_JSON", configJson);
+        env.put("VELLUM_PLUGIN_ID", getId());
+
+        Process process = pb.start();
+
+        String stdout = new String(process.getInputStream().readAllBytes());
+        String stderr = new String(process.getErrorStream().readAllBytes());
+
+        boolean finished = process.waitFor(120, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            throw new RuntimeException("External converter " + getId() + " timed out after 120s");
+        }
+
+        int exitCode = process.exitValue();
+        if (exitCode != 0) {
+            log.error("Plugin {} failed with exit code {}. Stderr: {}", getId(), exitCode, stderr);
+            throw new RuntimeException("Plugin " + getId() + " failed (code " + exitCode + "): " + stderr);
+        }
+
+        if (!outputFile.exists()) {
+            String trimmedOut = stdout.trim();
+            File potentialOut = new File(trimmedOut);
+            if (potentialOut.exists() && potentialOut.isFile()) {
+                return potentialOut;
+            }
+            throw new IOException("Plugin " + getId() + " succeeded but output file was not found at: " + outputFile.getAbsolutePath());
+        }
+
+        return outputFile;
     }
 
     @Override

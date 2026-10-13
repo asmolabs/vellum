@@ -37,15 +37,22 @@ Dernière mise à jour : 8 octobre 2026
       - [x] Compilation et rechargement dynamique à chaud de fichiers source `.java` sans packaging préalable (via le `JavaCompiler` JDK intégré).
     - [x] Support dynamique des formats externes via scripts (`plugin.json` avec `type: "format"` et `supportedExtensions`).
     - [x] Détection automatique des formats supportés à l'importation sans liste statique en dur.
-  - [x] Moteurs de conversion de formats en pur Java (`ConversionService` & `JavaFormatConverterPlugin`) :
-    - [x] `CbzToPdfConverter` : conversion de bandes dessinées CBZ en PDF via PDFBox.
-    - [x] `PdfToCbzConverter` : rendu haute qualité de pages PDF en images dans une archive CBZ.
-    - [x] `EpubToTextConverter` : extraction de texte/markdown propre depuis les chapitres EPUB.
-    - [x] `TextToEpubConverter` : composition d'ebooks EPUB 2/3 complets et valides depuis du texte ou markdown.
-    - [x] `MobiToEpubConverter` : décompression PalmDOC LZ77 et packaging MOBI/Kindle vers EPUB.
-    - [x] `EpubToPdfConverter` : pagination de texte EPUB en document PDF A4 via PDFBox.
-    - [x] Attachement automatique du format converti à la fiche du livre existant (multi-formats par livre).
-  - [x] Plugins internes Spring (`OceanOfPdfCleanerPlugin`, `GoogleBooksEnricherPlugin`, `EpubTranslatorPlugin`, `JavaFormatConverterPlugin`).
+  - [x] **Moteurs de conversion de formats unifiés en tant que vrais plugins Vellum (`BookConverterPlugin`)** :
+    - [x] Contrat d'interface `BookConverterPlugin extends VellumPlugin` avec type `PluginType.CONVERSION`.
+    - [x] 6 plugins de conversion natifs 100% Java enregistrés comme composants Spring indépendants :
+      - [x] `CbzToPdfConverterPlugin` (`converter-cbz-to-pdf`) : conversion BD vers PDF via PDFBox.
+      - [x] `PdfToCbzConverterPlugin` (`converter-pdf-to-cbz`) : extraction haute résolution avec slider DPI configurable (72-300).
+      - [x] `EpubToTextConverterPlugin` (`converter-epub-to-txt`) : extraction textuelle et markdown épurée.
+      - [x] `TextToEpubConverterPlugin` (`converter-txt-to-epub`) : packaging OCF/XHTML avec sélection de typographie.
+      - [x] `MobiToEpubConverterPlugin` (`converter-mobi-to-epub`) : décompresseur PalmDOC LZ77 pur Java et conversion vers EPUB.
+      - [x] `EpubToPdfConverterPlugin` (`converter-epub-to-pdf`) : pagination et rendu vectoriel A4 via PDFBox avec taille de police configurable.
+    - [x] Chaque convertisseur est individuellement activable/désactivable dans l'onglet Plugins des Paramètres.
+    - [x] Badge visuel dédié `[Conversion]` dans la liste des plugins.
+    - [x] Bouton de diagnostic « 🧪 Tester la configuration » pour chaque moteur de conversion.
+    - [x] Support des convertisseurs externes via archives JAR (`ServiceLoader<BookConverterPlugin>`) et scripts (`type: "conversion"`).
+    - [x] `ConversionService` dynamique et réactif aux activations/désactivations de plugins.
+    - [x] Attachement direct des formats convertis à la même fiche de livre (multi-formats par entité).
+  - [x] Plugins internes Spring (`OceanOfPdfCleanerPlugin`, `GoogleBooksEnricherPlugin`, `EpubTranslatorPlugin`).
   - [x] Chargeur de plugins externes (`ExternalPluginLoader`) pour scripts (Python, Bash avec manifeste `plugin.json`) et archives JAR.
   - [x] Rechargement à chaud des plugins et raccourci pour ouvrir le dossier `~/.vellum/plugins`.
   - [x] Form Builder dynamique supportant : `text`, `password` (avec œil 👁️), `file` 📂, `directory`, `slider` 🎚️, `textarea` 📝, `select`, `boolean`.

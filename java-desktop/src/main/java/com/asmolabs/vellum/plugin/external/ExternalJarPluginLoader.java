@@ -47,7 +47,17 @@ public class ExternalJarPluginLoader {
                 }
             }
 
-            // 3. Fallback: check META-INF/vellum-plugin.properties
+            // 3. ServiceLoader for BookConverterPlugin
+            ServiceLoader<com.asmolabs.vellum.plugin.converter.BookConverterPlugin> convLoader =
+                    ServiceLoader.load(com.asmolabs.vellum.plugin.converter.BookConverterPlugin.class, classLoader);
+            for (com.asmolabs.vellum.plugin.converter.BookConverterPlugin convPlugin : convLoader) {
+                if (loaded.stream().noneMatch(p -> p.getId().equalsIgnoreCase(convPlugin.getId()))) {
+                    loaded.add(wrapPlugin(convPlugin));
+                    log.info("Loaded external converter plugin via ServiceLoader<BookConverterPlugin>: {} from {}", convPlugin.getId(), jarFile.getName());
+                }
+            }
+
+            // 4. Fallback: check META-INF/vellum-plugin.properties
             if (loaded.isEmpty()) {
                 try (JarFile jf = new JarFile(jarFile)) {
                     JarEntry entry = jf.getJarEntry("META-INF/vellum-plugin.properties");
@@ -124,11 +134,18 @@ public class ExternalJarPluginLoader {
         PluginType type = orig != null ? orig.type() : null;
         List<String> extensions = orig != null && orig.supportedExtensions() != null ? orig.supportedExtensions() : List.of();
 
+        String sourceFormat = orig != null ? orig.sourceFormat() : null;
+        String targetFormat = orig != null ? orig.targetFormat() : null;
+
         if (original instanceof BookFormatPlugin bfp) {
             type = PluginType.FORMAT;
             if (extensions.isEmpty()) {
                 extensions = bfp.getSupportedExtensions();
             }
+        } else if (original instanceof com.asmolabs.vellum.plugin.converter.BookConverterPlugin bcp) {
+            type = PluginType.CONVERSION;
+            sourceFormat = bcp.getSourceFormat();
+            targetFormat = bcp.getTargetFormat();
         } else if (type == null) {
             type = PluginType.TRANSFORMATION;
         }
@@ -142,6 +159,8 @@ public class ExternalJarPluginLoader {
                 true, // flagged as external
                 orig != null ? orig.command() : null,
                 extensions,
+                sourceFormat,
+                targetFormat,
                 orig != null && orig.configSchema() != null ? orig.configSchema() : List.of()
         );
 
@@ -158,6 +177,9 @@ public class ExternalJarPluginLoader {
         interfaces.add(VellumPlugin.class);
         if (original instanceof BookFormatPlugin) {
             interfaces.add(BookFormatPlugin.class);
+        }
+        if (original instanceof com.asmolabs.vellum.plugin.converter.BookConverterPlugin) {
+            interfaces.add(com.asmolabs.vellum.plugin.converter.BookConverterPlugin.class);
         }
 
         ClassLoader cl = original.getClass().getClassLoader() != null

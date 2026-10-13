@@ -192,6 +192,9 @@ public class SettingsDialog {
                 } else if ("import".equalsIgnoreCase(plugin.type())) {
                     typeStr = "Import / Enrichissement";
                     typeStyle = "-fx-background-color: rgba(59, 130, 246, 0.2); -fx-text-fill: #60a5fa; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";
+                } else if ("conversion".equalsIgnoreCase(plugin.type())) {
+                    typeStr = "Conversion";
+                    typeStyle = "-fx-background-color: rgba(236, 72, 153, 0.2); -fx-text-fill: #f472b6; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";
                 } else {
                     typeStr = "Transformation";
                     typeStyle = "-fx-background-color: rgba(245, 158, 11, 0.2); -fx-text-fill: #fbbf24; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";

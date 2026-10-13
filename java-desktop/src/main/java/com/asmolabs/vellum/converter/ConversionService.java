@@ -1,11 +1,12 @@
 package com.asmolabs.vellum.converter;
 
+import com.asmolabs.vellum.plugin.converter.BookConverterPlugin;
+import com.asmolabs.vellum.service.PluginService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 
 @Service
@@ -13,18 +14,17 @@ public class ConversionService {
 
     private static final Logger log = LoggerFactory.getLogger(ConversionService.class);
 
-    private final List<FormatConverter> converters;
+    private final PluginService pluginService;
 
-    public ConversionService(List<FormatConverter> converters) {
-        this.converters = converters != null ? converters : List.of();
-        log.info("Initialized ConversionService with {} Java format converters", this.converters.size());
+    public ConversionService(PluginService pluginService) {
+        this.pluginService = pluginService;
     }
 
     public List<String> getAvailableTargetFormats(String sourceFormat) {
         if (sourceFormat == null) return List.of();
         String src = sourceFormat.toLowerCase();
         Set<String> targets = new LinkedHashSet<>();
-        for (FormatConverter c : converters) {
+        for (BookConverterPlugin c : pluginService.getEnabledConverters()) {
             if (c.getSourceFormat().equalsIgnoreCase(src)) {
                 targets.add(c.getTargetFormat().toLowerCase());
             }
@@ -34,7 +34,7 @@ public class ConversionService {
 
     public boolean canConvert(String fromExt, String toExt) {
         if (fromExt == null || toExt == null) return false;
-        return converters.stream().anyMatch(c -> c.canConvert(fromExt, toExt));
+        return pluginService.getConverterPlugin(fromExt, toExt).isPresent();
     }
 
     public File convert(File inputFile, String targetFormat, Map<String, Object> options) throws Exception {
@@ -50,18 +50,21 @@ public class ConversionService {
         String fromExt = filename.substring(dot + 1).toLowerCase();
         String toExt = targetFormat.toLowerCase().replaceFirst("^\\.", "");
 
-        FormatConverter converter = converters.stream()
-                .filter(c -> c.canConvert(fromExt, toExt))
-                .findFirst()
+        BookConverterPlugin converter = pluginService.getConverterPlugin(fromExt, toExt)
                 .orElseThrow(() -> new UnsupportedOperationException(
-                        String.format("Aucun moteur de conversion disponible pour %s -> %s", fromExt.toUpperCase(), toExt.toUpperCase())));
+                        String.format("Aucun convertisseur actif disponible pour %s -> %s", fromExt.toUpperCase(), toExt.toUpperCase())));
 
         String baseName = filename.substring(0, dot);
         File tempOutput = File.createTempFile("vellum_conv_" + baseName + "_", "." + toExt);
         tempOutput.deleteOnExit();
 
-        log.info("Converting {} -> {} using {} for {}", fromExt, toExt, converter.getClass().getSimpleName(), inputFile.getName());
-        return converter.convert(inputFile, tempOutput, options != null ? options : Map.of());
+        Map<String, Object> pluginConfig = new HashMap<>(pluginService.getPluginParams(converter.getId()));
+        if (options != null) {
+            pluginConfig.putAll(options);
+        }
+
+        log.info("Converting {} -> {} using plugin {} ({}) for {}", fromExt, toExt, converter.getName(), converter.getId(), inputFile.getName());
+        return converter.convert(inputFile, tempOutput, pluginConfig);
     }
 
     public File convert(File inputFile, String targetFormat) throws Exception {

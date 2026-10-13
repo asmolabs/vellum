@@ -1,6 +1,9 @@
-package com.asmolabs.vellum.converter.builtin;
+package com.asmolabs.vellum.plugin.builtin.converter;
 
-import com.asmolabs.vellum.converter.FormatConverter;
+import com.asmolabs.vellum.plugin.ConfigField;
+import com.asmolabs.vellum.plugin.PluginDescriptor;
+import com.asmolabs.vellum.plugin.PluginType;
+import com.asmolabs.vellum.plugin.converter.BookConverterPlugin;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -14,13 +17,32 @@ import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 @Component
-public class EpubToPdfConverter implements FormatConverter {
+public class EpubToPdfConverterPlugin implements BookConverterPlugin {
+
+    private final PluginDescriptor descriptor = new PluginDescriptor(
+            "converter-epub-to-pdf",
+            "Générateur Document (EPUB ➔ PDF)",
+            "Convertit et pagine le texte d'un livre EPUB en document PDF A4 prêt à l'impression avec gestion des sauts de page.",
+            "1.0.0",
+            PluginType.CONVERSION,
+            false,
+            null,
+            List.of(),
+            "epub",
+            "pdf",
+            List.of(
+                    new ConfigField("font_size", "Taille du texte", "number", 10.0, "Taille de police en points (8 à 16).", List.of(), 8.0, 16.0, 1.0)
+            )
+    );
+
+    @Override
+    public PluginDescriptor getDescriptor() {
+        return descriptor;
+    }
 
     @Override
     public String getSourceFormat() {
@@ -33,15 +55,25 @@ public class EpubToPdfConverter implements FormatConverter {
     }
 
     @Override
-    public File convert(File inputFile, File outputFile, Map<String, Object> options) throws Exception {
+    public File convert(File inputFile, File outputFile, Map<String, Object> config) throws Exception {
         List<String> textLines = extractTextLinesFromEpub(inputFile);
+
+        float fontSize = 10f;
+        if (config != null && config.containsKey("font_size")) {
+            try {
+                fontSize = ((Number) config.get("font_size")).floatValue();
+            } catch (Exception e) {
+                try {
+                    fontSize = Float.parseFloat(String.valueOf(config.get("font_size")));
+                } catch (Exception ignored) {}
+            }
+        }
 
         try (PDDocument doc = new PDDocument()) {
             PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
             PDFont boldFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
-            float fontSize = 10f;
-            float leading = 14f;
+            float leading = fontSize * 1.4f;
             float margin = 50f;
             PDRectangle mediaBox = PDRectangle.A4;
             float width = mediaBox.getWidth();
@@ -69,8 +101,8 @@ public class EpubToPdfConverter implements FormatConverter {
                 }
 
                 PDFont currentFont = isHeader ? boldFont : font;
-                float currentFontSize = isHeader ? 14f : fontSize;
-                float currentLeading = isHeader ? 18f : leading;
+                float currentFontSize = isHeader ? fontSize * 1.4f : fontSize;
+                float currentLeading = isHeader ? leading * 1.3f : leading;
 
                 List<String> wrapped = wrapLine(line, currentFont, currentFontSize, contentWidth);
 
@@ -97,6 +129,11 @@ public class EpubToPdfConverter implements FormatConverter {
         }
 
         return outputFile;
+    }
+
+    @Override
+    public TestResult testConfiguration(Map<String, Object> config) {
+        return TestResult.ok("Moteur de pagination PDFBox prêt (génération A4 vectorielle).");
     }
 
     private List<String> extractTextLinesFromEpub(File epubFile) {
@@ -168,7 +205,6 @@ public class EpubToPdfConverter implements FormatConverter {
     }
 
     private String cleanTextForPdf(String text) {
-        // PDF standard Type1 fonts only support standard ISO Latin 1 characters
         StringBuilder sb = new StringBuilder();
         for (char c : text.toCharArray()) {
             if (c >= 32 && c <= 255) {
@@ -182,7 +218,6 @@ public class EpubToPdfConverter implements FormatConverter {
             } else if (c == '…') {
                 sb.append("...");
             } else if (c > 255) {
-                // approximate accented character or skip
                 sb.append(' ');
             }
         }

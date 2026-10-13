@@ -6,7 +6,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum PluginType {
     IMPORT("import"),
     TRANSFORMATION("transformation"),
-    FORMAT("format");
+    FORMAT("format"),
+    CONVERSION("conversion");
 
     private final String value;
 

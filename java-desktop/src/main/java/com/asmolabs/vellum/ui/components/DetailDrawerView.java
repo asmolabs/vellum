@@ -13,12 +13,16 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.awt.Desktop;
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DetailDrawerView extends VBox {
 
@@ -235,7 +239,8 @@ public class DetailDrawerView extends VBox {
                 sizeLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: -color-text-muted;");
                 HBox.setHgrow(sizeLbl, Priority.ALWAYS);
 
-                Button openFolderBtn = new Button("📂 Ouvrir dossier");
+                Button openFolderBtn = new Button("📂");
+                openFolderBtn.setTooltip(new Tooltip("Ouvrir le dossier"));
                 openFolderBtn.setStyle("-fx-background-color: transparent; -fx-border-color: -color-border; -fx-border-radius: 4; -fx-text-fill: -color-text-secondary; -fx-font-size: 10px; -fx-cursor: hand;");
                 openFolderBtn.setOnAction(e -> {
                     try {
@@ -247,11 +252,93 @@ public class DetailDrawerView extends VBox {
                 });
 
                 fRow.getChildren().addAll(badge, sizeLbl, openFolderBtn);
+
+                if (book.getFormats().size() > 1) {
+                    Button delBtn = new Button("🗑");
+                    delBtn.setTooltip(new Tooltip("Supprimer ce format"));
+                    delBtn.setStyle("-fx-background-color: transparent; -fx-border-color: rgba(239, 68, 68, 0.3); -fx-border-radius: 4; -fx-text-fill: #f87171; -fx-font-size: 10px; -fx-cursor: hand;");
+                    delBtn.setOnAction(e -> {
+                        Alert conf = new Alert(Alert.AlertType.CONFIRMATION, "Supprimer le format " + fmt.getFormat().toUpperCase() + " de ce livre ?", ButtonType.YES, ButtonType.NO);
+                        if (conf.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
+                            try {
+                                Book updated = bookService.deleteFormatFromBook(book.getId(), fmt.getFormat());
+                                eventPublisher.publishEvent(new UiEvents.LibraryChanged());
+                                showBook(updated);
+                            } catch (Exception ex) {
+                                new Alert(Alert.AlertType.ERROR, "Erreur : " + ex.getMessage()).showAndWait();
+                            }
+                        }
+                    });
+                    fRow.getChildren().add(delBtn);
+                }
+
                 formatsBox.getChildren().add(fRow);
             }
 
-            // Plugins menu
+            // Button: Add another format manually to this book
+            Button addFmtBtn = new Button("➕ Ajouter un format...");
+            addFmtBtn.setStyle("-fx-background-color: rgba(99, 102, 241, 0.15); -fx-text-fill: #a5b4fc; -fx-border-color: rgba(99, 102, 241, 0.3); -fx-border-radius: 4; -fx-font-size: 11px; -fx-cursor: hand; -fx-padding: 4 8;");
+            addFmtBtn.setMaxWidth(Double.MAX_VALUE);
+            addFmtBtn.setOnAction(e -> {
+                FileChooser fc = new FileChooser();
+                fc.setTitle("Ajouter un format à « " + book.getTitle() + " »");
+                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Livres et documents", "*.epub", "*.pdf", "*.cbz", "*.cbr", "*.mobi", "*.azw3", "*.txt", "*.md", "*.m4b", "*.mp3"));
+                File chosen = fc.showOpenDialog(this.getScene().getWindow());
+                if (chosen != null) {
+                    try {
+                        Book updated = bookService.addFormatToBook(book.getId(), chosen);
+                        eventPublisher.publishEvent(new UiEvents.LibraryChanged());
+                        showBook(updated);
+                        Alert ok = new Alert(Alert.AlertType.INFORMATION, "Nouveau format rattaché avec succès !", ButtonType.OK);
+                        ok.showAndWait();
+                    } catch (Exception ex) {
+                        new Alert(Alert.AlertType.ERROR, "Erreur lors de l'ajout du format : " + ex.getMessage()).showAndWait();
+                    }
+                }
+            });
+            formatsBox.getChildren().add(addFmtBtn);
+
+            // Plugins & Conversions menu
             pluginMenuBtn.getItems().clear();
+
+            // Direct Pure Java Conversion actions
+            if (bookService.getConversionService() != null) {
+                Set<String> possibleTargets = new LinkedHashSet<>();
+                for (BookFormat f : book.getFormats()) {
+                    possibleTargets.addAll(bookService.getConversionService().getAvailableTargetFormats(f.getFormat()));
+                }
+                Set<String> existingExts = book.getFormats().stream().map(f -> f.getFormat().toLowerCase()).collect(Collectors.toSet());
+                possibleTargets.removeAll(existingExts);
+
+                if (!possibleTargets.isEmpty()) {
+                    Menu convertSubMenu = new Menu("🔄 Convertir & Attacher (Pur Java)");
+                    for (String target : possibleTargets) {
+                        MenuItem convItem = new MenuItem("Convertir en " + target.toUpperCase());
+                        convItem.setOnAction(e -> {
+                            Thread.ofVirtual().start(() -> {
+                                try {
+                                    Book updated = bookService.convertAndAttachFormat(book.getId(), target);
+                                    Platform.runLater(() -> {
+                                        eventPublisher.publishEvent(new UiEvents.LibraryChanged());
+                                        showBook(updated);
+                                        Alert ok = new Alert(Alert.AlertType.INFORMATION, "Format " + target.toUpperCase() + " converti et rattaché avec succès à la fiche !", ButtonType.OK);
+                                        ok.showAndWait();
+                                    });
+                                } catch (Exception ex) {
+                                    Platform.runLater(() -> {
+                                        Alert err = new Alert(Alert.AlertType.ERROR, "Échec de conversion : " + ex.getMessage(), ButtonType.OK);
+                                        err.showAndWait();
+                                    });
+                                }
+                            });
+                        });
+                        convertSubMenu.getItems().add(convItem);
+                    }
+                    pluginMenuBtn.getItems().add(convertSubMenu);
+                    pluginMenuBtn.getItems().add(new SeparatorMenuItem());
+                }
+            }
+
             for (PluginService.LibraryPlugin plugin : pluginService.getRegisteredPlugins()) {
                 if ("transformation".equalsIgnoreCase(plugin.type()) && plugin.enabled()) {
                     String icon = plugin.external() ? "🔌 " : "⚡ ";
