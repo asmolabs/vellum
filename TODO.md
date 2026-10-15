@@ -71,7 +71,7 @@ Dernière mise à jour : 8 octobre 2026
   - [ ] Option « Se souvenir de ce choix pour les prochains lancements ».
 - [ ] **Connexion des véritables moteurs pour les plugins internes**
   - [ ] `GoogleBooksEnricherPlugin` : implémenter la requête HTTP réelle vers l'API REST Google Books pour enrichir description, éditeur et tags.
-  - [ ] `EpubTranslatorPlugin` : connecter un modèle d'IA réel (Ollama local sur `http://localhost:11434/api/generate` ou API DeepL/OpenAI).
+  - [x] `EpubTranslatorPlugin` : architecture multi-agents connectée aux LLMs réels (Ollama local, LM Studio, OpenAI GPT-4o, DeepL) avec parser XHTML JSoup, agent planificateur de charte éditoriale, agent glossaire dynamique, cache de segments MD5 et validation QA.
 
 ---
 

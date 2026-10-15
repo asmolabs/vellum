@@ -41,6 +41,9 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
+    // JSoup for HTML/XHTML parsing and manipulation in EPUB translation
+    implementation 'org.jsoup:jsoup:1.18.3'
+
     // JavaFX Material/Iconic support (optional or clean custom SVG/glyphs)
     
     // Test dependencies

@@ -557,4 +557,67 @@ class VellumApplicationTests {
         pluginService.setPluginEnabled("converter-cbz-to-pdf", true);
         assertTrue(conversionService.canConvert("cbz", "pdf"), "Converter should be restored when enabled");
     }
+
+    @Test
+    void testEpubTranslatorMultiAgentPipeline() throws Exception {
+        // 1. Test EpubHtmlParser DOM manipulation & tag preservation
+        String html = "<html><body><p>This is a <em>crucial</em> test for the <strong>translation pipeline</strong>.</p></body></html>";
+        org.jsoup.nodes.Document doc = com.asmolabs.vellum.plugin.builtin.translator.EpubHtmlParser.parseHtml(html);
+        var textNodes = com.asmolabs.vellum.plugin.builtin.translator.EpubHtmlParser.collectTextNodes(doc.body() != null ? doc.body() : doc);
+        assertEquals(5, textNodes.size()); // "This is a ", "crucial", " test for the ", "translation pipeline", "."
+
+        // Context test
+        var ctx = com.asmolabs.vellum.plugin.builtin.translator.EpubHtmlParser.getContext(textNodes, 1, 100);
+        assertTrue(ctx.before().contains("This is a"));
+        assertTrue(ctx.after().contains("test for the"));
+
+        // Replace node test while preserving inline tags
+        textNodes.get(1).text("décisif");
+        String modifiedHtml = doc.outerHtml();
+        assertTrue(modifiedHtml.contains("<em>décisif</em>"), "HTML inline formatting tag <em> must be preserved");
+
+        // 2. Test LLM artifact cleaning
+        String rawLlmOutput = """
+                <|channel|>thought
+                Analyzing translation options...
+                <channel|>
+                Ceci est la traduction finale sans artefact.
+                """;
+        String cleaned = com.asmolabs.vellum.plugin.builtin.translator.LlmClient.cleanModelArtifacts(rawLlmOutput);
+        assertEquals("Ceci est la traduction finale sans artefact.", cleaned);
+
+        // 3. Test Segment Cache
+        File cacheDir = new File(tempDir.toFile(), "cache_test");
+        var cache = new com.asmolabs.vellum.plugin.builtin.translator.TranslationSegmentCache(cacheDir);
+        cache.put("Hello world", "Bonjour le monde");
+        assertEquals("Bonjour le monde", cache.get("Hello world"));
+
+        // 4. Test Glossary & Charter defaults
+        File glossaryFile = new File(tempDir.toFile(), "glossary_test.txt");
+        var glossaryMgr = new com.asmolabs.vellum.plugin.builtin.translator.GlossaryManager(null, glossaryFile);
+        String initialGlossary = glossaryMgr.getOrGenerateGlossary("Livre Test", "Auteur Test");
+        assertNotNull(initialGlossary);
+        assertTrue(initialGlossary.contains("Baguette"));
+
+        File charterFile = new File(tempDir.toFile(), "charter_test.txt");
+        var charterPlanner = new com.asmolabs.vellum.plugin.builtin.translator.EditorialCharterPlanner(null, charterFile);
+        String initialCharter = charterPlanner.getOrGenerateCharter("Livre Test", "Auteur Test", "Extrait");
+        assertNotNull(initialCharter);
+        assertTrue(initialCharter.contains("Registre"));
+
+        // 5. Test EpubTranslatorPlugin execution on a generated EPUB
+        File srcTxt = new File(tempDir.toFile(), "original_book.txt");
+        java.nio.file.Files.writeString(srcTxt.toPath(), "# Chapter 1\nThe cold wind was blowing across the frozen river.");
+        File originalEpub = conversionService.convert(srcTxt, "epub");
+
+        Book book = bookService.importBook(originalEpub);
+        Book translatedBook = bookService.runTransformationPlugin(book.getId(), "epub-translator-fr");
+        assertNotNull(translatedBook);
+        assertTrue(translatedBook.getTitle().contains("(Traduit)") || translatedBook.getTags().stream().anyMatch(t -> t.getName().equals("Traduit")));
+        assertEquals(1, translatedBook.getFormats().size());
+
+        File translatedEpubFile = bookService.getFileForFormat(translatedBook.getFormats().get(0));
+        assertTrue(translatedEpubFile.exists());
+        assertTrue(translatedEpubFile.length() > 0);
+    }
 }

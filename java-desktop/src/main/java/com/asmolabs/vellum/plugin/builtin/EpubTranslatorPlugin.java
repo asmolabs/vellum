@@ -4,12 +4,13 @@ import com.asmolabs.vellum.plugin.BookTransformationPlugin;
 import com.asmolabs.vellum.plugin.ConfigField;
 import com.asmolabs.vellum.plugin.PluginDescriptor;
 import com.asmolabs.vellum.plugin.PluginType;
+import com.asmolabs.vellum.plugin.builtin.translator.EpubTranslationPipeline;
+import com.asmolabs.vellum.plugin.builtin.translator.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 
@@ -23,18 +24,24 @@ public class EpubTranslatorPlugin implements BookTransformationPlugin {
     public EpubTranslatorPlugin() {
         this.descriptor = new PluginDescriptor(
                 "epub-translator-fr",
-                "Traducteur EPUB",
-                "Traduit le contenu d'un livre EPUB à l'aide d'un moteur d'IA.",
+                "Traducteur EPUB Multi-Agents",
+                "Pipeline de traduction littéraire avancée d'ebooks EPUB via LLM (Ollama, LM Studio, OpenAI) avec agents Planificateur (charte éditoriale), Glossaire terminologique et Relecteur QA.",
                 "1.0.0",
                 PluginType.TRANSFORMATION,
                 false,
                 null,
                 List.of(
                         new ConfigField("target_language", "Langue cible de traduction", "select", "Français", "Langue vers laquelle traduire les livres EPUB.", List.of("Français", "Anglais", "Espagnol", "Allemand", "Italien")),
-                        new ConfigField("ai_model", "Moteur d'IA", "select", "Default AI", "Sélectionnez le service d'IA pour effectuer la traduction.", List.of("Default AI", "GPT-4o", "DeepL API", "Local Ollama")),
-                        new ConfigField("api_token", "Jeton / Clé API (Optionnel)", "password", "", "Jeton d'authentification pour le service distant de traduction."),
+                        new ConfigField("ai_provider", "Fournisseur d'IA", "select", "Local Ollama", "Sélectionnez le moteur LLM d'exécution.", List.of("Local Ollama", "LM Studio", "OpenAI (GPT-4o)", "DeepL API", "Custom OpenAI-compatible")),
+                        new ConfigField("api_url", "URL de l'API LLM (Optionnel)", "text", "http://localhost:11434/v1", "URL de base de l'API OpenAI-compatible (ex: http://localhost:11434/v1 ou http://127.0.0.1:1234/v1)."),
+                        new ConfigField("model_name", "Nom du modèle LLM", "text", "mistral", "Nom du modèle chargé (ex: mistral, llama3, qwen2.5, gpt-4o, local-model)."),
+                        new ConfigField("api_token", "Jeton / Clé API (Optionnel pour local)", "password", "", "Clé d'authentification Bearer (obligatoire pour OpenAI ou service distant)."),
                         new ConfigField("temperature", "Température de l'IA", "slider", 0.3, "Précision vs créativité du modèle lors de la traduction.", 0.0, 1.0, 0.05),
-                        new ConfigField("custom_prompt", "Instructions personnalisées (Prompt)", "textarea", "", "Consignes de traduction supplémentaires (ex: tutoiement/vouvoiement, ton littéraire).")
+                        new ConfigField("enable_planner", "Agent Planificateur (Charte Éditoriale)", "boolean", true, "Analyse le style du roman et conçoit automatiquement une charte éditoriale (tutoiement, registre, ton)."),
+                        new ConfigField("enable_glossary", "Agent Terminologue (Glossaire)", "boolean", true, "Extrait et enrichit dynamiquement les noms de personnages, lieux et termes récurrents pour assurer leur cohérence."),
+                        new ConfigField("enable_correction", "Passe de révision stylistique", "boolean", false, "Effectue une seconde passe de relecture et fluidité sur chaque paragraphe traduit."),
+                        new ConfigField("enable_qa", "Agent Assurance Qualité (QA)", "boolean", false, "Valide chaque chapitre traduit, vérifie les omissions et applique les corrections recommandées."),
+                        new ConfigField("custom_prompt", "Instructions personnalisées (Prompt)", "textarea", "", "Consignes de traduction supplémentaires (ex: tutoiement/vouvoiement, ton littéraire, contraintes lexicales).")
                 )
         );
     }
@@ -52,45 +59,45 @@ public class EpubTranslatorPlugin implements BookTransformationPlugin {
         String ext = (dot > 0) ? baseName.substring(dot) : ".epub";
 
         String targetLang = String.valueOf(config.getOrDefault("target_language", "FR"));
-        String langSuffix = "FR".equalsIgnoreCase(targetLang) || "Français".equalsIgnoreCase(targetLang) ? "FR" : targetLang;
+        String langSuffix = "Français".equalsIgnoreCase(targetLang) || "FR".equalsIgnoreCase(targetLang) ? "FR" : targetLang.toUpperCase();
 
         File outputFile = new File(inputFile.getParentFile(), prefix + " - " + langSuffix + ext);
-        Files.copy(inputFile.toPath(), outputFile.toPath());
-        log.info("EpubTranslatorPlugin produced translated copy: {}", outputFile.getAbsolutePath());
+
+        log.info("Démarrage du pipeline de traduction littéraire EPUB pour : {}", inputFile.getName());
+        EpubTranslationPipeline.PipelineStats stats = EpubTranslationPipeline.translateEpub(inputFile, outputFile, config);
+        log.info("Pipeline de traduction achevé avec succès. Résultat : {} (Stats: {} chapitres, {} segments)",
+                outputFile.getAbsolutePath(), stats.totalChapters(), stats.segmentsTranslated());
+
         return outputFile;
     }
 
     @Override
     public TestResult testConfiguration(Map<String, Object> config) {
-        String model = String.valueOf(config.getOrDefault("ai_model", "Default AI"));
+        String provider = String.valueOf(config.getOrDefault("ai_provider", config.getOrDefault("ai_model", "Local Ollama")));
         String token = String.valueOf(config.getOrDefault("api_token", "")).trim();
 
-        if ("Local Ollama".equalsIgnoreCase(model)) {
-            try {
-                java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
-                        .connectTimeout(java.time.Duration.ofSeconds(3))
-                        .build();
-                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                        .uri(java.net.URI.create("http://localhost:11434/api/tags"))
-                        .timeout(java.time.Duration.ofSeconds(3))
-                        .GET()
-                        .build();
-                java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() == 200) {
-                    return TestResult.ok("Serveur Ollama local actif sur http://localhost:11434 (HTTP 200) !");
-                } else {
-                    return TestResult.error("Ollama a répondu avec le statut HTTP " + response.statusCode());
-                }
-            } catch (Exception e) {
-                return TestResult.error("Impossible de joindre le démon Ollama local sur http://localhost:11434");
-            }
-        } else if ("GPT-4o".equalsIgnoreCase(model) || "DeepL API".equalsIgnoreCase(model)) {
-            if (token.isBlank()) {
-                return TestResult.error("Une clé d'API / jeton est obligatoire pour utiliser " + model);
-            }
-            return TestResult.ok("Clé configurée pour le service " + model + ".");
+        if ("Default AI".equalsIgnoreCase(provider)) {
+            return TestResult.ok("Moteur par défaut prêt (Default AI).");
         }
 
-        return TestResult.ok("Moteur par défaut prêt (Default AI).");
+        if ("OpenAI (GPT-4o)".equalsIgnoreCase(provider) || "GPT-4o".equalsIgnoreCase(provider) || "DeepL API".equalsIgnoreCase(provider)) {
+            if (token.isBlank()) {
+                return TestResult.error("Une clé d'API / jeton est obligatoire pour utiliser " + provider + ".");
+            }
+            return TestResult.ok("Clé configurée pour le service " + provider + ".");
+        }
+
+        try {
+            LlmClient client = EpubTranslationPipeline.buildLlmClient(config);
+            boolean reachable = client.testConnection();
+
+            if (reachable) {
+                return TestResult.ok("Connexion réussie au fournisseur " + provider + " !");
+            } else {
+                return TestResult.error("Le serveur " + provider + " ne répond pas à l'adresse spécifiée. Vérifiez qu'il est bien démarré.");
+            }
+        } catch (Exception e) {
+            return TestResult.error("Erreur lors de la vérification de " + provider + " : " + e.getMessage());
+        }
     }
 }
