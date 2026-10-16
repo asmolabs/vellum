@@ -104,7 +104,7 @@ public class SidebarView extends VBox {
         allBooksItem.setOnMouseClicked(e -> {
             selectedTag = "Tous";
             tagsListView.getSelectionModel().clearSelection();
-            eventPublisher.publishEvent(new UiEvents.FilterChanged(null, null));
+            eventPublisher.publishEvent(new UiEvents.FilterChanged(null, "Tous"));
         });
 
         HBox statsItem = new HBox(8);

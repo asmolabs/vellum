@@ -343,7 +343,17 @@ public class DetailDrawerView extends VBox {
                 if ("transformation".equalsIgnoreCase(plugin.type()) && plugin.enabled()) {
                     String icon = plugin.external() ? "🔌 " : "⚡ ";
                     MenuItem item = new MenuItem(icon + plugin.name());
-                    item.setOnAction(e -> eventPublisher.publishEvent(new UiEvents.BookPluginRequested(book, plugin.id())));
+                    item.setOnAction(e -> PluginRunDialog.show(
+                            this.getScene().getWindow(),
+                            book,
+                            plugin.id(),
+                            pluginService,
+                            bookService,
+                            updatedBook -> {
+                                eventPublisher.publishEvent(new UiEvents.LibraryChanged());
+                                showBook(updatedBook);
+                            }
+                    ));
                     pluginMenuBtn.getItems().add(item);
                 }
             }
@@ -357,5 +367,9 @@ public class DetailDrawerView extends VBox {
         this.currentBook = null;
         this.setVisible(false);
         this.setManaged(false);
+    }
+
+    public Book getCurrentBook() {
+        return currentBook;
     }
 }

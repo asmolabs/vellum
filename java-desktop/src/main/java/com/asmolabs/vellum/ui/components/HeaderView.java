@@ -7,6 +7,8 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,6 +49,17 @@ public class HeaderView extends HBox {
             eventPublisher.publishEvent(new UiEvents.FilterChanged(newV, null));
         });
 
+        // Status Filter Chips
+        HBox statusFilters = new HBox(4);
+        statusFilters.setAlignment(Pos.CENTER_LEFT);
+
+        ToggleGroup statusGroup = new ToggleGroup();
+        ToggleButton allBtn = createStatusFilterButton("Tous", "ALL", statusGroup, true);
+        ToggleButton readingBtn = createStatusFilterButton("📖 En cours", "READING", statusGroup, false);
+        ToggleButton finishedBtn = createStatusFilterButton("✓ Terminés", "FINISHED", statusGroup, false);
+        ToggleButton unreadBtn = createStatusFilterButton("⏳ À lire", "UNREAD", statusGroup, false);
+        statusFilters.getChildren().addAll(allBtn, readingBtn, finishedBtn, unreadBtn);
+
         // Litestream Backup Status Badge
         litestreamBadge = new Label("⚡ Litestream");
         litestreamBadge.setStyle("-fx-background-color: rgba(16, 185, 129, 0.15); -fx-border-color: rgba(16, 185, 129, 0.4); -fx-border-radius: 12; -fx-background-radius: 12; -fx-text-fill: #34d399; -fx-font-size: 11px; -fx-padding: 4 10 4 10; -fx-cursor: hand;");
@@ -82,8 +95,31 @@ public class HeaderView extends HBox {
         settingsBtn.getStyleClass().add("btn-secondary");
         settingsBtn.setOnAction(e -> eventPublisher.publishEvent(new UiEvents.OpenSettingsRequested()));
 
-        this.getChildren().addAll(searchField, litestreamBadge, viewControls, settingsBtn);
+        this.getChildren().addAll(searchField, statusFilters, litestreamBadge, viewControls, settingsBtn);
         updateLitestreamStatus();
+    }
+
+    private ToggleButton createStatusFilterButton(String label, String statusKey, ToggleGroup group, boolean selected) {
+        ToggleButton btn = new ToggleButton(label);
+        btn.setToggleGroup(group);
+        btn.setSelected(selected);
+        btn.getStyleClass().add("btn-secondary");
+        btn.setStyle("-fx-cursor: hand; -fx-font-size: 11px; -fx-padding: 3 8;");
+        btn.setOnAction(e -> {
+            if (btn.isSelected()) {
+                eventPublisher.publishEvent(new UiEvents.FilterChanged(searchField.getText(), null, statusKey));
+            } else if (group.getSelectedToggle() == null) {
+                btn.setSelected(true);
+            }
+        });
+        return btn;
+    }
+
+    public void focusSearchField() {
+        if (searchField != null) {
+            searchField.requestFocus();
+            searchField.selectAll();
+        }
     }
 
     public void updateLitestreamStatus() {

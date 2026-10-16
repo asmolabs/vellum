@@ -308,6 +308,21 @@ public class BookService {
 
     @Transactional
     public Book runTransformationPlugin(String bookId, String pluginId) throws Exception {
+        return runTransformationPlugin(bookId, pluginId, Map.of());
+    }
+
+    @Transactional
+    public Book runTransformationPlugin(String bookId, String pluginId, Map<String, Object> customParams, boolean attachToSameBook) throws Exception {
+        Map<String, Object> params = new HashMap<>();
+        if (customParams != null) {
+            params.putAll(customParams);
+        }
+        params.put("attach_to_book", attachToSameBook);
+        return runTransformationPlugin(bookId, pluginId, params);
+    }
+
+    @Transactional
+    public Book runTransformationPlugin(String bookId, String pluginId, Map<String, Object> customParams) throws Exception {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new IllegalArgumentException("Livre introuvable: " + bookId));
 
@@ -318,18 +333,27 @@ public class BookService {
         BookFormat firstFmt = book.getFormats().get(0);
         File inputFile = new File(appProperties.getLibraryPath(), firstFmt.getFilepath());
 
-        File outputFile = pluginService.runTransformationPlugin(inputFile, pluginId);
+        File outputFile = pluginService.runTransformationPlugin(inputFile, pluginId, customParams);
 
         String sourceExt = getExtension(inputFile.getName());
         String ext = getExtension(outputFile.getName());
 
-        Map<String, Object> pluginParams = pluginService.getPluginParams(pluginId);
+        Map<String, Object> pluginParams = new HashMap<>(pluginService.getPluginParams(pluginId));
+        if (customParams != null) {
+            pluginParams.putAll(customParams);
+        }
         boolean attachToExisting = Boolean.parseBoolean(String.valueOf(pluginParams.getOrDefault("attach_to_book", "false")));
 
-        if (attachToExisting && !sourceExt.equalsIgnoreCase(ext)) {
+        if (attachToExisting) {
             // Attach format directly to the existing book
             File bookDirAbs = inputFile.getParentFile();
-            String destFilename = sanitizeFilename(book.getTitle()) + "." + ext;
+            String destFilename;
+            if (sourceExt.equalsIgnoreCase(ext)) {
+                String tag = pluginId.contains("translator") ? "Traduit" : "Transformé";
+                destFilename = sanitizeFilename(book.getTitle()) + " (" + tag + ")." + ext;
+            } else {
+                destFilename = sanitizeFilename(book.getTitle()) + "." + ext;
+            }
             File destFileAbs = new File(bookDirAbs, destFilename);
             Files.move(outputFile.toPath(), destFileAbs.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
@@ -337,9 +361,15 @@ public class BookService {
             String destFileRel = libDir.toPath().relativize(destFileAbs.toPath()).toString();
             long fileSize = destFileAbs.length();
 
-            book.getFormats().removeIf(f -> f.getFormat().equalsIgnoreCase(ext));
+            book.getFormats().removeIf(f -> f.getFilepath().equalsIgnoreCase(destFileRel));
             BookFormat fmt = new BookFormat(ext, destFilename, destFileRel, fileSize);
             book.addFormat(fmt);
+
+            if (pluginId.contains("translator")) {
+                Tag traduitTag = tagRepository.findById("Traduit").orElseGet(() -> tagRepository.save(new Tag("Traduit")));
+                book.addTag(traduitTag);
+            }
+
             return bookRepository.save(book);
         }
 

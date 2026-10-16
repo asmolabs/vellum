@@ -185,6 +185,10 @@ public class PluginService {
     }
 
     public File runTransformationPlugin(File inputFile, String pluginId) throws Exception {
+        return runTransformationPlugin(inputFile, pluginId, null);
+    }
+
+    public File runTransformationPlugin(File inputFile, String pluginId, Map<String, Object> overrideParams) throws Exception {
         VellumPlugin plugin = allPlugins.get(pluginId);
         if (plugin == null) {
             throw new IllegalArgumentException("Plugin non trouvé : " + pluginId);
@@ -198,7 +202,10 @@ public class PluginService {
             throw new IllegalArgumentException("Le plugin " + pluginId + " n'est pas un plugin de transformation de livre.");
         }
 
-        Map<String, Object> params = getPluginParams(pluginId);
+        Map<String, Object> params = new HashMap<>(getPluginParams(pluginId));
+        if (overrideParams != null) {
+            params.putAll(overrideParams);
+        }
         return transformer.transform(inputFile, params);
     }
 

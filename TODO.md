@@ -66,37 +66,45 @@ Dernière mise à jour : 8 octobre 2026
   - [x] Tester les clés API (requête HTTP en direct pour Google Books, vérification format jeton DeepL/GPT).
   - [x] Tester la disponibilité des scripts externes (vérification interpréteur `which`, exécution script `--test` ou détection fichier).
   - [x] Afficher un retour visuel direct dans `SettingsDialog` (badge vert ✓ ou message d'erreur rouge réactif sans rechargement de page).
-- [ ] **Modale d'options à l'exécution (Run Dialog)**
-  - [ ] Lors du clic sur un plugin de transformation (ex: traduction), afficher une fenêtre modale pour ajuster les paramètres de ce livre spécifique.
-  - [ ] Option « Se souvenir de ce choix pour les prochains lancements ».
+- [x] **Modale d'options à l'exécution (Run Dialog)**
+  - [x] Lors du clic sur un plugin de transformation (ex: traduction), afficher une fenêtre modale `PluginRunDialog` pour ajuster les paramètres de ce livre spécifique.
+  - [x] Formulaire dynamique réactif (select, slider, boolean, textarea, text, password).
+  - [x] Option « Attacher le format résultant à cette fiche de livre (multi-formats) ».
+  - [x] Option « Enregistrer ces paramètres comme configuration par défaut ».
+  - [x] Exécution en thread virtuel en arrière-plan avec indicateur d'avancement.
 - [ ] **Connexion des véritables moteurs pour les plugins internes**
   - [ ] `GoogleBooksEnricherPlugin` : implémenter la requête HTTP réelle vers l'API REST Google Books pour enrichir description, éditeur et tags.
   - [x] `EpubTranslatorPlugin` : architecture multi-agents connectée aux LLMs réels (Ollama local, LM Studio, OpenAI GPT-4o, DeepL) avec parser XHTML JSoup, agent planificateur de charte éditoriale, agent glossaire dynamique, cache de segments MD5 et validation QA.
 
 ---
 
-## ⚪ 3. Lecteur Intégré (Reader)
+## ⚪ 3. Lecteur Intégré Universel Multi-Formats (`ReaderDialog`)
 
-- [ ] **Améliorations du lecteur EPUB**
-  - [ ] Sélecteur de thème de lecture (Sombre, Clair, Sépia).
-  - [ ] Contrôle de la taille de police (+ / -) et choix de la typographie (Serif / Sans-serif).
-  - [ ] Table des matières interactive cliquable.
-- [ ] **Support de lecture pour d'autres formats**
-  - [ ] Visionneuse intégrée pour fichiers PDF (rendu page par page via PDFBox).
-  - [ ] Visionneuse de pages d'images pour fichiers CBZ / CBR (mode bande dessinée/manga).
+- [x] **Améliorations du lecteur & typographie**
+  - [x] Sélecteur de thème de lecture complet (Sombre `#181824`, Clair `#f8fafc`, Sépia `#fbf0d9`).
+  - [x] Contrôle de la taille de police dynamique (`A-` / `A+`, de 12px à 32px) et bascule de police Serif / Sans-serif (`Georgia` / `Inter, system-ui`).
+  - [x] Raccourcis clavier internes au lecteur (`Gauche`/`PageUp` pour page précédente, `Droite`/`PageDown`/`Espace` pour page suivante, `Échap` pour fermer).
+  - [x] Barre de progression interactive et sélecteur de format à chaud pour les fiches multi-formats (EPUB, PDF, CBZ, MOBI, TXT).
+- [x] **Support universel de lecture pour tous les formats**
+  - [x] Lecteur EPUB avec extraction XHTML et nettoyage CSS responsive.
+  - [x] Visionneuse intégrée pour fichiers PDF (rendu vectoriel dynamique page par page via Apache PDFBox 3.0.4 avec cache mémoire).
+  - [x] Visionneuse haute performance pour bandes dessinées / mangas CBZ et CBR (pagination des images, zoom ajusté à la fenêtre).
+  - [x] Lecteur Kindle MOBI / AZW / AZW3 avec décompression directe PalmDOC LZ77 en mémoire.
+  - [x] Lecteur de fichiers texte et Markdown (`.txt`, `.md`).
 
 ---
 
 ## ⚪ 4. Ergonomie & UI / UX
 
-- [ ] **Raccourcis clavier globaux**
-  - [ ] `Cmd + F` : donner le focus à la barre de recherche.
-  - [ ] `Cmd + ,` : ouvrir les paramètres.
-  - [ ] `Espace` ou `Entrée` : ouvrir le livre sélectionné dans le lecteur.
-  - [ ] `Suppr` / `Backspace` : supprimer le livre sélectionné (avec confirmation).
-- [ ] **Tri et filtres avancés**
-  - [ ] Trier la grille/tableau par date d'ajout, note, progression de lecture ou titre.
-  - [ ] Filtrer les livres par statut : "Non commencé", "En cours", "Terminé".
+- [x] **Raccourcis clavier globaux macOS & desktop**
+  - [x] `Cmd + F` (ou `Ctrl + F`) : donner le focus à la barre de recherche et sélectionner le texte.
+  - [x] `Cmd + ,` (ou `Ctrl + ,`) : ouvrir instantanément la modale des paramètres.
+  - [x] `Espace` ou `Entrée` : ouvrir le livre sélectionné dans le lecteur universel (avec protection si le focus est sur un champ de saisie).
+  - [x] `Suppr` / `Backspace` : ouvrir la boîte de dialogue de confirmation de suppression du livre sélectionné.
+  - [x] `Échap` : fermer le tiroir latéral de détails s'il est ouvert.
+- [x] **Filtres de statut de lecture**
+  - [x] Boutons chips à bascule dans l'en-tête : « Tous », « 📖 En cours », « ✓ Terminés », « ⏳ À lire ».
+  - [x] Filtrage instantané combiné avec la recherche textuelle et les tags de genres.
 
 ---
 

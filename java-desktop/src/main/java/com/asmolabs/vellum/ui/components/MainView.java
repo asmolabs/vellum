@@ -7,8 +7,16 @@ import com.asmolabs.vellum.service.LitestreamService;
 import com.asmolabs.vellum.service.PluginService;
 import com.asmolabs.vellum.ui.events.UiEvents;
 import javafx.application.Platform;
+import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonBase;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBoxBase;
+import javafx.scene.control.Slider;
+import javafx.scene.control.TextInputControl;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import org.springframework.context.ApplicationEventPublisher;
@@ -36,6 +44,7 @@ public class MainView extends BorderPane {
 
     private String currentSearch = null;
     private String currentTag = null;
+    private String currentStatus = "ALL";
 
     public MainView(
             BookService bookService,
@@ -72,10 +81,92 @@ public class MainView extends BorderPane {
         // 3. Detail Drawer on Right
         detailDrawerView = new DetailDrawerView(bookService, pluginService, eventPublisher);
         this.setRight(detailDrawerView);
+
+        // 4. Global Keyboard Shortcuts
+        this.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                setupKeyboardShortcuts(newScene);
+            }
+        });
+        if (this.getScene() != null) {
+            setupKeyboardShortcuts(this.getScene());
+        }
+    }
+
+    private void setupKeyboardShortcuts(Scene scene) {
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            // Cmd+F or Ctrl+F -> Focus Search
+            if (event.isShortcutDown() && event.getCode() == KeyCode.F) {
+                headerView.focusSearchField();
+                event.consume();
+                return;
+            }
+
+            // Cmd+, or Ctrl+, -> Open Settings
+            if (event.isShortcutDown() && event.getCode() == KeyCode.COMMA) {
+                eventPublisher.publishEvent(new UiEvents.OpenSettingsRequested());
+                event.consume();
+                return;
+            }
+
+            // If focus is in a text input or interactive control, let it handle keys
+            Node focusOwner = scene.getFocusOwner();
+            if (isInputOrControlFocused(focusOwner)) {
+                return;
+            }
+
+            // Escape -> Close drawer
+            if (event.getCode() == KeyCode.ESCAPE) {
+                if (detailDrawerView.isVisible()) {
+                    detailDrawerView.hideDrawer();
+                    event.consume();
+                    return;
+                }
+            }
+
+            // Space or Enter -> Open selected book in reader
+            if (event.getCode() == KeyCode.SPACE || event.getCode() == KeyCode.ENTER) {
+                Book book = detailDrawerView.getCurrentBook();
+                if (book != null) {
+                    eventPublisher.publishEvent(new UiEvents.BookOpened(book));
+                    event.consume();
+                    return;
+                }
+            }
+
+            // Delete or Backspace -> Delete selected book
+            if (event.getCode() == KeyCode.DELETE || event.getCode() == KeyCode.BACK_SPACE) {
+                Book book = detailDrawerView.getCurrentBook();
+                if (book != null) {
+                    eventPublisher.publishEvent(new UiEvents.BookDeleteRequested(book));
+                    event.consume();
+                }
+            }
+        });
+    }
+
+    private boolean isInputOrControlFocused(Node node) {
+        if (node == null) return false;
+        return node instanceof TextInputControl
+                || node instanceof ButtonBase
+                || node instanceof ComboBoxBase
+                || node instanceof Slider;
     }
 
     public void refreshLibrary() {
         List<Book> books = bookService.getBooks(currentSearch, currentTag);
+        if (currentStatus != null && !currentStatus.equalsIgnoreCase("ALL")) {
+            books = books.stream().filter(b -> {
+                double progress = b.getProgressPercent();
+                boolean finished = b.isFinished();
+                return switch (currentStatus.toUpperCase()) {
+                    case "READING" -> !finished && progress > 0;
+                    case "FINISHED" -> finished;
+                    case "UNREAD" -> !finished && progress <= 0;
+                    default -> true;
+                };
+            }).toList();
+        }
         booksGridView.updateBooks(books);
         sidebarView.refresh();
         headerView.updateLitestreamStatus();
@@ -88,6 +179,9 @@ public class MainView extends BorderPane {
         }
         if (event.tag() != null) {
             this.currentTag = event.tag();
+        }
+        if (event.status() != null) {
+            this.currentStatus = event.status();
         }
         refreshLibrary();
     }

@@ -620,4 +620,61 @@ class VellumApplicationTests {
         assertTrue(translatedEpubFile.exists());
         assertTrue(translatedEpubFile.length() > 0);
     }
+
+    @Test
+    void testPluginOverridesAndStatusFilters() throws Exception {
+        // 1. Create source file and import book
+        File srcTxt = new File(tempDir.toFile(), "override_test.txt");
+        java.nio.file.Files.writeString(srcTxt.toPath(), "# Overrides\nTest content for overrides.");
+        File epub = conversionService.convert(srcTxt, "epub");
+        Book book = bookService.importBook(epub);
+        assertEquals(1, book.getFormats().size());
+
+        // 2. Run translator plugin with parameter overrides and attachToSameBook = true
+        Map<String, Object> overrides = Map.of(
+                "ai_model", "Default AI",
+                "custom_prompt", "Translate accurately."
+        );
+        Book attachedBook = bookService.runTransformationPlugin(book.getId(), "epub-translator-fr", overrides, true);
+        assertEquals(book.getId(), attachedBook.getId(), "Book ID should be preserved when attachToSameBook is true");
+        assertTrue(attachedBook.getFormats().size() >= 1);
+
+        // 3. Test Reading Status Filtering
+        Book readingBook = bookService.updateReadingProgress(attachedBook.getId(), 1, 5); // 20%
+        assertFalse(readingBook.isFinished());
+        assertTrue(readingBook.getProgressPercent() > 0);
+
+        // Create finished book
+        File finTxt = new File(tempDir.toFile(), "finished.txt");
+        java.nio.file.Files.writeString(finTxt.toPath(), "# Finished\nBook read.");
+        File finEpub = conversionService.convert(finTxt, "epub");
+        Book finBook = bookService.importBook(finEpub);
+        finBook.setFinished(true);
+        finBook.setProgressPercent(100.0);
+        bookRepository.save(finBook);
+
+        // Create unread book
+        File unreadTxt = new File(tempDir.toFile(), "unread.txt");
+        java.nio.file.Files.writeString(unreadTxt.toPath(), "# Unread\nBook not yet read.");
+        File unreadEpub = conversionService.convert(unreadTxt, "epub");
+        Book unreadBook = bookService.importBook(unreadEpub);
+
+        List<Book> allBooks = bookRepository.findAll();
+        assertEquals(3, allBooks.size());
+
+        // Status "READING"
+        List<Book> readingList = allBooks.stream().filter(b -> !b.isFinished() && b.getProgressPercent() > 0).toList();
+        assertEquals(1, readingList.size());
+        assertEquals(readingBook.getId(), readingList.get(0).getId());
+
+        // Status "FINISHED"
+        List<Book> finishedList = allBooks.stream().filter(Book::isFinished).toList();
+        assertEquals(1, finishedList.size());
+        assertEquals(finBook.getId(), finishedList.get(0).getId());
+
+        // Status "UNREAD"
+        List<Book> unreadList = allBooks.stream().filter(b -> !b.isFinished() && b.getProgressPercent() <= 0).toList();
+        assertEquals(1, unreadList.size());
+        assertEquals(unreadBook.getId(), unreadList.get(0).getId());
+    }
 }
