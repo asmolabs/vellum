@@ -34,6 +34,7 @@ public class MainView extends BorderPane {
     private final BookService bookService;
     private final LitestreamService litestreamService;
     private final PluginService pluginService;
+    private final com.asmolabs.vellum.service.DeviceService deviceService;
     private final AppProperties appProperties;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -50,12 +51,14 @@ public class MainView extends BorderPane {
             BookService bookService,
             LitestreamService litestreamService,
             PluginService pluginService,
+            com.asmolabs.vellum.service.DeviceService deviceService,
             AppProperties appProperties,
             ApplicationEventPublisher eventPublisher
     ) {
         this.bookService = bookService;
         this.litestreamService = litestreamService;
         this.pluginService = pluginService;
+        this.deviceService = deviceService;
         this.appProperties = appProperties;
         this.eventPublisher = eventPublisher;
 
@@ -79,7 +82,7 @@ public class MainView extends BorderPane {
         this.setCenter(centerBox);
 
         // 3. Detail Drawer on Right
-        detailDrawerView = new DetailDrawerView(bookService, pluginService, eventPublisher);
+        detailDrawerView = new DetailDrawerView(bookService, pluginService, deviceService, eventPublisher);
         this.setRight(detailDrawerView);
 
         // 4. Global Keyboard Shortcuts
@@ -266,5 +269,10 @@ public class MainView extends BorderPane {
     @EventListener
     public void onOpenStatsRequested(UiEvents.OpenStatsRequested event) {
         Platform.runLater(() -> StatsDialog.show(this.getScene().getWindow(), bookService));
+    }
+
+    @EventListener
+    public void onDeviceSyncRequested(UiEvents.DeviceSyncRequested event) {
+        Platform.runLater(() -> DeviceSyncDialog.show(this.getScene().getWindow(), deviceService, eventPublisher));
     }
 }

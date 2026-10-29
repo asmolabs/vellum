@@ -195,6 +195,9 @@ public class SettingsDialog {
                 } else if ("conversion".equalsIgnoreCase(plugin.type())) {
                     typeStr = "Conversion";
                     typeStyle = "-fx-background-color: rgba(236, 72, 153, 0.2); -fx-text-fill: #f472b6; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";
+                } else if ("device".equalsIgnoreCase(plugin.type())) {
+                    typeStr = "Liseuse / Sync";
+                    typeStyle = "-fx-background-color: rgba(16, 185, 129, 0.2); -fx-text-fill: #34d399; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";
                 } else {
                     typeStr = "Transformation";
                     typeStyle = "-fx-background-color: rgba(245, 158, 11, 0.2); -fx-text-fill: #fbbf24; -fx-padding: 2 6; -fx-background-radius: 4; -fx-font-size: 9px;";

@@ -7,7 +7,8 @@ public enum PluginType {
     IMPORT("import"),
     TRANSFORMATION("transformation"),
     FORMAT("format"),
-    CONVERSION("conversion");
+    CONVERSION("conversion"),
+    DEVICE("device");
 
     private final String value;
 

@@ -17,4 +17,5 @@ public class UiEvents {
     }
     public record OpenSettingsRequested() {}
     public record OpenStatsRequested() {}
+    public record DeviceSyncRequested() {}
 }

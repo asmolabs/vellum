@@ -9,11 +9,14 @@ import com.asmolabs.vellum.ui.events.UiEvents;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.awt.Desktop;
@@ -28,6 +31,7 @@ public class DetailDrawerView extends VBox {
 
     private final BookService bookService;
     private final PluginService pluginService;
+    private final com.asmolabs.vellum.service.DeviceService deviceService;
     private final ApplicationEventPublisher eventPublisher;
 
     private Book currentBook;
@@ -41,8 +45,13 @@ public class DetailDrawerView extends VBox {
     private MenuButton pluginMenuBtn;
 
     public DetailDrawerView(BookService bookService, PluginService pluginService, ApplicationEventPublisher eventPublisher) {
+        this(bookService, pluginService, null, eventPublisher);
+    }
+
+    public DetailDrawerView(BookService bookService, PluginService pluginService, com.asmolabs.vellum.service.DeviceService deviceService, ApplicationEventPublisher eventPublisher) {
         this.bookService = bookService;
         this.pluginService = pluginService;
+        this.deviceService = deviceService;
         this.eventPublisher = eventPublisher;
 
         initUI();
@@ -132,6 +141,30 @@ public class DetailDrawerView extends VBox {
 
         row2.getChildren().addAll(pluginMenuBtn, deleteBtn);
 
+        // Action Button: View Device Notes & Highlights
+        Button notesBtn = new Button("📝 Notes & Citations (Liseuse)");
+        notesBtn.getStyleClass().add("btn-secondary");
+        notesBtn.setMaxWidth(Double.MAX_VALUE);
+        notesBtn.setStyle("-fx-border-color: rgba(139, 92, 246, 0.4); -fx-text-fill: #c084fc; -fx-cursor: hand; -fx-font-size: 11px;");
+        notesBtn.setOnAction(e -> {
+            if (currentBook != null && deviceService != null) {
+                Thread.ofVirtual().start(() -> {
+                    List<com.asmolabs.vellum.plugin.device.DeviceAnnotation> notes = deviceService.getAnnotationsForBook(currentBook.getTitle(), currentBook.getAuthor());
+                    Platform.runLater(() -> {
+                        if (notes.isEmpty()) {
+                            Alert a = new Alert(Alert.AlertType.INFORMATION, "Aucune note ou surlignement trouvé pour « " + currentBook.getTitle() + " » sur les liseuses connectées.\n(Assurez-vous que votre Kobo ou Kindle est branché en USB)", ButtonType.OK);
+                            a.showAndWait();
+                        } else {
+                            showBookAnnotationsDialog(currentBook, notes);
+                        }
+                    });
+                });
+            } else if (deviceService == null) {
+                Alert a = new Alert(Alert.AlertType.INFORMATION, "Service de synchronisation liseuse non initialisé.", ButtonType.OK);
+                a.showAndWait();
+            }
+        });
+
         // Description Section
         Label descHeader = new Label("DESCRIPTION");
         descHeader.getStyleClass().add("detail-section-heading");
@@ -165,6 +198,7 @@ public class DetailDrawerView extends VBox {
                 metaInfoLabel,
                 row1,
                 row2,
+                notesBtn,
                 descHeader,
                 descScroll,
                 tagsHeader,
@@ -369,6 +403,40 @@ public class DetailDrawerView extends VBox {
             pluginMenuBtn.getItems().add(enrichItem);
             pluginMenuBtn.getItems().add(new SeparatorMenuItem());
 
+            // Device Export Actions
+            if (deviceService != null) {
+                List<com.asmolabs.vellum.plugin.device.ConnectedDevice> devices = deviceService.detectConnectedDevices();
+                if (!devices.isEmpty()) {
+                    Menu devSubMenu = new Menu("📱 Envoyer vers la liseuse");
+                    for (com.asmolabs.vellum.plugin.device.ConnectedDevice dev : devices) {
+                        MenuItem devItem = new MenuItem("Envoyer vers " + dev.name());
+                        devItem.setOnAction(e -> {
+                            Thread.ofVirtual().start(() -> {
+                                try {
+                                    File exported = deviceService.exportBookToDevice(book.getId(), dev.kind(), dev.mountPoint());
+                                    Platform.runLater(() -> {
+                                        Alert ok = new Alert(Alert.AlertType.INFORMATION, "Livre « " + book.getTitle() + " » envoyé avec succès vers votre " + dev.name() + " !\n(" + exported.getName() + ")", ButtonType.OK);
+                                        ok.showAndWait();
+                                    });
+                                } catch (Exception ex) {
+                                    Platform.runLater(() -> {
+                                        Alert err = new Alert(Alert.AlertType.ERROR, "Erreur lors du transfert : " + ex.getMessage(), ButtonType.OK);
+                                        err.showAndWait();
+                                    });
+                                }
+                            });
+                        });
+                        devSubMenu.getItems().add(devItem);
+                    }
+                    pluginMenuBtn.getItems().add(devSubMenu);
+                } else {
+                    MenuItem devItem = new MenuItem("📱 Connecter une liseuse...");
+                    devItem.setOnAction(e -> eventPublisher.publishEvent(new UiEvents.DeviceSyncRequested()));
+                    pluginMenuBtn.getItems().add(devItem);
+                }
+                pluginMenuBtn.getItems().add(new SeparatorMenuItem());
+            }
+
             for (PluginService.LibraryPlugin plugin : pluginService.getRegisteredPlugins()) {
                 if ("transformation".equalsIgnoreCase(plugin.type()) && plugin.enabled()) {
                     String icon = plugin.external() ? "🔌 " : "⚡ ";
@@ -401,5 +469,82 @@ public class DetailDrawerView extends VBox {
 
     public Book getCurrentBook() {
         return currentBook;
+    }
+
+    private void showBookAnnotationsDialog(Book book, List<com.asmolabs.vellum.plugin.device.DeviceAnnotation> notes) {
+        Stage stage = new Stage();
+        if (this.getScene() != null && this.getScene().getWindow() != null) {
+            stage.initOwner(this.getScene().getWindow());
+        }
+        stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setTitle("Notes & Citations — " + book.getTitle());
+
+        VBox box = new VBox(12);
+        box.getStyleClass().add("dialog-container");
+        box.setPadding(new Insets(16));
+
+        Label head = new Label("📖 " + notes.size() + " note(s) et surlignement(s) pour « " + book.getTitle() + " »");
+        head.setStyle("-fx-font-weight: bold; -fx-text-fill: #c084fc; -fx-font-size: 13px;");
+
+        ListView<com.asmolabs.vellum.plugin.device.DeviceAnnotation> lv = new ListView<>();
+        lv.setCellFactory(l -> new ListCell<>() {
+            @Override
+            protected void updateItem(com.asmolabs.vellum.plugin.device.DeviceAnnotation item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                } else {
+                    VBox card = new VBox(4);
+                    card.setStyle("-fx-background-color: rgba(255,255,255,0.03); -fx-padding: 8 10; -fx-background-radius: 6;");
+                    Label quote = new Label("« " + (item.text() != null && !item.text().isBlank() ? item.text() : item.note()) + " »");
+                    quote.setWrapText(true);
+                    quote.setStyle("-fx-font-style: italic; -fx-text-fill: #e5e7eb; -fx-font-size: 12px;");
+                    HBox sub = new HBox(8);
+                    if (item.location() != null) {
+                        Label loc = new Label("📍 " + item.location());
+                        loc.setStyle("-fx-font-size: 10px; -fx-text-fill: -color-text-muted;");
+                        sub.getChildren().add(loc);
+                    }
+                    if (item.createdAt() != null) {
+                        Label dt = new Label("🕒 " + item.createdAt());
+                        dt.setStyle("-fx-font-size: 10px; -fx-text-fill: -color-text-muted;");
+                        sub.getChildren().add(dt);
+                    }
+                    card.getChildren().addAll(quote, sub);
+                    setGraphic(card);
+                }
+            }
+        });
+        lv.getItems().addAll(notes);
+        VBox.setVgrow(lv, Priority.ALWAYS);
+
+        Button copyBtn = new Button("📋 Copier tout");
+        copyBtn.getStyleClass().add("btn-secondary");
+        copyBtn.setOnAction(e -> {
+            StringBuilder sb = new StringBuilder("# Citations de « " + book.getTitle() + " »\n\n");
+            for (com.asmolabs.vellum.plugin.device.DeviceAnnotation a : notes) {
+                if (a.location() != null) sb.append("📍 *").append(a.location()).append("*\n");
+                sb.append("> ").append(a.text() != null && !a.text().isBlank() ? a.text() : a.note()).append("\n\n");
+            }
+            javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
+            cc.putString(sb.toString());
+            javafx.scene.input.Clipboard.getSystemClipboard().setContent(cc);
+            Alert info = new Alert(Alert.AlertType.INFORMATION, "Citations copiées dans le presse-papier !", ButtonType.OK);
+            info.showAndWait();
+        });
+
+        Button closeBtn = new Button("Fermer");
+        closeBtn.getStyleClass().add("btn-primary");
+        closeBtn.setOnAction(e -> stage.close());
+
+        HBox actions = new HBox(10, copyBtn, closeBtn);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+
+        box.getChildren().addAll(head, lv, actions);
+
+        Scene sc = new Scene(box, 560, 420);
+        sc.getStylesheets().add(DetailDrawerView.class.getResource("/styles/theme.css").toExternalForm());
+        stage.setScene(sc);
+        stage.show();
     }
 }

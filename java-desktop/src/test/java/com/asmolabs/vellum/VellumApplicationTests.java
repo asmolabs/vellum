@@ -54,6 +54,9 @@ class VellumApplicationTests {
     @Autowired
     private com.asmolabs.vellum.converter.ConversionService conversionService;
 
+    @Autowired
+    private com.asmolabs.vellum.service.DeviceService deviceService;
+
     @TempDir
     Path tempDir;
 
@@ -743,5 +746,109 @@ class VellumApplicationTests {
         assertNotNull(enriched);
         assertEquals(book.getId(), enriched.getId());
         assertEquals("Dune", enriched.getTitle());
+    }
+
+    @Test
+    void testKepubifyServiceInjection() throws Exception {
+        // Create sample EPUB
+        File txtFile = new File(tempDir.toFile(), "kepub_source.txt");
+        java.nio.file.Files.writeString(txtFile.toPath(), "# Chapitre Un\nCeci est un premier paragraphe de test sur Kobo.\nEt voici un second paragraphe.");
+        File sampleEpub = conversionService.convert(txtFile, "epub");
+
+        File kepubOut = new File(tempDir.toFile(), "test.kepub.epub");
+        com.asmolabs.vellum.plugin.device.KepubifyService.convertEpubToKepub(sampleEpub, kepubOut);
+
+        assertTrue(kepubOut.exists());
+        assertTrue(kepubOut.length() > 0);
+
+        // Verify that koboSpan is present in xhtml
+        boolean foundKoboSpan = false;
+        try (var zip = new java.util.zip.ZipFile(kepubOut)) {
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                var entry = entries.nextElement();
+                if (entry.getName().endsWith(".xhtml") || entry.getName().endsWith(".html")) {
+                    String content = new String(zip.getInputStream(entry).readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                    if (content.contains("class=\"koboSpan\"") && content.contains("id=\"kobo.")) {
+                        foundKoboSpan = true;
+                        break;
+                    }
+                }
+            }
+        }
+        assertTrue(foundKoboSpan, "The converted kepub should contain koboSpan wrappers");
+    }
+
+    @Test
+    void testKindleClippingsParser() {
+        String sampleClippings = """
+                Dune (Frank Herbert)
+                - Your Highlight on page 42 | location 520-523 | Added on Tuesday, 10 March 2026 14:22:10
+
+                I must not fear. Fear is the mind-killer. Fear is the little-death that brings total obliteration.
+                ==========
+                Les Misérables (Victor Hugo)
+                - Votre note à l'emplacement 105 | Ajouté le lundi 15 octobre 2026 09:12:00
+
+                Remarque personnelle sur Jean Valjean
+                ==========
+                """;
+
+        var annotations = com.asmolabs.vellum.plugin.device.KindleClippingsParser.parse(sampleClippings);
+        assertEquals(2, annotations.size());
+
+        var a1 = annotations.get(0);
+        assertEquals("Dune", a1.bookTitle());
+        assertEquals("Frank Herbert", a1.bookAuthor());
+        assertTrue(a1.text().contains("Fear is the mind-killer"));
+        assertNull(a1.note());
+
+        var a2 = annotations.get(1);
+        assertEquals("Les Misérables", a2.bookTitle());
+        assertEquals("Victor Hugo", a2.bookAuthor());
+        assertEquals("", a2.text());
+        assertEquals("Remarque personnelle sur Jean Valjean", a2.note());
+    }
+
+    @Test
+    void testDeviceServiceKoboAndKindleIntegration() throws Exception {
+        assertNotNull(deviceService);
+
+        // 1. Setup mock Kobo device directory
+        File mockKobo = tempDir.resolve("MockKobo").toFile();
+        mockKobo.mkdirs();
+        File koboDir = new File(mockKobo, ".kobo");
+        koboDir.mkdirs();
+        new File(koboDir, "version").createNewFile();
+        new File(mockKobo, "Books").mkdirs();
+
+        // 2. Setup mock Kindle device directory
+        File mockKindle = tempDir.resolve("MockKindle").toFile();
+        mockKindle.mkdirs();
+        File docsDir = new File(mockKindle, "documents");
+        docsDir.mkdirs();
+
+        // 3. Create a book in Vellum
+        File txtFile = new File(tempDir.toFile(), "ereader_book.txt");
+        java.nio.file.Files.writeString(txtFile.toPath(), "Roman pour liseuse.");
+        File epub = conversionService.convert(txtFile, "epub");
+        Book book = bookService.importBook(epub);
+
+        // 4. Test Kobo export (with auto KePub conversion)
+        File koboExported = deviceService.exportBookToDevice(book.getId(), com.asmolabs.vellum.plugin.device.DeviceKind.KOBO, mockKobo);
+        assertTrue(koboExported.exists());
+        assertTrue(koboExported.getName().endsWith(".kepub.epub"));
+
+        // 5. Test Kindle export
+        File kindleExported = deviceService.exportBookToDevice(book.getId(), com.asmolabs.vellum.plugin.device.DeviceKind.KINDLE, mockKindle);
+        assertTrue(kindleExported.exists());
+
+        // 6. Test listing books from mock Kobo
+        var koboBooks = deviceService.listDeviceBooks(com.asmolabs.vellum.plugin.device.DeviceKind.KOBO, mockKobo);
+        assertFalse(koboBooks.isEmpty());
+
+        // 7. Test listing books from mock Kindle
+        var kindleBooks = deviceService.listDeviceBooks(com.asmolabs.vellum.plugin.device.DeviceKind.KINDLE, mockKindle);
+        assertFalse(kindleBooks.isEmpty());
     }
 }

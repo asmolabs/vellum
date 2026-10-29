@@ -90,12 +90,18 @@ public class HeaderView extends HBox {
 
         viewControls.getChildren().addAll(gridBtn, listBtn);
 
+        // Device Sync Button
+        Button deviceBtn = new Button("📱 Liseuse");
+        deviceBtn.getStyleClass().add("btn-secondary");
+        deviceBtn.setStyle("-fx-border-color: rgba(139, 92, 246, 0.4); -fx-text-fill: #c084fc; -fx-cursor: hand;");
+        deviceBtn.setOnAction(e -> eventPublisher.publishEvent(new UiEvents.DeviceSyncRequested()));
+
         // Settings Button
         Button settingsBtn = new Button("⚙ Paramètres");
         settingsBtn.getStyleClass().add("btn-secondary");
         settingsBtn.setOnAction(e -> eventPublisher.publishEvent(new UiEvents.OpenSettingsRequested()));
 
-        this.getChildren().addAll(searchField, statusFilters, litestreamBadge, viewControls, settingsBtn);
+        this.getChildren().addAll(searchField, statusFilters, litestreamBadge, deviceBtn, viewControls, settingsBtn);
         updateLitestreamStatus();
     }
 
