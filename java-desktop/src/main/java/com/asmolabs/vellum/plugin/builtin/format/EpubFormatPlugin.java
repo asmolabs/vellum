@@ -114,6 +114,30 @@ public class EpubFormatPlugin implements BookFormatPlugin {
                 }
             }
 
+            // Extract ISBN/Identifier
+            String isbn = null;
+            NodeList idNodes = opfDoc.getElementsByTagNameNS("*", "identifier");
+            if (idNodes.getLength() == 0) {
+                idNodes = opfDoc.getElementsByTagName("dc:identifier");
+            }
+            for (int i = 0; i < idNodes.getLength(); i++) {
+                Element el = (Element) idNodes.item(i);
+                String idText = el.getTextContent().trim();
+                String scheme = el.getAttribute("opf:scheme");
+                String idAttr = el.getAttribute("id");
+                boolean isIsbn = "isbn".equalsIgnoreCase(scheme)
+                        || idAttr.toLowerCase().contains("isbn")
+                        || idText.toLowerCase().contains("isbn")
+                        || idText.matches("^(97[89])?\\d{9}[\\dXx]$");
+                if (isIsbn) {
+                    String clean = idText.replaceAll("[^0-9Xx]", "");
+                    if (clean.length() == 10 || clean.length() == 13) {
+                        isbn = clean;
+                        break;
+                    }
+                }
+            }
+
             // 4. Extract Cover Image
             byte[] coverData = null;
             String coverExt = null;
@@ -141,7 +165,7 @@ public class EpubFormatPlugin implements BookFormatPlugin {
                 }
             }
 
-            return new ExtractedMetadata(title, author, publisher, date, description, tags, coverData, coverExt);
+            return new ExtractedMetadata(title, author, publisher, date, description, tags, coverData, coverExt, isbn);
         }
     }
 

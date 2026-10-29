@@ -1,0 +1,28 @@
+[package]
+name = "vellum-plugins"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+vellum-domain.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+zip.workspace = true
+crc32fast.workspace = true
+roxmltree.workspace = true
+regex.workspace = true
+md-5.workspace = true
+image.workspace = true
+reqwest.workspace = true
+tempfile.workspace = true
+dirs.workspace = true
+rusqlite.workspace = true
+chrono.workspace = true
+
+
+[lints]
+workspace = true

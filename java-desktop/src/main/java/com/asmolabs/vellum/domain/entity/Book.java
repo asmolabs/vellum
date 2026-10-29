@@ -24,6 +24,9 @@ public class Book {
     @Column(name = "publishDate")
     private String publishDate;
 
+    @Column(name = "isbn")
+    private String isbn;
+
     @Column(name = "description", length = 4000)
     private String description;
 
@@ -129,6 +132,14 @@ public class Book {
 
     public void setPublishDate(String publishDate) {
         this.publishDate = publishDate;
+    }
+
+    public String getIsbn() {
+        return isbn;
+    }
+
+    public void setIsbn(String isbn) {
+        this.isbn = isbn;
     }
 
     public String getDescription() {

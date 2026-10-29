@@ -1,0 +1,18 @@
+[package]
+name = "vellum-domain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+dirs.workspace = true
+zip.workspace = true
+
+[lints]
+workspace = true

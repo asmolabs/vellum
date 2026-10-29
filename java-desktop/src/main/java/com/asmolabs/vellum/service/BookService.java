@@ -118,18 +118,27 @@ public class BookService {
         MetadataService.ExtractedMetadata meta = metadataService.parseMetadata(sourceFile);
 
         // 2. Enriched Metadata via Plugins
-        Map<String, Object> enriched = pluginService.runImportPlugins(sourceFile, Map.of(
-                "title", meta.title(),
-                "author", meta.author(),
-                "tags", meta.tags(),
-                "description", meta.description() != null ? meta.description() : ""
-        ));
+        Map<String, Object> inputMeta = new HashMap<>();
+        if (meta.title() != null) inputMeta.put("title", meta.title());
+        if (meta.author() != null) inputMeta.put("author", meta.author());
+        if (meta.publisher() != null) inputMeta.put("publisher", meta.publisher());
+        if (meta.publishDate() != null) inputMeta.put("publishDate", meta.publishDate());
+        if (meta.description() != null) inputMeta.put("description", meta.description());
+        if (meta.tags() != null) inputMeta.put("tags", meta.tags());
+        if (meta.coverData() != null) inputMeta.put("coverData", meta.coverData());
+        if (meta.coverExt() != null) inputMeta.put("coverExt", meta.coverExt());
+        if (meta.isbn() != null) inputMeta.put("isbn", meta.isbn());
+
+        Map<String, Object> enriched = pluginService.runImportPlugins(sourceFile, inputMeta);
 
         String title = (String) enriched.getOrDefault("title", meta.title());
         String author = (String) enriched.getOrDefault("author", meta.author());
+        String publisher = (String) enriched.getOrDefault("publisher", meta.publisher());
+        String publishDate = (String) enriched.getOrDefault("publishDate", meta.publishDate());
+        String description = (String) enriched.getOrDefault("description", meta.description());
+        String isbn = (String) enriched.getOrDefault("isbn", meta.isbn());
         @SuppressWarnings("unchecked")
         List<String> tagsList = (List<String>) enriched.getOrDefault("tags", meta.tags());
-        String description = (String) enriched.getOrDefault("description", meta.description());
 
         String bookId = UUID.randomUUID().toString();
         String cleanAuthor = sanitizeFilename(author);
@@ -149,13 +158,15 @@ public class BookService {
         long fileSize = targetFilepathAbs.length();
 
         // Cover file
+        byte[] coverBytes = (byte[]) enriched.getOrDefault("coverData", meta.coverData());
+        String coverExtension = (String) enriched.getOrDefault("coverExt", meta.coverExt());
         String coverPathRel = null;
-        if (meta.coverData() != null && meta.coverData().length > 0) {
-            String coverExt = (meta.coverExt() != null && !meta.coverExt().isBlank()) ? meta.coverExt() : ".jpg";
+        if (coverBytes != null && coverBytes.length > 0) {
+            String coverExt = (coverExtension != null && !coverExtension.isBlank()) ? coverExtension : ".jpg";
             String coverFilename = "cover" + coverExt;
             File coverFileAbs = new File(bookDirAbs, coverFilename);
             try (FileOutputStream fos = new FileOutputStream(coverFileAbs)) {
-                fos.write(meta.coverData());
+                fos.write(coverBytes);
             }
             coverPathRel = bookDirRel + File.separator + coverFilename;
         }
@@ -165,9 +176,10 @@ public class BookService {
         book.setId(bookId);
         book.setTitle(title);
         book.setAuthor(author);
-        book.setPublisher(meta.publisher());
-        book.setPublishDate(meta.publishDate());
+        book.setPublisher(publisher);
+        book.setPublishDate(publishDate);
         book.setDescription(description);
+        book.setIsbn(isbn);
         book.setCoverPath(coverPathRel);
 
         // Tags
@@ -185,6 +197,13 @@ public class BookService {
 
     @Transactional
     public Book updateBook(String bookId, String title, String author, String publisher, String publishDate, String description, List<String> tags) throws IOException {
+        Book existing = bookRepository.findById(bookId).orElse(null);
+        String isbn = existing != null ? existing.getIsbn() : null;
+        return updateBook(bookId, title, author, publisher, publishDate, description, tags, isbn);
+    }
+
+    @Transactional
+    public Book updateBook(String bookId, String title, String author, String publisher, String publishDate, String description, List<String> tags, String isbn) throws IOException {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new IllegalArgumentException("Livre introuvable avec l'ID: " + bookId));
 
@@ -196,6 +215,7 @@ public class BookService {
         book.setPublisher(publisher);
         book.setPublishDate(publishDate);
         book.setDescription(description);
+        book.setIsbn(isbn);
 
         // Update tags
         book.getTags().clear();
@@ -282,6 +302,78 @@ public class BookService {
 
         Files.copy(newCoverFile.toPath(), targetCover.toPath(), StandardCopyOption.REPLACE_EXISTING);
         book.setCoverPath(bookDirRel + File.separator + coverName);
+
+        return bookRepository.save(book);
+    }
+
+    @Transactional
+    public Book enrichBook(String bookId) throws Exception {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new IllegalArgumentException("Livre introuvable: " + bookId));
+
+        Map<String, Object> inputMeta = new HashMap<>();
+        inputMeta.put("title", book.getTitle());
+        inputMeta.put("author", book.getAuthor());
+        if (book.getPublisher() != null) inputMeta.put("publisher", book.getPublisher());
+        if (book.getPublishDate() != null) inputMeta.put("publishDate", book.getPublishDate());
+        if (book.getDescription() != null) inputMeta.put("description", book.getDescription());
+        if (book.getIsbn() != null) inputMeta.put("isbn", book.getIsbn());
+        inputMeta.put("tags", book.getTags().stream().map(Tag::getName).toList());
+
+        File coverFile = book.getCoverPath() != null ? new File(appProperties.getLibraryPath(), book.getCoverPath()) : null;
+        if (coverFile != null && coverFile.exists()) {
+            inputMeta.put("coverData", Files.readAllBytes(coverFile.toPath()));
+            inputMeta.put("coverExt", getExtension(coverFile.getName()));
+        }
+
+        File sourceFile = null;
+        if (!book.getFormats().isEmpty()) {
+            sourceFile = getFileForFormat(book.getFormats().getFirst());
+        }
+
+        Map<String, Object> enriched = pluginService.runImportPlugins(sourceFile, inputMeta);
+
+        if (enriched.containsKey("title") && enriched.get("title") != null) {
+            book.setTitle(String.valueOf(enriched.get("title")));
+        }
+        if (enriched.containsKey("author") && enriched.get("author") != null) {
+            book.setAuthor(String.valueOf(enriched.get("author")));
+        }
+        if (enriched.containsKey("publisher") && enriched.get("publisher") != null) {
+            book.setPublisher(String.valueOf(enriched.get("publisher")));
+        }
+        if (enriched.containsKey("publishDate") && enriched.get("publishDate") != null) {
+            book.setPublishDate(String.valueOf(enriched.get("publishDate")));
+        }
+        if (enriched.containsKey("description") && enriched.get("description") != null) {
+            book.setDescription(String.valueOf(enriched.get("description")));
+        }
+        if (enriched.containsKey("isbn") && enriched.get("isbn") != null) {
+            book.setIsbn(String.valueOf(enriched.get("isbn")));
+        }
+
+        if (enriched.containsKey("tags")) {
+            @SuppressWarnings("unchecked")
+            List<String> tags = (List<String>) enriched.get("tags");
+            for (String t : tags) {
+                Tag tag = tagRepository.findById(t).orElseGet(() -> tagRepository.save(new Tag(t)));
+                book.addTag(tag);
+            }
+        }
+
+        byte[] newCover = (byte[]) enriched.get("coverData");
+        String coverExt = (String) enriched.getOrDefault("coverExt", ".jpg");
+        if (newCover != null && newCover.length > 500 && (coverFile == null || !coverFile.exists())) {
+            String cleanAuthor = sanitizeFilename(book.getAuthor());
+            String cleanTitle = sanitizeFilename(book.getTitle());
+            String bookDirRel = cleanAuthor + File.separator + cleanTitle + " (" + book.getId() + ")";
+            File bookDirAbs = new File(appProperties.getLibraryPath(), bookDirRel);
+            bookDirAbs.mkdirs();
+            String coverFilename = "cover" + coverExt;
+            File newCoverAbs = new File(bookDirAbs, coverFilename);
+            Files.write(newCoverAbs.toPath(), newCover);
+            book.setCoverPath(bookDirRel + File.separator + coverFilename);
+        }
 
         return bookRepository.save(book);
     }

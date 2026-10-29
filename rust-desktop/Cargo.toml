@@ -1,0 +1,64 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/vellum-domain",
+    "crates/vellum-storage",
+    "crates/vellum-plugins",
+    "crates/vellum-core",
+    "crates/vellum-ui",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+authors = ["Asmolabs"]
+license = "MIT"
+repository = "https://github.com/asmolabs/library"
+
+[workspace.dependencies]
+vellum-domain = { path = "crates/vellum-domain" }
+vellum-storage = { path = "crates/vellum-storage" }
+vellum-plugins = { path = "crates/vellum-plugins" }
+vellum-core = { path = "crates/vellum-core" }
+
+# Serialization & Data
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Database (SQLite WAL)
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+zip = { version = "9.0", default-features = false, features = ["deflate"] }
+crc32fast = "1.4"
+roxmltree = "0.20"
+regex = "1.11"
+md-5 = "0.10"
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+lopdf = "0.34"
+
+# Async, HTTP & OPDS Web Server
+tokio = { version = "1.42", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
+axum = "0.7"
+tower-http = { version = "0.6", features = ["cors"] }
+
+# Desktop UI (Dioxus + Native Dialogs)
+dioxus = { version = "0.6", features = ["desktop"] }
+rfd = "0.15"
+open = "5.3"
+dirs = "5.0"
+
+# Testing
+tempfile = "3.14"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

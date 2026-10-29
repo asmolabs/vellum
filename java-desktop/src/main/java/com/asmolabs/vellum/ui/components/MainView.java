@@ -203,7 +203,7 @@ public class MainView extends BorderPane {
 
     @EventListener
     public void onBookEditRequested(UiEvents.BookEditRequested event) {
-        Platform.runLater(() -> EditBookDialog.show(this.getScene().getWindow(), event.book(), bookService, updated -> {
+        Platform.runLater(() -> EditBookDialog.show(this.getScene().getWindow(), event.book(), bookService, pluginService, updated -> {
             refreshLibrary();
             detailDrawerView.showBook(updated);
         }));

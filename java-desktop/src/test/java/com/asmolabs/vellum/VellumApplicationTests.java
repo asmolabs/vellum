@@ -18,6 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -676,5 +678,70 @@ class VellumApplicationTests {
         List<Book> unreadList = allBooks.stream().filter(b -> !b.isFinished() && b.getProgressPercent() <= 0).toList();
         assertEquals(1, unreadList.size());
         assertEquals(unreadBook.getId(), unreadList.get(0).getId());
+    }
+
+    @Test
+    void testGoogleBooksEnricherPluginConfiguration() {
+        var pluginOpt = pluginService.getRegisteredPlugins().stream()
+                .filter(p -> "google-books-enricher".equals(p.id()))
+                .findFirst();
+
+        assertTrue(pluginOpt.isPresent(), "Google Books enricher plugin should be registered");
+        var descriptor = pluginOpt.get();
+        assertEquals("google-books-enricher", descriptor.id());
+        assertFalse(descriptor.configSchema().isEmpty());
+        assertTrue(descriptor.configSchema().stream().anyMatch(f -> "api_key".equals(f.key())));
+        assertTrue(descriptor.configSchema().stream().anyMatch(f -> "fallback_openlibrary".equals(f.key())));
+
+        var pluginInstance = pluginService.getPluginById("google-books-enricher").orElseThrow();
+        var testRes = pluginInstance.testConfiguration(Map.of());
+        assertNotNull(testRes);
+        assertNotNull(testRes.message());
+    }
+
+    @Test
+    void testGoogleBooksEnricherMetadataEnrichment() {
+        var enricher = (com.asmolabs.vellum.plugin.builtin.GoogleBooksEnricherPlugin) pluginService.getPluginById("google-books-enricher")
+                .orElseThrow();
+        assertNotNull(enricher);
+
+        // Test metadata enrichment for Dune by Frank Herbert
+        Map<String, Object> inputMeta = new HashMap<>();
+        inputMeta.put("title", "Dune");
+        inputMeta.put("author", "Frank Herbert");
+        inputMeta.put("tags", new ArrayList<>(List.of("Science-Fiction")));
+
+        Map<String, Object> config = Map.of(
+                "language", "fr",
+                "auto_add_tags", true,
+                "fetch_cover", false,
+                "fallback_openlibrary", true
+        );
+
+        Map<String, Object> enriched = enricher.enrichMetadata(null, inputMeta, config);
+        assertNotNull(enriched);
+        assertEquals("Dune", enriched.get("title"));
+        assertNotNull(enriched.get("author"));
+        @SuppressWarnings("unchecked")
+        List<String> tags = (List<String>) enriched.get("tags");
+        assertTrue(tags.contains("Science-Fiction"));
+    }
+
+    @Test
+    void testBookServiceEnrichExistingBook() throws Exception {
+        // Create sample book
+        File sampleTxt = new File(tempDir.toFile(), "enrich_sample.txt");
+        java.nio.file.Files.writeString(sampleTxt.toPath(), "Content of sample book");
+        File sampleEpub = conversionService.convert(sampleTxt, "epub");
+
+        Book book = bookService.importBook(sampleEpub);
+        book.setTitle("Dune");
+        book.setAuthor("Frank Herbert");
+        bookRepository.save(book);
+
+        Book enriched = bookService.enrichBook(book.getId());
+        assertNotNull(enriched);
+        assertEquals(book.getId(), enriched.getId());
+        assertEquals("Dune", enriched.getTitle());
     }
 }

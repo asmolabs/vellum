@@ -197,9 +197,16 @@ public class DetailDrawerView extends VBox {
                 meta.append("Éditeur : ").append(book.getPublisher()).append("  •  ");
             }
             if (book.getPublishDate() != null && !book.getPublishDate().isBlank()) {
-                meta.append("Date : ").append(book.getPublishDate());
+                meta.append("Date : ").append(book.getPublishDate()).append("  •  ");
             }
-            metaInfoLabel.setText(meta.toString());
+            if (book.getIsbn() != null && !book.getIsbn().isBlank()) {
+                meta.append("ISBN : ").append(book.getIsbn());
+            }
+            String metaStr = meta.toString().trim();
+            if (metaStr.endsWith("•")) {
+                metaStr = metaStr.substring(0, metaStr.length() - 1).trim();
+            }
+            metaInfoLabel.setText(metaStr);
 
             String desc = book.getDescription();
             descLabel.setText((desc != null && !desc.isBlank()) ? desc : "Aucune description renseignée pour ce livre.");
@@ -338,6 +345,29 @@ public class DetailDrawerView extends VBox {
                     pluginMenuBtn.getItems().add(new SeparatorMenuItem());
                 }
             }
+
+            // Online Metadata Enrichment
+            MenuItem enrichItem = new MenuItem("✨ Enrichir métadonnées (Google Books)");
+            enrichItem.setOnAction(e -> {
+                Thread.ofVirtual().start(() -> {
+                    try {
+                        Book updated = bookService.enrichBook(book.getId());
+                        Platform.runLater(() -> {
+                            eventPublisher.publishEvent(new UiEvents.LibraryChanged());
+                            showBook(updated);
+                            Alert ok = new Alert(Alert.AlertType.INFORMATION, "Métadonnées enrichies avec succès !", ButtonType.OK);
+                            ok.showAndWait();
+                        });
+                    } catch (Exception ex) {
+                        Platform.runLater(() -> {
+                            Alert err = new Alert(Alert.AlertType.ERROR, "Échec de l'enrichissement : " + ex.getMessage(), ButtonType.OK);
+                            err.showAndWait();
+                        });
+                    }
+                });
+            });
+            pluginMenuBtn.getItems().add(enrichItem);
+            pluginMenuBtn.getItems().add(new SeparatorMenuItem());
 
             for (PluginService.LibraryPlugin plugin : pluginService.getRegisteredPlugins()) {
                 if ("transformation".equalsIgnoreCase(plugin.type()) && plugin.enabled()) {

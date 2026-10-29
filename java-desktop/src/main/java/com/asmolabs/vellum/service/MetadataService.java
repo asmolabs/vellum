@@ -25,8 +25,22 @@ public class MetadataService {
             String description,
             List<String> tags,
             byte[] coverData,
-            String coverExt
+            String coverExt,
+            String isbn
     ) {
+        public ExtractedMetadata(
+                String title,
+                String author,
+                String publisher,
+                String publishDate,
+                String description,
+                List<String> tags,
+                byte[] coverData,
+                String coverExt
+        ) {
+            this(title, author, publisher, publishDate, description, tags, coverData, coverExt, null);
+        }
+
         public static ExtractedMetadata fromPluginMetadata(com.asmolabs.vellum.plugin.format.ExtractedMetadata m) {
             if (m == null) return null;
             return new ExtractedMetadata(
@@ -37,7 +51,8 @@ public class MetadataService {
                     m.description(),
                     m.tags(),
                     m.coverData(),
-                    m.coverExt()
+                    m.coverExt(),
+                    m.isbn()
             );
         }
     }

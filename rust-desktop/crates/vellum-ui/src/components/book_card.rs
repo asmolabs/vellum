@@ -1,0 +1,99 @@
+use dioxus::prelude::*;
+use vellum_domain::Book;
+
+#[component]
+pub fn BookCard(
+    book: Book,
+    on_select: EventHandler<Book>,
+    on_read: EventHandler<Book>,
+) -> Element {
+    let title = book.title.clone();
+    let author = book.author.clone();
+    let formats = book.formats.clone();
+    let progress = book.progress_percent;
+    let cover_path = book.cover_path.clone();
+
+    use base64::Engine;
+    let cover_src = cover_path.as_ref().and_then(|p| {
+        if p.starts_with("data:") || p.starts_with("http") {
+            Some(p.clone())
+        } else {
+            let full_path = if std::path::Path::new(p).is_absolute() {
+                std::path::PathBuf::from(p)
+            } else {
+                dirs::home_dir().map(|h| h.join(".vellum").join("library").join(p))?
+            };
+
+            if full_path.exists() {
+                if let Ok(bytes) = std::fs::read(&full_path) {
+                    let ext = full_path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("jpeg")
+                        .to_lowercase();
+                    let mime = match ext.as_str() {
+                        "png" => "image/png",
+                        "webp" => "image/webp",
+                        _ => "image/jpeg",
+                    };
+                    return Some(format!(
+                        "data:{mime};base64,{}",
+                        base64::engine::general_purpose::STANDARD.encode(&bytes)
+                    ));
+                }
+            }
+            None
+        }
+    });
+
+    rsx! {
+        div {
+            class: "book-card",
+            onclick: {
+                let book = book.clone();
+                move |_| on_select.call(book.clone())
+            },
+            ondoubleclick: {
+                let book = book.clone();
+                move |_| on_read.call(book.clone())
+            },
+
+            div { class: "cover-container",
+                if let Some(src) = cover_src {
+                    img {
+                        class: "cover-image",
+                        src: "{src}",
+                        alt: "{title}",
+                        loading: "lazy",
+                    }
+                } else {
+                    div { class: "cover-fallback",
+                        span { class: "fallback-title", "{title}" }
+                        span { class: "fallback-author", "{author}" }
+                    }
+                }
+
+                // Format Badges
+                div { class: "format-badges",
+                    for fmt in formats.iter() {
+                        span { class: "format-pill", "{fmt.format.to_uppercase()}" }
+                    }
+                }
+            }
+
+            div { class: "card-body",
+                div { class: "book-title", title: "{title}", "{title}" }
+                div { class: "book-author", title: "{author}", "{author}" }
+
+                if progress > 0.0 {
+                    div { class: "progress-track",
+                        div {
+                            class: "progress-bar",
+                            style: "width: {progress.clamp(0.0, 100.0)}%;",
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

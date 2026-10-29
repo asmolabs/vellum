@@ -72,8 +72,8 @@ Dernière mise à jour : 8 octobre 2026
   - [x] Option « Attacher le format résultant à cette fiche de livre (multi-formats) ».
   - [x] Option « Enregistrer ces paramètres comme configuration par défaut ».
   - [x] Exécution en thread virtuel en arrière-plan avec indicateur d'avancement.
-- [ ] **Connexion des véritables moteurs pour les plugins internes**
-  - [ ] `GoogleBooksEnricherPlugin` : implémenter la requête HTTP réelle vers l'API REST Google Books pour enrichir description, éditeur et tags.
+- [x] **Connexion des véritables moteurs pour les plugins internes**
+  - [x] `GoogleBooksEnricherPlugin` : implémentation complète des requêtes réelles HTTP vers Google Books API (recherche par ISBN / Titre + Auteur, nettoyage HTML des résumés, extraction des catégories en tags, téléchargement de jaquette HD) avec système de secours automatique Open Library et boutons d'auto-complétion & d'enrichissement dans l'interface (`EditBookDialog` & `DetailDrawerView`).
   - [x] `EpubTranslatorPlugin` : architecture multi-agents connectée aux LLMs réels (Ollama local, LM Studio, OpenAI GPT-4o, DeepL) avec parser XHTML JSoup, agent planificateur de charte éditoriale, agent glossaire dynamique, cache de segments MD5 et validation QA.
 
 ---

@@ -1,0 +1,31 @@
+[package]
+name = "vellum-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "vellum"
+path = "src/main.rs"
+
+[dependencies]
+vellum-domain = { path = "../vellum-domain" }
+vellum-storage = { path = "../vellum-storage" }
+vellum-plugins = { path = "../vellum-plugins" }
+vellum-core = { path = "../vellum-core" }
+
+dioxus.workspace = true
+rfd.workspace = true
+open.workspace = true
+dirs.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+chrono.workspace = true
