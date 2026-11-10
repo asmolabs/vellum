@@ -761,6 +761,38 @@ fn App() -> Element {
         }
     };
 
+    // Handle book file export to directory via template
+    let handle_export_file = {
+        let bs = book_service.clone();
+        move |(b_id, pref_fmt): (String, Option<String>)| {
+            let folder = rfd::FileDialog::new()
+                .set_title("Choisir le dossier de destination pour l'export")
+                .pick_folder();
+
+            if let Some(dest_dir) = folder {
+                let bs_cloned = bs.clone();
+                spawn(async move {
+                    let res = tokio::task::spawn_blocking(move || {
+                        bs_cloned.export_book_to_directory(&b_id, &dest_dir, pref_fmt.as_deref(), None)
+                    })
+                    .await;
+
+                    match res {
+                        Ok(Ok(out_path)) => {
+                            tracing::info!("Livre exporté avec succès dans: {:?}", out_path);
+                        }
+                        Ok(Err(e)) => {
+                            tracing::error!("Erreur lors de l'export: {e}");
+                        }
+                        Err(e) => {
+                            tracing::error!("Tâche de fond interrompue: {e}");
+                        }
+                    }
+                });
+            }
+        }
+    };
+
     // Handle eReader sync (import new books & sync reading progress)
     let handle_sync_device = {
         let ds = device_service.clone();
@@ -1198,6 +1230,7 @@ fn App() -> Element {
                             can_send_kindle: smtp_config.read().enabled && !smtp_config.read().kindle_email.is_empty(),
                             is_sending_kindle: *is_sending_kindle.read(),
                             on_send_to_kindle: handle_send_to_kindle.clone(),
+                            on_export_file: handle_export_file.clone(),
                         }
 
                     }

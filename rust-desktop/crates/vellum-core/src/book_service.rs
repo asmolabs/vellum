@@ -1287,4 +1287,51 @@ impl BookService {
             self,
         )
     }
+
+    /// Exports a book to an external directory using a naming template
+    pub fn export_book_to_directory(
+        &self,
+        book_id: &str,
+        target_dir: &Path,
+        preferred_format: Option<&str>,
+        template: Option<&str>,
+    ) -> VellumResult<PathBuf> {
+        let book = self
+            .book_repo
+            .find_by_id(book_id)?
+            .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {book_id}")))?;
+
+        let format_entry = if let Some(pref) = preferred_format {
+            book.formats.iter().find(|f| f.format.eq_ignore_ascii_case(pref))
+        } else {
+            book.formats
+                .iter()
+                .find(|f| f.format.eq_ignore_ascii_case("epub"))
+                .or_else(|| book.formats.first())
+        }
+        .ok_or_else(|| VellumError::NotFound(format!("Aucun format disponible pour {}", book.title)))?;
+
+        let source_path = if Path::new(&format_entry.filepath).is_absolute() {
+            PathBuf::from(&format_entry.filepath)
+        } else {
+            self.library_path.join(&format_entry.filepath)
+        };
+
+        if !source_path.exists() {
+            return Err(VellumError::NotFound(format!("Fichier source introuvable: {:?}", source_path)));
+        }
+
+        let tmpl = template.unwrap_or(vellum_domain::DEFAULT_NAMING_TEMPLATE);
+        let relative_path = vellum_domain::NamingTemplate::format_filename(&book, tmpl, &format_entry.format);
+        let dest_path = target_dir.join(relative_path);
+
+        if let Some(parent) = dest_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        fs::copy(&source_path, &dest_path)?;
+        tracing::info!("Livre '{}' exporté avec succès vers {:?}", book.title, dest_path);
+
+        Ok(dest_path)
+    }
 }

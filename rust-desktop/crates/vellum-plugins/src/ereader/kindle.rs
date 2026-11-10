@@ -56,6 +56,13 @@ impl KindleSyncPlugin {
                     "Dossier où placer les livres sur la liseuse (par défaut: documents)",
                 ),
                 ConfigField::new(
+                    "namingTemplate",
+                    "Gabarit de nommage des fichiers",
+                    "string",
+                    Value::String(vellum_domain::DEFAULT_NAMING_TEMPLATE.to_string()),
+                    "Modèle utilisé pour nommer les dossiers et fichiers sur la liseuse (ex: {author}/{series}/T.{series_index:02} - {title})",
+                ),
+                ConfigField::new(
                     "generateThumbnails",
                     "Générer les vignettes de couverture",
                     "boolean",
@@ -66,15 +73,6 @@ impl KindleSyncPlugin {
         };
 
         Self { descriptor }
-    }
-
-    fn sanitize_filename(name: &str) -> String {
-        name.chars()
-            .map(|c| match c {
-                '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-                other => other,
-            })
-            .collect()
     }
 }
 
@@ -179,15 +177,10 @@ impl DeviceSyncPlugin for KindleSyncPlugin {
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
 
-        let author_clean = Self::sanitize_filename(&book.author);
-        let title_clean = Self::sanitize_filename(&book.title);
-
-        let dest_dir = mount_point.join(target_dir_name).join(author_clean);
-        std::fs::create_dir_all(&dest_dir).map_err(|e| {
-            VellumError::Plugin(format!(
-                "Impossible de créer le dossier cible sur le Kindle: {e}"
-            ))
-        })?;
+        let template_str = config
+            .get("namingTemplate")
+            .and_then(|v| v.as_str())
+            .unwrap_or(vellum_domain::DEFAULT_NAMING_TEMPLATE);
 
         let src_ext = source_file
             .extension()
@@ -195,7 +188,17 @@ impl DeviceSyncPlugin for KindleSyncPlugin {
             .unwrap_or("mobi")
             .to_lowercase();
 
-        let dest_file = dest_dir.join(format!("{title_clean}.{src_ext}"));
+        let relative_dest = vellum_domain::NamingTemplate::format_filename(book, template_str, &src_ext);
+        let dest_file = mount_point.join(target_dir_name).join(relative_dest);
+
+        if let Some(parent) = dest_file.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                VellumError::Plugin(format!(
+                    "Impossible de créer le dossier cible sur le Kindle: {e}"
+                ))
+            })?;
+        }
+
         std::fs::copy(source_file, &dest_file).map_err(|e| {
             VellumError::Plugin(format!("Erreur lors de la copie sur le Kindle: {e}"))
         })?;

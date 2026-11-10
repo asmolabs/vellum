@@ -358,3 +358,4 @@ fn strip_html_tags(input: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
+

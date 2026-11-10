@@ -64,19 +64,17 @@ impl KoboSyncPlugin {
                     Value::String("Books".to_string()),
                     "Sous-dossier où déposer les livres sur la liseuse (par défaut: Books)",
                 ),
+                ConfigField::new(
+                    "namingTemplate",
+                    "Gabarit de nommage des fichiers",
+                    "string",
+                    Value::String(vellum_domain::DEFAULT_NAMING_TEMPLATE.to_string()),
+                    "Modèle utilisé pour nommer les dossiers et fichiers sur la liseuse (ex: {author}/{series}/T.{series_index:02} - {title})",
+                ),
             ],
         };
 
         Self { descriptor }
-    }
-
-    fn sanitize_filename(name: &str) -> String {
-        name.chars()
-            .map(|c| match c {
-                '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-                other => other,
-            })
-            .collect()
     }
 }
 
@@ -263,15 +261,10 @@ impl DeviceSyncPlugin for KoboSyncPlugin {
             .and_then(|v| v.as_str())
             .unwrap_or("kepub");
 
-        let author_clean = Self::sanitize_filename(&book.author);
-        let title_clean = Self::sanitize_filename(&book.title);
-
-        let dest_dir = mount_point.join(target_folder_name).join(author_clean);
-        std::fs::create_dir_all(&dest_dir).map_err(|e| {
-            VellumError::Plugin(format!(
-                "Impossible de créer le dossier cible sur la Kobo: {e}"
-            ))
-        })?;
+        let template_str = config
+            .get("namingTemplate")
+            .and_then(|v| v.as_str())
+            .unwrap_or(vellum_domain::DEFAULT_NAMING_TEMPLATE);
 
         let src_ext = source_file
             .extension()
@@ -279,17 +272,27 @@ impl DeviceSyncPlugin for KoboSyncPlugin {
             .unwrap_or("")
             .to_lowercase();
 
-        let dest_file = if export_fmt == "kepub" && src_ext == "epub" {
-            let out = dest_dir.join(format!("{title_clean}.kepub.epub"));
-            kepubify::convert_epub_to_kepub(source_file, &out)?;
-            out
+        let is_kepub = export_fmt == "kepub" && src_ext == "epub";
+        let target_ext = if is_kepub { "kepub.epub" } else { &src_ext };
+
+        let relative_dest = vellum_domain::NamingTemplate::format_filename(book, template_str, target_ext);
+        let dest_file = mount_point.join(target_folder_name).join(relative_dest);
+
+        if let Some(parent) = dest_file.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                VellumError::Plugin(format!(
+                    "Impossible de créer le dossier cible sur la Kobo: {e}"
+                ))
+            })?;
+        }
+
+        if is_kepub {
+            kepubify::convert_epub_to_kepub(source_file, &dest_file)?;
         } else {
-            let out = dest_dir.join(format!("{title_clean}.{src_ext}"));
-            std::fs::copy(source_file, &out).map_err(|e| {
+            std::fs::copy(source_file, &dest_file).map_err(|e| {
                 VellumError::Plugin(format!("Erreur lors de la copie sur la Kobo: {e}"))
             })?;
-            out
-        };
+        }
 
         Ok(dest_file)
     }

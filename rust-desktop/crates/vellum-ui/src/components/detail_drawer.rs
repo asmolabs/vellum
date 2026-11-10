@@ -30,6 +30,7 @@ pub fn DetailDrawer(
     can_send_kindle: bool,
     is_sending_kindle: bool,
     on_send_to_kindle: EventHandler<Book>,
+    on_export_file: EventHandler<(String, Option<String>)>,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
 
@@ -418,6 +419,16 @@ pub fn DetailDrawer(
                                         span { if is_sending_kindle { "⏳" } else { "✉️" } }
                                         if is_sending_kindle { " Envoi en cours vers Kindle..." } else { " Envoyer à ma Kindle (sans fil)" }
                                     }
+                                }
+
+                                button {
+                                    class: "drawer-action-btn",
+                                    style: "width: 100%; justify-content: center; background: rgba(167, 139, 250, 0.12); color: #c4b5fd; border-color: rgba(167, 139, 250, 0.3); font-weight: 600;",
+                                    onclick: {
+                                        let b_id = book_id.clone();
+                                        move |_| on_export_file.call((b_id.clone(), None))
+                                    },
+                                    "💾 Exporter le fichier..."
                                 }
 
                                 // eReader Export Actions
