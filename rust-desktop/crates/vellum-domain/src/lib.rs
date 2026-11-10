@@ -4,7 +4,7 @@ pub mod error;
 pub mod plugin;
 pub mod sync;
 
-pub use config::{AppConfig, LitestreamConfig};
+pub use config::{AppConfig, LitestreamConfig, SmtpConfig};
 pub use entity::{Book, BookFormat, Param, ReadingStats, Tag};
 pub use error::{VellumError, VellumResult};
 pub use plugin::{

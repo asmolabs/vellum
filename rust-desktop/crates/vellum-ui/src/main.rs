@@ -20,11 +20,12 @@ use vellum_core::book_service::BookService;
 use vellum_core::conversion_service::ConversionService;
 use vellum_core::device_service::DeviceService;
 use vellum_core::litestream_service::LitestreamService;
+use vellum_core::mail_service::MailService;
 use vellum_core::metadata_service::MetadataService;
 use vellum_core::opds_server::OpdsServer;
 use vellum_core::plugin_service::PluginService;
 use vellum_core::{FolderSyncBackend, SyncService};
-use vellum_domain::{AppConfig, Book, CloudSyncConfig, DeviceKind};
+use vellum_domain::{AppConfig, Book, CloudSyncConfig, DeviceKind, SmtpConfig};
 use vellum_storage::{BookRepository, Database, ParamRepository, SyncRepository, TagRepository};
 
 #[derive(Clone)]
@@ -33,6 +34,8 @@ struct AppServices {
     sync_service: Arc<SyncService>,
     device_service: Arc<DeviceService>,
     litestream_service: Arc<LitestreamService>,
+    mail_service: Arc<MailService>,
+    smtp_config: SmtpConfig,
     opds_port: u16,
 }
 
@@ -74,7 +77,7 @@ fn init_services() -> AppServices {
     let book_service = Arc::new(
         BookService::new(
             book_repo,
-            param_repo,
+            param_repo.clone(),
             tag_repo,
             metadata_service,
             plugin_service,
@@ -125,11 +128,22 @@ fn init_services() -> AppServices {
         book_service.plugin_service().clone(),
     ));
 
+    // Charger la configuration SMTP persistée si présente
+    let mut smtp_cfg = app_cfg.smtp.clone();
+    if let Ok(Some(saved_json)) = param_repo.get_value("smtp_config") {
+        if let Ok(loaded) = serde_json::from_str::<SmtpConfig>(&saved_json) {
+            smtp_cfg = loaded;
+        }
+    }
+    let mail_service = Arc::new(MailService::new(app_cfg.library_path.clone()));
+
     AppServices {
         book_service,
         sync_service,
         device_service,
         litestream_service,
+        mail_service,
+        smtp_config: smtp_cfg,
         opds_port,
     }
 }
@@ -295,6 +309,12 @@ fn App() -> Element {
     let mut selected_ids = use_signal(|| std::collections::HashSet::<String>::new());
     let mut translating_book = use_signal(|| None::<Book>);
     let mut is_translating = use_signal(|| false);
+
+    let mail_service = services.mail_service.clone();
+    let mut smtp_config = use_signal(|| services.smtp_config.clone());
+    let mut is_testing_smtp = use_signal(|| false);
+    let mut smtp_test_message = use_signal(|| None::<(bool, String)>);
+    let mut is_sending_kindle = use_signal(|| false);
 
     // Refresh function helper
     let refresh_library = {
@@ -826,6 +846,57 @@ fn App() -> Element {
         }
     };
 
+    // Handle save SMTP configuration
+    let handle_save_smtp = {
+        let pr = services.book_service.param_repo().clone();
+        move |cfg: SmtpConfig| {
+            smtp_config.set(cfg.clone());
+            if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+                let _ = pr.set_value("smtp_config", &cfg_json);
+            }
+        }
+    };
+
+    // Handle test SMTP connection
+    let handle_test_smtp = {
+        let ms = mail_service.clone();
+        move |cfg: SmtpConfig| {
+            is_testing_smtp.set(true);
+            smtp_test_message.set(None);
+            let ms_cloned = ms.clone();
+            spawn(async move {
+                let res = ms_cloned.test_connection(&cfg).await;
+                is_testing_smtp.set(false);
+                match res {
+                    Ok(()) => smtp_test_message.set(Some((true, "Connexion SMTP établie et authentifiée avec succès !".into()))),
+                    Err(e) => smtp_test_message.set(Some((false, format!("Échec du test SMTP : {e}")))),
+                }
+            });
+        }
+    };
+
+    // Handle send book to Kindle
+    let handle_send_to_kindle = {
+        let ms = mail_service.clone();
+        move |b: Book| {
+            let cfg = smtp_config.read().clone();
+            is_sending_kindle.set(true);
+            let ms_cloned = ms.clone();
+            spawn(async move {
+                let res = ms_cloned.send_to_kindle(&b, &cfg, None).await;
+                is_sending_kindle.set(false);
+                match res {
+                    Ok(()) => {
+                        tracing::info!("Livre '{}' envoyé avec succès à la Kindle", b.title);
+                    }
+                    Err(e) => {
+                        tracing::error!("Erreur lors de l'envoi vers Kindle: {e}");
+                    }
+                }
+            });
+        }
+    };
+
     // Global keyboard shortcut Cmd + K (or Ctrl + K) for Command Palette
     use_effect(move || {
         let mut eval = document::eval(r#"
@@ -1074,6 +1145,9 @@ fn App() -> Element {
                             on_enrich_metadata: handle_enrich_metadata.clone(),
                             on_open_translate: move |b| translating_book.set(Some(b)),
                             on_export_to_device: handle_export_to_device.clone(),
+                            can_send_kindle: smtp_config.read().enabled && !smtp_config.read().kindle_email.is_empty(),
+                            is_sending_kindle: *is_sending_kindle.read(),
+                            on_send_to_kindle: handle_send_to_kindle.clone(),
                         }
 
                     }
@@ -1116,11 +1190,16 @@ fn App() -> Element {
                     sync_available: sync_service.is_backend_available(),
                     is_syncing: *is_syncing.read(),
                     sync_message: sync_message.read().clone(),
+                    smtp_config: smtp_config.read().clone(),
+                    is_testing_smtp: *is_testing_smtp.read(),
+                    smtp_test_message: smtp_test_message.read().clone(),
                     on_sync_now: handle_sync_now.clone(),
                     on_select_folder: handle_pick_sync_folder.clone(),
                     on_auto_detect_folder: handle_auto_detect_folder.clone(),
                     on_toggle_auto_download: handle_toggle_auto_download.clone(),
                     on_toggle_enabled: handle_toggle_sync_enabled.clone(),
+                    on_save_smtp: handle_save_smtp.clone(),
+                    on_test_smtp: handle_test_smtp.clone(),
                     on_close: move |_| settings_open.set(false),
                 }
             }

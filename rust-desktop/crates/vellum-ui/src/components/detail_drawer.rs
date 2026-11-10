@@ -27,6 +27,9 @@ pub fn DetailDrawer(
     on_enrich_metadata: EventHandler<String>,
     on_open_translate: EventHandler<Book>,
     on_export_to_device: EventHandler<(String, vellum_domain::DeviceKind)>,
+    can_send_kindle: bool,
+    is_sending_kindle: bool,
+    on_send_to_kindle: EventHandler<Book>,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
 
@@ -401,6 +404,20 @@ pub fn DetailDrawer(
                                         move |_| on_open_translate.call(book_clone.clone())
                                     },
                                     "🌐 Traduire avec l'IA"
+                                }
+
+                                if can_send_kindle {
+                                    button {
+                                        class: "drawer-action-btn",
+                                        style: "width: 100%; justify-content: center; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); font-weight: 600;",
+                                        disabled: is_sending_kindle,
+                                        onclick: {
+                                            let book_clone = book.clone();
+                                            move |_| on_send_to_kindle.call(book_clone.clone())
+                                        },
+                                        span { if is_sending_kindle { "⏳" } else { "✉️" } }
+                                        if is_sending_kindle { " Envoi en cours vers Kindle..." } else { " Envoyer à ma Kindle (sans fil)" }
+                                    }
                                 }
 
                                 // eReader Export Actions

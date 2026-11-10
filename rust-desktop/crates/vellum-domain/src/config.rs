@@ -23,6 +23,31 @@ impl Default for LitestreamConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SmtpConfig {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    pub from_address: String,
+    pub kindle_email: String,
+}
+
+impl Default for SmtpConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            host: "smtp.gmail.com".to_string(),
+            port: 587,
+            username: String::new(),
+            password: String::new(),
+            from_address: String::new(),
+            kindle_email: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
     pub library_path: PathBuf,
     pub plugins_path: PathBuf,
@@ -30,6 +55,7 @@ pub struct AppConfig {
     pub opds_port: u16,
     pub litestream: LitestreamConfig,
     pub cloud_sync: CloudSyncConfig,
+    pub smtp: SmtpConfig,
 }
 
 impl Default for AppConfig {
@@ -43,6 +69,7 @@ impl Default for AppConfig {
             opds_port: 8085,
             litestream: LitestreamConfig::default(),
             cloud_sync: CloudSyncConfig::default(),
+            smtp: SmtpConfig::default(),
         }
     }
 }

@@ -786,6 +786,52 @@ async fn test_bulk_update_and_bulk_delete_books() {
     }
 }
 
+#[tokio::test]
+async fn test_mail_service_validation() {
+    use vellum_core::MailService;
+    use vellum_domain::{Book, BookFormat, SmtpConfig};
+
+    let temp = TempDir::new().expect("tempdir");
+    let mail_service = MailService::new(temp.path().to_path_buf());
+
+    let mut cfg = SmtpConfig::default();
+    cfg.enabled = false;
+
+    let book = Book::new("Dune", "Frank Herbert");
+    let res = mail_service.send_to_kindle(&book, &cfg, None).await;
+    assert!(res.is_err(), "Must fail when SMTP is disabled");
+
+    cfg.enabled = true;
+    cfg.from_address = "me@example.com".into();
+    cfg.kindle_email = "mykindle@kindle.com".into();
+
+    // Fails because book has no formats
+    let res_no_format = mail_service.send_to_kindle(&book, &cfg, None).await;
+    assert!(res_no_format.is_err());
+
+    // Add format with existing file
+    let epub_path = temp.path().join("dune.epub");
+    std::fs::write(&epub_path, b"fake epub content").unwrap();
+
+    let mut book_with_fmt = book.clone();
+    book_with_fmt.formats.push(BookFormat::new(
+        "epub",
+        "dune.epub",
+        epub_path.to_str().unwrap(),
+        17,
+    ));
+
+    // Testing test_connection on localhost dummy port fails gracefully
+    let mut bad_server_cfg = cfg.clone();
+    bad_server_cfg.host = "127.0.0.1".into();
+    bad_server_cfg.port = 65432;
+    bad_server_cfg.username = "test".into();
+    bad_server_cfg.password = "test".into();
+    let conn_res = mail_service.test_connection(&bad_server_cfg).await;
+    assert!(conn_res.is_err());
+}
+
+
 
 
 
