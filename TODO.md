@@ -1,6 +1,6 @@
 # 📋 Feuille de Route & Tâches Vellum (TODO)
 
-Dernière mise à jour : 8 octobre 2026
+Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'application native Rust ; version Java archivée dans la branche `archive/java-desktop` et tag `v1.0-java-final`)
 
 ---
 
