@@ -20,6 +20,8 @@ pub fn DetailDrawer(
         Option<String>,
         Option<String>,
         Option<String>,
+        Option<String>,
+        Option<f64>,
         Vec<String>,
     )>,
     on_enrich_metadata: EventHandler<String>,
@@ -30,6 +32,8 @@ pub fn DetailDrawer(
 
     let mut edit_title = use_signal(|| book.title.clone());
     let mut edit_author = use_signal(|| book.author.clone());
+    let mut edit_series = use_signal(|| book.series.clone().unwrap_or_default());
+    let mut edit_series_index = use_signal(|| book.series_index.map(|i| i.to_string()).unwrap_or_default());
     let mut edit_publisher = use_signal(|| book.publisher.clone().unwrap_or_default());
     let mut edit_publish_date = use_signal(|| book.publish_date.clone().unwrap_or_default());
     let mut edit_isbn = use_signal(|| book.isbn.clone().unwrap_or_default());
@@ -169,6 +173,27 @@ pub fn DetailDrawer(
                             }
                         }
 
+                        div { style: "display: grid; grid-template-columns: 2fr 1fr; gap: 10px;",
+                            div { class: "drawer-form-group",
+                                label { class: "drawer-form-label", "Série / Saga :" }
+                                input {
+                                    class: "drawer-input",
+                                    placeholder: "Ex: Le Cycle de Dune",
+                                    value: "{edit_series}",
+                                    oninput: move |e| edit_series.set(e.value()),
+                                }
+                            }
+                            div { class: "drawer-form-group",
+                                label { class: "drawer-form-label", "Tome / Numéro :" }
+                                input {
+                                    class: "drawer-input",
+                                    placeholder: "Ex: 1",
+                                    value: "{edit_series_index}",
+                                    oninput: move |e| edit_series_index.set(e.value()),
+                                }
+                            }
+                        }
+
                         div { class: "drawer-form-group",
                             label { class: "drawer-form-label", "Éditeur :" }
                             input {
@@ -257,6 +282,12 @@ pub fn DetailDrawer(
                                         } else {
                                             Some(edit_publish_date.read().trim().to_string())
                                         };
+                                        let series_val = if edit_series.read().trim().is_empty() {
+                                            None
+                                        } else {
+                                            Some(edit_series.read().trim().to_string())
+                                        };
+                                        let series_idx_val = edit_series_index.read().trim().parse::<f64>().ok();
 
                                         on_save_metadata.call((
                                             b_id.clone(),
@@ -266,6 +297,8 @@ pub fn DetailDrawer(
                                             desc_val,
                                             isbn_val,
                                             date_val,
+                                            series_val,
+                                            series_idx_val,
                                             t_list,
                                         ));
                                         is_editing.set(false);
@@ -308,6 +341,16 @@ pub fn DetailDrawer(
 
                         div { class: "drawer-meta-col",
                             h3 { class: "drawer-title", "{title}" }
+                            if let Some(ref s) = book.series {
+                                div {
+                                    style: "font-size: 13px; font-weight: 600; color: #a78bfa; margin-top: 2px;",
+                                    if let Some(idx) = book.series_index {
+                                        "📚 {s} • Tome {idx}"
+                                    } else {
+                                        "📚 {s}"
+                                    }
+                                }
+                            }
                             div { class: "drawer-author", "{author}" }
                             div { style: "font-size: 12px; color: var(--text-muted); margin-top: 4px;", "{publisher}" }
                             if let Some(ref isbn_val) = book.isbn {

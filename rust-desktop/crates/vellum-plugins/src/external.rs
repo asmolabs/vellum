@@ -386,6 +386,14 @@ impl BookFormatPlugin for ExternalScriptPlugin {
                 .get("isbn")
                 .and_then(|v| v.as_str())
                 .map(String::from),
+            series: parsed
+                .get("series")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            series_index: parsed
+                .get("seriesIndex")
+                .or_else(|| parsed.get("series_index"))
+                .and_then(|v| v.as_f64()),
             description: parsed
                 .get("description")
                 .and_then(|v| v.as_str())

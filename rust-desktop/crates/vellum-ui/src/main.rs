@@ -10,8 +10,8 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, DetailDrawer, Header, ReaderModal, SettingsModal, Sidebar, TranslateModal,
-    TranslationRequest,
+    BookCard, CommandPalette, DetailDrawer, Header, PaletteAction, ReaderModal, SettingsModal,
+    Sidebar, TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption};
 use styles::APP_CSS;
@@ -212,6 +212,9 @@ fn scan_and_index_library(book_service: &BookService) {
                                                 book.description = meta.description;
                                                 book.publisher = meta.publisher;
                                                 book.publish_date = meta.publish_date;
+                                                book.isbn = meta.isbn;
+                                                book.series = meta.series;
+                                                book.series_index = meta.series_index;
                                                 book.cover_path = cover_path;
                                                 for t in meta.tags {
                                                     let tag = vellum_domain::Tag::new(t);
@@ -281,11 +284,13 @@ fn App() -> Element {
 
     let current_filter = use_signal(|| FilterStatus::All);
     let mut current_sort = use_signal(|| SortOption::RecentAdded);
-    let selected_tag = use_signal(|| None::<String>);
+    let mut selected_tag = use_signal(|| None::<String>);
+    let mut selected_series = use_signal(|| None::<String>);
     let search_query = use_signal(String::new);
     let mut selected_book = use_signal(|| None::<Book>);
     let mut active_reader = use_signal(|| None::<ReaderSession>);
     let mut settings_open = use_signal(|| false);
+    let mut palette_open = use_signal(|| false);
     let mut translating_book = use_signal(|| None::<Book>);
     let mut is_translating = use_signal(|| false);
 
@@ -314,6 +319,24 @@ fn App() -> Element {
         list
     };
 
+    // Calculate series counts
+    let series_counts: Vec<(String, usize)> = {
+        let all_books = books.read();
+        let mut map = std::collections::HashMap::new();
+        for b in all_books.iter() {
+            if let Some(ref s) = b.series {
+                let trimmed = s.trim();
+                if !trimmed.is_empty() {
+                    *map.entry(trimmed.to_string()).or_insert(0) += 1;
+                }
+            }
+        }
+        let mut list: Vec<_> = map.into_iter().collect();
+        list.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        list
+    };
+    let series_names: Vec<String> = series_counts.iter().map(|(n, _)| n.clone()).collect();
+
     // Reading stats
     let reading_stats = book_service.get_reading_stats().ok();
 
@@ -323,6 +346,7 @@ fn App() -> Element {
         let filter = *current_filter.read();
         let sort = *current_sort.read();
         let tag_filter = selected_tag.read().clone();
+        let series_filter = selected_series.read().clone();
         let query = search_query.read().trim().to_lowercase();
 
         let mut list: Vec<Book> = all
@@ -346,12 +370,20 @@ fn App() -> Element {
                     }
                 }
 
+                // Series Filter
+                if let Some(ref s) = series_filter {
+                    if b.series.as_deref().map(str::trim) != Some(s.as_str()) {
+                        return false;
+                    }
+                }
+
                 // Query Search
                 if !query.is_empty() {
                     let in_title = b.title.to_lowercase().contains(&query);
                     let in_author = b.author.to_lowercase().contains(&query);
+                    let in_series = b.series.as_deref().map(|s| s.to_lowercase().contains(&query)).unwrap_or(false);
                     let in_tags = b.tags.iter().any(|t| t.name.to_lowercase().contains(&query));
-                    if !in_title && !in_author && !in_tags {
+                    if !in_title && !in_author && !in_tags && !in_series {
                         return false;
                     }
                 }
@@ -468,7 +500,7 @@ fn App() -> Element {
     let handle_save_metadata = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |(b_id, title, author, publ, desc, isbn, pdate, tags): (
+        move |(b_id, title, author, publ, desc, isbn, pdate, series, series_idx, tags): (
             String,
             String,
             String,
@@ -476,6 +508,8 @@ fn App() -> Element {
             Option<String>,
             Option<String>,
             Option<String>,
+            Option<String>,
+            Option<f64>,
             Vec<String>,
         )| {
             match bs.update_book_metadata_full(
@@ -486,6 +520,8 @@ fn App() -> Element {
                 desc.as_deref(),
                 isbn.as_deref(),
                 pdate.as_deref(),
+                series.as_deref(),
+                series_idx,
                 tags,
             ) {
                 Ok(updated) => {
@@ -725,6 +761,64 @@ fn App() -> Element {
         }
     };
 
+    // Global keyboard shortcut Cmd + K (or Ctrl + K) for Command Palette
+    use_effect(move || {
+        let mut eval = document::eval(r#"
+            window.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                    e.preventDefault();
+                    dioxus.send('toggle_palette');
+                }
+            });
+        "#);
+        spawn(async move {
+            while let Ok(_) = eval.recv::<String>().await {
+                let cur = *palette_open.peek();
+                palette_open.set(!cur);
+            }
+        });
+    });
+
+    let handle_palette_action = {
+        let mut cf = current_filter.clone();
+        let mut sb = selected_book.clone();
+        let mut st = selected_tag.clone();
+        let mut ss = selected_series.clone();
+        let mut hr = handle_read.clone();
+        let mut hi = handle_import.clone();
+        let mut hsc = handle_sync_now.clone();
+        let mut so = settings_open.clone();
+        move |act: PaletteAction| {
+            match act {
+                PaletteAction::SelectBook(b) => sb.set(Some(b)),
+                PaletteAction::ReadBook(b) => hr(b),
+                PaletteAction::FilterAll => {
+                    cf.set(FilterStatus::All);
+                    st.set(None);
+                    ss.set(None);
+                }
+                PaletteAction::FilterReading => {
+                    cf.set(FilterStatus::Reading);
+                    st.set(None);
+                    ss.set(None);
+                }
+                PaletteAction::FilterFinished => {
+                    cf.set(FilterStatus::Finished);
+                    st.set(None);
+                    ss.set(None);
+                }
+                PaletteAction::FilterToRead => {
+                    cf.set(FilterStatus::ToRead);
+                    st.set(None);
+                    ss.set(None);
+                }
+                PaletteAction::ImportBooks => hi(()),
+                PaletteAction::SyncCloud => hsc(()),
+                PaletteAction::OpenSettings => so.set(true),
+            }
+        }
+    };
+
     let litestream_status_str = match litestream.status() {
         vellum_core::litestream_service::LitestreamStatus::Running => "En cours de synchronisation",
         vellum_core::litestream_service::LitestreamStatus::Stopped => "Arrêté (en attente)",
@@ -749,6 +843,7 @@ fn App() -> Element {
                 on_import: handle_import.clone(),
                 on_sync_device: handle_sync_device.clone(),
                 on_sync_cloud: handle_sync_now.clone(),
+                on_open_palette: move |_| palette_open.set(true),
                 on_open_settings: move |_| settings_open.set(true),
             }
 
@@ -758,8 +853,9 @@ fn App() -> Element {
                 Sidebar {
                     current_filter: current_filter,
                     selected_tag: selected_tag,
+                    selected_series: selected_series,
                     tags_counts: tags_counts,
-
+                    series_counts: series_counts,
                     stats: reading_stats,
                 }
 
@@ -767,7 +863,31 @@ fn App() -> Element {
                 main { class: "library-area",
                     div { class: "library-header",
                         div { class: "library-title-group",
-                            h2 { "{current_filter.read().label()}" }
+                            div { style: "display: flex; align-items: center; gap: 10px;",
+                                h2 { "{current_filter.read().label()}" }
+                                if let Some(ref s) = *selected_series.read() {
+                                    div {
+                                        style: "display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(167, 139, 250, 0.2); border: 1px solid rgba(167, 139, 250, 0.4); font-size: 12px; color: #c4b5fd;",
+                                        span { "📚 {s}" }
+                                        button {
+                                            style: "background: none; border: none; color: inherit; cursor: pointer; padding: 0 2px;",
+                                            onclick: move |_| selected_series.set(None),
+                                            "✕"
+                                        }
+                                    }
+                                }
+                                if let Some(ref t) = *selected_tag.read() {
+                                    div {
+                                        style: "display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); font-size: 12px; color: #a5b4fc;",
+                                        span { "🏷️ {t}" }
+                                        button {
+                                            style: "background: none; border: none; color: inherit; cursor: pointer; padding: 0 2px;",
+                                            onclick: move |_| selected_tag.set(None),
+                                            "✕"
+                                        }
+                                    }
+                                }
+                            }
                             div { class: "library-count",
                                 "{filtered_books.len()} livre(s) affiché(s)"
                             }
@@ -901,6 +1021,16 @@ fn App() -> Element {
                     on_toggle_auto_download: handle_toggle_auto_download.clone(),
                     on_toggle_enabled: handle_toggle_sync_enabled.clone(),
                     on_close: move |_| settings_open.set(false),
+                }
+            }
+
+            // Command Palette (Cmd + K)
+            if *palette_open.read() {
+                CommandPalette {
+                    books: books.read().clone(),
+                    series_list: series_names.clone(),
+                    on_close: move |_| palette_open.set(false),
+                    on_action: handle_palette_action.clone(),
                 }
             }
         }

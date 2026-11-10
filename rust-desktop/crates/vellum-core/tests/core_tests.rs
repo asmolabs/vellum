@@ -353,7 +353,7 @@ async fn test_update_book_metadata_and_cover() {
     assert!(full_cov.exists());
     assert_eq!(std::fs::read(&full_cov).unwrap(), b"fake_jpeg_header_content");
 
-    // 3. Update metadata with ISBN & Publish date
+    // 3. Update metadata with ISBN, Series & Publish date
     let with_isbn = book_service
         .update_book_metadata_full(
             &book.id,
@@ -363,11 +363,15 @@ async fn test_update_book_metadata_and_cover() {
             Some("Un synopsis incroyable."),
             Some("9780441013593"),
             Some("1965"),
+            Some("Cycle de Dune"),
+            Some(1.0),
             vec!["Space Opera".to_string()],
         )
         .unwrap();
     assert_eq!(with_isbn.isbn.as_deref(), Some("9780441013593"));
     assert_eq!(with_isbn.publish_date.as_deref(), Some("1965"));
+    assert_eq!(with_isbn.series.as_deref(), Some("Cycle de Dune"));
+    assert_eq!(with_isbn.series_index, Some(1.0));
 
     // 4. Enrich book
     let enriched = book_service.enrich_book(&book.id).unwrap();

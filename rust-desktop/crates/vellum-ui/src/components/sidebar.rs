@@ -6,7 +6,9 @@ use vellum_core::book_service::ReadingStats;
 pub fn Sidebar(
     current_filter: Signal<FilterStatus>,
     selected_tag: Signal<Option<String>>,
+    selected_series: Signal<Option<String>>,
     tags_counts: Vec<(String, usize)>,
+    series_counts: Vec<(String, usize)>,
     stats: Option<ReadingStats>,
 ) -> Element {
     let filters = [
@@ -22,7 +24,7 @@ pub fn Sidebar(
             nav { class: "nav-list",
                 for f in filters.iter() {
                     {
-                        let is_active = *current_filter.read() == *f;
+                        let is_active = *current_filter.read() == *f && selected_series.read().is_none() && selected_tag.read().is_none();
                         let count_label = match (f, &stats) {
                             (FilterStatus::All, Some(s)) => format!("{}", s.total_books),
                             (FilterStatus::Reading, Some(s)) => format!("{}", s.in_progress_books),
@@ -38,6 +40,7 @@ pub fn Sidebar(
                                 onclick: move |_| {
                                     current_filter.set(f_val);
                                     selected_tag.set(None);
+                                    selected_series.set(None);
                                 },
                                 span { "{f.label()}" }
                                 span { class: "nav-badge", "{count_label}" }
@@ -47,6 +50,36 @@ pub fn Sidebar(
                 }
             }
 
+            // Séries & Sagas
+            if !series_counts.is_empty() {
+                div {
+                    div { class: "sidebar-section-title", "Séries & Sagas" }
+                    div { class: "tags-cloud",
+                        for (s_name, count) in series_counts.iter() {
+                            {
+                                let is_selected = selected_series.read().as_ref() == Some(s_name);
+                                let s_clone = s_name.clone();
+                                rsx! {
+                                    span {
+                                        class: if is_selected { "tag-pill active" } else { "tag-pill" },
+                                        style: "border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd;",
+                                        onclick: move |_| {
+                                            if selected_series.read().as_ref() == Some(&s_clone) {
+                                                selected_series.set(None);
+                                            } else {
+                                                selected_series.set(Some(s_clone.clone()));
+                                            }
+                                        },
+                                        "📚 {s_name} ({count})"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Étiquettes / Tags
             if !tags_counts.is_empty() {
                 div {
                     div { class: "sidebar-section-title", "Étiquettes" }

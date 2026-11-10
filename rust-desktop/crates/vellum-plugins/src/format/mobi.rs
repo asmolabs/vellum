@@ -202,6 +202,8 @@ impl BookFormatPlugin for MobiFormatPlugin {
             publisher,
             publish_date,
             isbn,
+            series: None,
+            series_index: None,
             description,
             tags,
             cover_data,

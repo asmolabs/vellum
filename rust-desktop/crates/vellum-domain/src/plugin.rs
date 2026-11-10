@@ -144,13 +144,15 @@ impl TestResult {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExtractedMetadata {
     pub title: Option<String>,
     pub author: Option<String>,
     pub publisher: Option<String>,
     pub publish_date: Option<String>,
     pub isbn: Option<String>,
+    pub series: Option<String>,
+    pub series_index: Option<f64>,
     pub description: Option<String>,
     pub tags: Vec<String>,
     pub cover_data: Option<Vec<u8>>,

@@ -66,6 +66,8 @@ impl BookFormatPlugin for ComicFormatPlugin {
         let mut tags = vec!["BD / Manga".to_string()];
         let mut cover_data = None;
         let mut cover_ext = Some(".jpg".to_string());
+        let mut series_name = None;
+        let mut series_idx = None;
 
         let reader = File::open(file)?;
         if let Ok(mut zip) = ZipArchive::new(reader) {
@@ -89,6 +91,9 @@ impl BookFormatPlugin for ComicFormatPlugin {
                             let writer = get_elem(&doc, "Writer");
                             let summary = get_elem(&doc, "Summary");
                             let genre = get_elem(&doc, "Genre");
+
+                            series_name = series.clone();
+                            series_idx = number.as_deref().and_then(|n| n.parse::<f64>().ok());
 
                             if let Some(t) = xml_title {
                                 let prefix = series.map(|s| format!("{s} - ")).unwrap_or_default();
@@ -154,6 +159,8 @@ impl BookFormatPlugin for ComicFormatPlugin {
             publisher: None,
             publish_date: None,
             isbn: None,
+            series: series_name,
+            series_index: series_idx,
             description,
             tags,
             cover_data,

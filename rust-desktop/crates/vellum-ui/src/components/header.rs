@@ -11,6 +11,7 @@ pub fn Header(
     on_import: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
     on_sync_cloud: EventHandler<()>,
+    on_open_palette: EventHandler<()>,
     on_open_settings: EventHandler<()>,
 ) -> Element {
     rsx! {
@@ -25,9 +26,16 @@ pub fn Header(
                 span { class: "search-icon-slot", "🔍" }
                 input {
                     r#type: "text",
-                    placeholder: "Rechercher par titre, auteur, tag...",
+                    placeholder: "Rechercher par titre, auteur, saga...",
                     value: "{search_query}",
                     oninput: move |evt| search_query.set(evt.value()),
+                }
+                button {
+                    class: "btn btn-icon",
+                    style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-subtle); margin-right: 6px; cursor: pointer;",
+                    title: "Ouvrir la palette de commandes (⌘K)",
+                    onclick: move |_| on_open_palette.call(()),
+                    "⌘K"
                 }
             }
 

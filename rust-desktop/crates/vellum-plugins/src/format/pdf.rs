@@ -70,6 +70,8 @@ impl BookFormatPlugin for PdfFormatPlugin {
             publisher,
             publish_date: None,
             isbn: None,
+            series: None,
+            series_index: None,
             description,
             tags: vec!["PDF".to_string()],
             cover_data: None,

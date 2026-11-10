@@ -146,4 +146,13 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
     - [x] Interface utilisateur intégrée dans `Header` (bouton synchro avec indicateur d'état actif/inactif) et `SettingsModal` (configuration du dossier Drive, détection automatique, options de téléchargement miroir complet, déclenchement manuel).
     - [x] Tâche de synchronisation périodique en arrière-plan toutes les 60s.
     - [x] Suite de tests d'intégration multi-clients (`test_two_clients_sync_via_google_drive_folder`) validée à 100%.
+  - [x] **Séries, Sagas & Numérotation de Tomes (Standard Calibre & ComicInfo)**
+    - [x] Modèle de données étendu (`series: Option<String>`, `series_index: Option<f64>`) sur `Book` et `ExtractedMetadata`.
+    - [x] Migration de schéma SQLite idempotente (`ALTER TABLE books ADD COLUMN series TEXT; ALTER TABLE books ADD COLUMN series_index REAL;`).
+    - [x] Extracteurs de formats enrichis : lecture de `<meta name="calibre:series">` et `series_index` sur EPUB + standard EPUB3 `belongs-to-collection` ; extraction `<Series>` et `<Number>` sur ComicInfo.xml pour CBZ/CBR.
+    - [x] Badges visuels de séries sur `BookCard` (`📚 Dune • T.1`), édition dans `DetailDrawer`, filtre dédié dans `Sidebar` avec décompte par saga et récapitulatif actif avec fermeture en 1 clic.
+  - [x] **Palette de Commandes Globale Keyboard-First (`Cmd + K` / `Ctrl + K`)**
+    - [x] Composant modal `CommandPalette` avec flou glassmorphic et autofocus réactif.
+    - [x] Raccourci global `Cmd + K` / `Ctrl + K` et bouton d'accès rapide dans la barre de recherche du `Header`.
+    - [x] Recherche unifiée et instantanée (livres, sagas, auteurs, tags) et exécution d'actions rapides en une touche (lecture directe, import, synchro Google Drive, filtres de lecture, paramètres).
   - [x] Suite de tests 100% au vert sur `cargo test --workspace`.

@@ -554,6 +554,10 @@ body {
   padding-right: 6px;
 }
 
+.palette-item:hover {
+  background: rgba(99, 102, 241, 0.18) !important;
+}
+
 /* Reader Fullscreen */
 /* Reader Fullscreen & eReader Experience */
 .reader-modal {

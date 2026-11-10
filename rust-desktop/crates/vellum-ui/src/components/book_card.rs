@@ -83,6 +83,28 @@ pub fn BookCard(
 
             div { class: "card-body",
                 div { class: "book-title", title: "{title}", "{title}" }
+
+                if let Some(ref s) = book.series {
+                    {
+                        let series_str = if let Some(idx) = book.series_index {
+                            if idx.fract() == 0.0 {
+                                format!("📚 {s} • T.{}", idx as i64)
+                            } else {
+                                format!("📚 {s} • T.{idx}")
+                            }
+                        } else {
+                            format!("📚 {s}")
+                        };
+                        rsx! {
+                            div {
+                                style: "font-size: 11px; font-weight: 600; color: #a78bfa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+                                title: "{series_str}",
+                                "{series_str}"
+                            }
+                        }
+                    }
+                }
+
                 div { class: "book-author", title: "{author}", "{author}" }
 
                 if progress > 0.0 {

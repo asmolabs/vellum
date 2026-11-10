@@ -104,6 +104,7 @@ impl BookFormatPlugin for EpubFormatPlugin {
         let publish_date = find_first_element_text(&opf_doc, "date");
         let description = find_first_element_text(&opf_doc, "description");
         let isbn = find_isbn(&opf_doc);
+        let (series, series_index) = find_series(&opf_doc);
 
         let mut tags = Vec::new();
         for node in opf_doc
@@ -151,6 +152,8 @@ impl BookFormatPlugin for EpubFormatPlugin {
             publisher,
             publish_date,
             isbn,
+            series,
+            series_index,
             description,
             tags,
             cover_data,
@@ -253,4 +256,66 @@ fn find_cover_href(doc: &Document) -> Option<String> {
     }
 
     None
+}
+
+fn find_series(doc: &Document) -> (Option<String>, Option<f64>) {
+    let mut series = None;
+    let mut index = None;
+
+    // 1. Calibre standard metadata (<meta name="calibre:series" content="Dune"/>)
+    for node in doc
+        .descendants()
+        .filter(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("meta"))
+    {
+        if let Some(name) = node.attribute("name") {
+            if name.eq_ignore_ascii_case("calibre:series") {
+                if let Some(content) = node.attribute("content") {
+                    let trimmed = content.trim();
+                    if !trimmed.is_empty() {
+                        series = Some(trimmed.to_string());
+                    }
+                }
+            } else if name.eq_ignore_ascii_case("calibre:series_index") {
+                if let Some(content) = node.attribute("content") {
+                    if let Ok(val) = content.trim().parse::<f64>() {
+                        index = Some(val);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. EPUB 3 belongs-to-collection fallback
+    if series.is_none() {
+        for node in doc
+            .descendants()
+            .filter(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("meta"))
+        {
+            if let Some(prop) = node.attribute("property") {
+                if prop.eq_ignore_ascii_case("belongs-to-collection") {
+                    if let Some(txt) = node.text().map(str::trim).filter(|s| !s.is_empty()) {
+                        series = Some(txt.to_string());
+                        if let Some(id) = node.attribute("id") {
+                            let target_refine = format!("#{id}");
+                            for refine in doc.descendants().filter(|n| {
+                                n.is_element() && n.tag_name().name().eq_ignore_ascii_case("meta")
+                            }) {
+                                if refine.attribute("refines") == Some(&target_refine)
+                                    && refine.attribute("property") == Some("group-position")
+                                {
+                                    if let Some(pos_txt) = refine.text().map(str::trim) {
+                                        if let Ok(val) = pos_txt.parse::<f64>() {
+                                            index = Some(val);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (series, index)
 }

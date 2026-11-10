@@ -371,6 +371,8 @@ impl BookService {
         book.publisher = publisher;
         book.publish_date = publish_date;
         book.isbn = isbn;
+        book.series = meta.series;
+        book.series_index = meta.series_index;
         book.description = description;
         book.cover_path = cover_path_rel;
 
@@ -852,6 +854,57 @@ impl BookService {
         Ok(saved)
     }
 
+    pub fn list_all_series(&self) -> VellumResult<Vec<(String, usize)>> {
+        self.book_repo.list_all_series()
+    }
+
+    pub fn bulk_update_books(
+        &self,
+        book_ids: &[String],
+        author: Option<&str>,
+        series: Option<&str>,
+        add_tags: &[String],
+        remove_tags: &[String],
+    ) -> VellumResult<Vec<Book>> {
+        let mut updated_list = Vec::new();
+        for id in book_ids {
+            if let Some(mut book) = self.book_repo.find_by_id(id)? {
+                if let Some(a) = author {
+                    if !a.trim().is_empty() {
+                        book.author = a.trim().to_string();
+                    }
+                }
+                if let Some(s) = series {
+                    book.series = if s.trim().is_empty() { None } else { Some(s.trim().to_string()) };
+                }
+                for t in add_tags {
+                    let clean = t.trim();
+                    if !clean.is_empty() {
+                        let tag = Tag::new(clean);
+                        let _ = self.tag_repo.save(&tag);
+                        book.add_tag(tag);
+                    }
+                }
+                for r in remove_tags {
+                    book.tags.retain(|t| !t.name.eq_ignore_ascii_case(r.trim()));
+                }
+                let saved = self.book_repo.save(&book)?;
+                if let Some(ref sr) = self.sync_repo {
+                    let event = vellum_domain::SyncEvent::new(
+                        &self.client_id,
+                        vellum_domain::SyncAction::BookUpdated {
+                            book: saved.clone(),
+                            tags: saved.tags.clone(),
+                        },
+                    );
+                    let _ = sr.record_event(&event);
+                }
+                updated_list.push(saved);
+            }
+        }
+        Ok(updated_list)
+    }
+
     pub fn update_book_metadata(
         &self,
         book_id: &str,
@@ -869,6 +922,8 @@ impl BookService {
             description,
             None,
             None,
+            None,
+            None,
             tag_names,
         )
     }
@@ -882,6 +937,8 @@ impl BookService {
         description: Option<&str>,
         isbn: Option<&str>,
         publish_date: Option<&str>,
+        series: Option<&str>,
+        series_index: Option<f64>,
         tag_names: Vec<String>,
     ) -> VellumResult<Book> {
         let mut book = self
@@ -903,6 +960,10 @@ impl BookService {
         if let Some(pd) = publish_date {
             book.publish_date = if pd.trim().is_empty() { None } else { Some(pd.trim().to_string()) };
         }
+        if let Some(s) = series {
+            book.series = if s.trim().is_empty() { None } else { Some(s.trim().to_string()) };
+        }
+        book.series_index = series_index;
 
         book.tags.clear();
         for t_name in tag_names {

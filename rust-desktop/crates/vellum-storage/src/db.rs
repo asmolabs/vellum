@@ -72,6 +72,8 @@ impl Database {
                 publisher TEXT,
                 publish_date TEXT,
                 isbn TEXT,
+                series TEXT,
+                series_index REAL,
                 description TEXT,
                 cover_path TEXT,
                 added_at TEXT,
@@ -142,6 +144,21 @@ impl Database {
 
         if !has_isbn {
             let _ = conn.execute("ALTER TABLE books ADD COLUMN isbn TEXT;", []);
+        }
+
+        // Automatic migration for existing databases without 'series' columns
+        let has_series: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'series'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+
+        if !has_series {
+            let _ = conn.execute("ALTER TABLE books ADD COLUMN series TEXT;", []);
+            let _ = conn.execute("ALTER TABLE books ADD COLUMN series_index REAL;", []);
         }
 
         Ok(())
