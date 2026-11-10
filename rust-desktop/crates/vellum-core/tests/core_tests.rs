@@ -718,6 +718,75 @@ async fn test_two_clients_sync_via_google_drive_folder() {
     );
 }
 
+#[tokio::test]
+async fn test_bulk_update_and_bulk_delete_books() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+    let incoming_dir = temp.path().join("incoming");
+    std::fs::create_dir_all(&incoming_dir).unwrap();
+
+    let mut book_ids = Vec::new();
+    for i in 1..=3 {
+        let path = incoming_dir.join(format!("Book_{i}.txt"));
+        std::fs::write(&path, format!("Content of book {i}")).unwrap();
+        let book = book_service.import_book(&path).expect("import book");
+        book_ids.push(book.id);
+    }
+
+    assert_eq!(book_ids.len(), 3);
+
+    // 1. Bulk update: set author, series with auto_index = true, and add tags
+    let updated = book_service
+        .bulk_update_books(
+            &book_ids,
+            Some("Frank Herbert"),
+            Some("Dune Chronicles"),
+            true,
+            &["Space Opera".to_string(), "Classic".to_string()],
+            &[],
+        )
+        .expect("bulk update");
+
+    assert_eq!(updated.len(), 3);
+
+    for (idx, b) in updated.iter().enumerate() {
+        assert_eq!(b.author, "Frank Herbert");
+        assert_eq!(b.series.as_deref(), Some("Dune Chronicles"));
+        assert_eq!(b.series_index, Some((idx + 1) as f64));
+        assert!(b.tags.iter().any(|t| t.name == "Space Opera"));
+        assert!(b.tags.iter().any(|t| t.name == "Classic"));
+    }
+
+    // 2. Bulk remove tag
+    let updated_no_tag = book_service
+        .bulk_update_books(
+            &book_ids,
+            None,
+            None,
+            false,
+            &[],
+            &["Classic".to_string()],
+        )
+        .expect("bulk update remove tag");
+
+    for b in updated_no_tag {
+        assert_eq!(b.author, "Frank Herbert");
+        assert!(!b.tags.iter().any(|t| t.name == "Classic"));
+        assert!(b.tags.iter().any(|t| t.name == "Space Opera"));
+    }
+
+    // 3. Bulk delete
+    book_service
+        .bulk_delete_books(&book_ids, true)
+        .expect("bulk delete");
+
+    for id in &book_ids {
+        let found = book_service.book_repo().find_by_id(id).unwrap();
+        assert!(found.is_none());
+    }
+}
+
+
 
 
 

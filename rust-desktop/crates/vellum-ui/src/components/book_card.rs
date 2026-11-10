@@ -4,6 +4,9 @@ use vellum_domain::Book;
 #[component]
 pub fn BookCard(
     book: Book,
+    is_selected: bool,
+    selection_mode: bool,
+    on_toggle_select: EventHandler<String>,
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
 ) -> Element {
@@ -12,6 +15,7 @@ pub fn BookCard(
     let formats = book.formats.clone();
     let progress = book.progress_percent;
     let cover_path = book.cover_path.clone();
+    let book_id = book.id.clone();
 
     use base64::Engine;
     let cover_src = cover_path.as_ref().and_then(|p| {
@@ -48,10 +52,18 @@ pub fn BookCard(
 
     rsx! {
         div {
-            class: "book-card",
+            class: if is_selected { "book-card selected" } else { "book-card" },
+            style: if is_selected { "border-color: #818cf8; box-shadow: 0 0 12px rgba(129, 140, 248, 0.4); transform: scale(1.02);" } else { "" },
             onclick: {
                 let book = book.clone();
-                move |_| on_select.call(book.clone())
+                let b_id = book.id.clone();
+                move |_e: Event<MouseData>| {
+                    if selection_mode {
+                        on_toggle_select.call(b_id.clone());
+                    } else {
+                        on_select.call(book.clone());
+                    }
+                }
             },
             ondoubleclick: {
                 let book = book.clone();
@@ -59,6 +71,24 @@ pub fn BookCard(
             },
 
             div { class: "cover-container",
+                // Selection Checkbox Button
+                div {
+                    class: if is_selected { "card-select-btn selected" } else { "card-select-btn" },
+                    style: if is_selected || selection_mode {
+                        "position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 5; cursor: pointer; background: #6366f1; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.5); font-size: 11px; font-weight: bold; color: #fff;"
+                    } else {
+                        "position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 5; cursor: pointer; background: rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.4); opacity: 0; transition: opacity 0.2s;"
+                    },
+                    onclick: {
+                        let b_id = book_id.clone();
+                        move |e: Event<MouseData>| {
+                            e.stop_propagation();
+                            on_toggle_select.call(b_id.clone());
+                        }
+                    },
+                    if is_selected { "✓" } else { "" }
+                }
+
                 if let Some(src) = cover_src {
                     img {
                         class: "cover-image",

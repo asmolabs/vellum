@@ -424,6 +424,10 @@ body {
   color: #a5b4fc;
 }
 
+.cover-container:hover .card-select-btn {
+  opacity: 1 !important;
+}
+
 .format-badges {
   position: absolute;
   top: 8px;

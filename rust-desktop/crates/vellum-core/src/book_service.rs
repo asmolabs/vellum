@@ -863,11 +863,12 @@ impl BookService {
         book_ids: &[String],
         author: Option<&str>,
         series: Option<&str>,
+        auto_index_series: bool,
         add_tags: &[String],
         remove_tags: &[String],
     ) -> VellumResult<Vec<Book>> {
         let mut updated_list = Vec::new();
-        for id in book_ids {
+        for (idx, id) in book_ids.iter().enumerate() {
             if let Some(mut book) = self.book_repo.find_by_id(id)? {
                 if let Some(a) = author {
                     if !a.trim().is_empty() {
@@ -876,6 +877,9 @@ impl BookService {
                 }
                 if let Some(s) = series {
                     book.series = if s.trim().is_empty() { None } else { Some(s.trim().to_string()) };
+                }
+                if auto_index_series && book.series.is_some() {
+                    book.series_index = Some((idx + 1) as f64);
                 }
                 for t in add_tags {
                     let clean = t.trim();
@@ -903,6 +907,13 @@ impl BookService {
             }
         }
         Ok(updated_list)
+    }
+
+    pub fn bulk_delete_books(&self, book_ids: &[String], delete_files: bool) -> VellumResult<()> {
+        for id in book_ids {
+            let _ = self.delete_book(id, delete_files);
+        }
+        Ok(())
     }
 
     pub fn update_book_metadata(

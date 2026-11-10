@@ -10,8 +10,8 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, CommandPalette, DetailDrawer, Header, PaletteAction, ReaderModal, SettingsModal,
-    Sidebar, TranslateModal, TranslationRequest,
+    BookCard, BulkEditModal, CommandPalette, DetailDrawer, Header, PaletteAction, ReaderModal,
+    SettingsModal, Sidebar, TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption};
 use styles::APP_CSS;
@@ -291,6 +291,8 @@ fn App() -> Element {
     let mut active_reader = use_signal(|| None::<ReaderSession>);
     let mut settings_open = use_signal(|| false);
     let mut palette_open = use_signal(|| false);
+    let mut bulk_edit_open = use_signal(|| false);
+    let mut selected_ids = use_signal(|| std::collections::HashSet::<String>::new());
     let mut translating_book = use_signal(|| None::<Book>);
     let mut is_translating = use_signal(|| false);
 
@@ -475,6 +477,69 @@ fn App() -> Element {
             let _ = bs.delete_book(&id, true);
             selected_book.set(None);
             refresh();
+        }
+    };
+
+    // Handle toggle book selection
+    let handle_toggle_select = {
+        move |id: String| {
+            let mut set = selected_ids.read().clone();
+            if set.contains(&id) {
+                set.remove(&id);
+            } else {
+                set.insert(id);
+            }
+            selected_ids.set(set);
+        }
+    };
+
+    // Handle bulk edit save
+    let handle_bulk_edit_save = {
+        let bs = book_service.clone();
+        let mut refresh = refresh_library.clone();
+        move |(author, series, auto_index, add_tags, remove_tags): (
+            Option<String>,
+            Option<String>,
+            bool,
+            Vec<String>,
+            Vec<String>,
+        )| {
+            let set = selected_ids.read().clone();
+            let all = books.read();
+            let ordered_ids: Vec<String> = all
+                .iter()
+                .filter(|b| set.contains(&b.id))
+                .map(|b| b.id.clone())
+                .collect();
+
+            if !ordered_ids.is_empty() {
+                let _ = bs.bulk_update_books(
+                    &ordered_ids,
+                    author.as_deref(),
+                    series.as_deref(),
+                    auto_index,
+                    &add_tags,
+                    &remove_tags,
+                );
+                refresh();
+                selected_ids.set(std::collections::HashSet::new());
+            }
+        }
+    };
+
+    // Handle bulk delete
+    let handle_bulk_delete = {
+        let bs = book_service.clone();
+        let mut refresh = refresh_library.clone();
+        move |()| {
+            let set = selected_ids.read().clone();
+            let ids: Vec<String> = set.into_iter().collect();
+            if !ids.is_empty() {
+                let _ = bs.bulk_delete_books(&ids, true);
+                selected_ids.set(std::collections::HashSet::new());
+                selected_book.set(None);
+                refresh();
+            }
         }
     };
 
@@ -894,6 +959,32 @@ fn App() -> Element {
                         }
 
                         div { style: "display: flex; align-items: center; gap: 8px;",
+                            if !filtered_books.is_empty() {
+                                {
+                                    let all_selected = filtered_books.iter().all(|b| selected_ids.read().contains(&b.id));
+                                    let current_ids: Vec<String> = filtered_books.iter().map(|b| b.id.clone()).collect();
+                                    rsx! {
+                                        button {
+                                            class: "btn btn-secondary",
+                                            style: "padding: 6px 12px; font-size: 12px; border-radius: 8px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                                            onclick: move |_| {
+                                                let mut set = selected_ids.read().clone();
+                                                if all_selected {
+                                                    for id in &current_ids {
+                                                        set.remove(id);
+                                                    }
+                                                } else {
+                                                    for id in &current_ids {
+                                                        set.insert(id.clone());
+                                                    }
+                                                }
+                                                selected_ids.set(set);
+                                            },
+                                            if all_selected { "Désélectionner tout" } else { "Tout sélectionner" }
+                                        }
+                                    }
+                                }
+                            }
                             span { style: "font-size: 12px; color: var(--text-muted); font-weight: 500;", "Trier par :" }
                             select {
                                 style: "padding: 6px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
@@ -943,11 +1034,21 @@ fn App() -> Element {
                     } else {
                         div { class: "books-grid",
                             for b in filtered_books.iter() {
-                                BookCard {
-                                    key: "{b.id}",
-                                    book: b.clone(),
-                                    on_select: move |selected| selected_book.set(Some(selected)),
-                                    on_read: handle_read.clone(),
+                                {
+                                    let id = b.id.clone();
+                                    let is_selected = selected_ids.read().contains(&id);
+                                    let selection_mode = !selected_ids.read().is_empty();
+                                    rsx! {
+                                        BookCard {
+                                            key: "{b.id}",
+                                            book: b.clone(),
+                                            is_selected: is_selected,
+                                            selection_mode: selection_mode,
+                                            on_toggle_select: handle_toggle_select.clone(),
+                                            on_select: move |selected| selected_book.set(Some(selected)),
+                                            on_read: handle_read.clone(),
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1031,6 +1132,70 @@ fn App() -> Element {
                     series_list: series_names.clone(),
                     on_close: move |_| palette_open.set(false),
                     on_action: handle_palette_action.clone(),
+                }
+            }
+
+            // Floating Selection Toolbar
+            if !selected_ids.read().is_empty() {
+                {
+                    let count = selected_ids.read().len();
+                    rsx! {
+                        div {
+                            style: "position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: rgba(24, 24, 27, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 12px 32px rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 9999px; display: flex; align-items: center; gap: 14px; z-index: 1000;",
+                            div {
+                                style: "display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #fff;",
+                                span {
+                                    style: "background: var(--accent-primary); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;",
+                                    "{count}"
+                                }
+                                span { "sélectionné(s)" }
+                            }
+                            div { style: "width: 1px; height: 20px; background: rgba(255,255,255,0.15);" }
+                            button {
+                                class: "btn btn-primary",
+                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                                onclick: move |_| bulk_edit_open.set(true),
+                                span { "✏️" }
+                                "Modifier en masse"
+                            }
+                            button {
+                                class: "btn btn-danger",
+                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                                onclick: {
+                                    let mut h = handle_bulk_delete.clone();
+                                    move |_| h(())
+                                },
+                                span { "🗑️" }
+                                "Supprimer ({count})"
+                            }
+                            button {
+                                class: "btn btn-secondary",
+                                style: "padding: 6px 12px; font-size: 12px; border-radius: 20px; color: var(--text-muted); cursor: pointer;",
+                                onclick: move |_| selected_ids.set(std::collections::HashSet::new()),
+                                "Annuler"
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Bulk Edit Modal
+            if *bulk_edit_open.read() {
+                {
+                    let count = selected_ids.read().len();
+                    rsx! {
+                        BulkEditModal {
+                            selected_count: count,
+                            on_save: {
+                                let mut h = handle_bulk_edit_save.clone();
+                                move |data| {
+                                    bulk_edit_open.set(false);
+                                    h(data);
+                                }
+                            },
+                            on_close: move |_| bulk_edit_open.set(false),
+                        }
+                    }
                 }
             }
         }
