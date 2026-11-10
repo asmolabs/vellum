@@ -75,6 +75,15 @@ Dernière mise à jour : 8 octobre 2026
 - [x] **Connexion des véritables moteurs pour les plugins internes**
   - [x] `GoogleBooksEnricherPlugin` : implémentation complète des requêtes réelles HTTP vers Google Books API (recherche par ISBN / Titre + Auteur, nettoyage HTML des résumés, extraction des catégories en tags, téléchargement de jaquette HD) avec système de secours automatique Open Library et boutons d'auto-complétion & d'enrichissement dans l'interface (`EditBookDialog` & `DetailDrawerView`).
   - [x] `EpubTranslatorPlugin` : architecture multi-agents connectée aux LLMs réels (Ollama local, LM Studio, OpenAI GPT-4o, DeepL) avec parser XHTML JSoup, agent planificateur de charte éditoriale, agent glossaire dynamique, cache de segments MD5 et validation QA.
+  - [x] **Synchronisation physique des liseuses (Kobo & Kindle)** :
+    - [x] Détection automatique des volumes USB (`/Volumes/KOBOeReader`, `/Volumes/Kindle`, Linux & Windows).
+    - [x] Architecture de plugins dédiée `DeviceSyncPlugin` (`PluginType.DEVICE`).
+    - [x] Moteur pur Java KePub (`KepubifyService`) injectant les balises `<span class="koboSpan">` pour le moteur de rendu ACCESS de Kobo (pagination par chapitre, instant-bookmark).
+    - [x] Export de livres vers la liseuse avec conversion automatique au format optimal (`.kepub.epub` pour Kobo, `.azw3`/`.mobi`/`.pdf`/`.epub` pour Kindle).
+    - [x] Import direct des livres présents sur la liseuse vers Vellum.
+    - [x] Synchronisation bidirectionnelle de l'avancement de lecture (lecture de `KoboReader.sqlite`).
+    - [x] Extraction et gestion des citations/surlignages (`My Clippings.txt` pour Kindle, table `Bookmark` SQLite pour Kobo).
+    - [x] Interface utilisateur complète : dialogue modal `DeviceSyncDialog`, bouton d'accès rapide dans l'en-tête `HeaderView`, action d'export dans `DetailDrawerView` et visualisation des notes par livre.
 
 ---
 
@@ -114,3 +123,27 @@ Dernière mise à jour : 8 octobre 2026
   - [ ] Vérifier et fiabiliser le démarrage/arrêt du processus démon Litestream sous macOS depuis `LitestreamService`.
 - [ ] **Packaging macOS autonome**
   - [ ] Configurer la tâche Gradle `jpackage` pour générer un fichier `.dmg` ou une application `.app` autonome intégrant le runtime Java.
+
+---
+
+## 🦀 6. Version Native Rust (`rust-desktop`)
+
+- [x] **Architecture Multi-Crates & Fondations**
+  - [x] Workspace Cargo (`vellum-domain`, `vellum-storage`, `vellum-plugins`, `vellum-core`, `vellum-ui`).
+  - [x] SQLite WAL via `rusqlite` avec migration automatique du schéma (`books`, `book_formats`, `tags`, `book_tags`, `params`).
+  - [x] Serveur OPDS 1.2 natif ultra-rapide basé sur Tokio & Axum.
+  - [x] Persistance et schéma complet avec colonne `isbn`, dates de publication et recherche plein champ.
+- [x] **Enrichissement & Formats en Rust**
+  - [x] Extraction de l'ISBN depuis les archives EPUB (`dc:identifier`), MOBI/AZW3 (tag EXTH 104) et fichiers externes.
+  - [x] Moteur complet `GoogleBooksEnricherPlugin` natif Rust : interrogation Google Books API (par ISBN ou Titre+Auteur), nettoyage des balises HTML, fallback automatique Open Library et téléchargement de couverture haute résolution en arrière-plan.
+  - [x] Intégration de l'enrichissement automatique à l'importation (`BookService::import_book`) et bouton d'enrichissement à la demande dans le tiroir de détails (`DetailDrawer`).
+  - [x] **Synchronisation Cloud & Multi-Postes Google Drive (Architecture Décentralisée Anti-Corruption)**
+    - [x] Architecture à flux de deltas événementiels décentralisés (`SyncAction`, `SyncEvent`, `SyncDelta`, `CloudSyncConfig`) isolant les fichiers binaires immuables (`files/`) des métadonnées incrémentales (`sync/deltas/`).
+    - [x] Moteur de synchronisation bidirectionnel `SyncService` avec backend `FolderSyncBackend` supportant l'auto-détection de Google Drive sous macOS et Windows.
+    - [x] Résolution de conflits multi-clients : Last-Write-Wins (LWW) sur la progression de lecture avec horodatage UTC, fusion additive des tags, tombstones de suppression, stockage immuable basé sur UUID.
+    - [x] Téléchargement automatique ou à la demande des fichiers de livres distants (EPUB, PDF, CBZ...) entre tous les ordinateurs connectés.
+    - [x] Tables de persistance `sync_events` et `applied_deltas` avec reprise automatique après déconnexion ou utilisation hors-ligne.
+    - [x] Interface utilisateur intégrée dans `Header` (bouton synchro avec indicateur d'état actif/inactif) et `SettingsModal` (configuration du dossier Drive, détection automatique, options de téléchargement miroir complet, déclenchement manuel).
+    - [x] Tâche de synchronisation périodique en arrière-plan toutes les 60s.
+    - [x] Suite de tests d'intégration multi-clients (`test_two_clients_sync_via_google_drive_folder`) validée à 100%.
+  - [x] Suite de tests 100% au vert sur `cargo test --workspace`.

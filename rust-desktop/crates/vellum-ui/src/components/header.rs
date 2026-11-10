@@ -6,8 +6,11 @@ use vellum_domain::DeviceKind;
 pub fn Header(
     search_query: Signal<String>,
     connected_devices: Vec<ConnectedDevice>,
+    sync_available: bool,
+    is_syncing: bool,
     on_import: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
+    on_sync_cloud: EventHandler<()>,
     on_open_settings: EventHandler<()>,
 ) -> Element {
     rsx! {
@@ -29,6 +32,40 @@ pub fn Header(
             }
 
             div { class: "header-actions",
+                // Synchro Google Drive Multi-Postes
+                button {
+                    class: "btn btn-secondary",
+                    style: if sync_available {
+                        "border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; font-size: 12px; gap: 6px; padding: 6px 12px;"
+                    } else {
+                        "border-color: rgba(255, 255, 255, 0.1); color: var(--text-muted); font-size: 12px; gap: 6px; padding: 6px 12px;"
+                    },
+                    title: if sync_available {
+                        "Synchroniser la bibliothèque avec Google Drive (livres & progression)"
+                    } else {
+                        "Google Drive non configuré — Cliquer pour configurer dans les paramètres"
+                    },
+                    disabled: is_syncing,
+                    onclick: move |_| {
+                        if sync_available {
+                            on_sync_cloud.call(());
+                        } else {
+                            on_open_settings.call(());
+                        }
+                    },
+                    span { if is_syncing { "⏳" } else { "☁️" } }
+                    span {
+                        if is_syncing {
+                            "Synchro en cours..."
+                        } else if sync_available {
+                            "Synchro Drive"
+                        } else {
+                            "Drive (inactif)"
+                        }
+                    }
+                }
+
+                // Liseuses physiques connectées
                 for dev in connected_devices.iter() {
                     {
                         let dev_kind = dev.kind;
@@ -67,4 +104,3 @@ pub fn Header(
         }
     }
 }
-

@@ -382,6 +382,10 @@ impl BookFormatPlugin for ExternalScriptPlugin {
                 .or_else(|| parsed.get("publishDate"))
                 .and_then(|v| v.as_str())
                 .map(String::from),
+            isbn: parsed
+                .get("isbn")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             description: parsed
                 .get("description")
                 .and_then(|v| v.as_str())

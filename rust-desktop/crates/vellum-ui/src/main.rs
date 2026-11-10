@@ -19,17 +19,18 @@ use styles::APP_CSS;
 use vellum_core::book_service::BookService;
 use vellum_core::conversion_service::ConversionService;
 use vellum_core::device_service::DeviceService;
-
 use vellum_core::litestream_service::LitestreamService;
 use vellum_core::metadata_service::MetadataService;
 use vellum_core::opds_server::OpdsServer;
 use vellum_core::plugin_service::PluginService;
-use vellum_domain::{AppConfig, Book, DeviceKind};
-use vellum_storage::{BookRepository, Database, ParamRepository, TagRepository};
+use vellum_core::{FolderSyncBackend, SyncService};
+use vellum_domain::{AppConfig, Book, CloudSyncConfig, DeviceKind};
+use vellum_storage::{BookRepository, Database, ParamRepository, SyncRepository, TagRepository};
 
 #[derive(Clone)]
 struct AppServices {
     book_service: Arc<BookService>,
+    sync_service: Arc<SyncService>,
     device_service: Arc<DeviceService>,
     litestream_service: Arc<LitestreamService>,
     opds_port: u16,
@@ -48,20 +49,40 @@ fn init_services() -> AppServices {
     let book_repo = BookRepository::new(db.clone());
     let param_repo = ParamRepository::new(db.clone());
     let tag_repo = TagRepository::new(db.clone());
+    let sync_repo = SyncRepository::new(db.clone());
+
+    // Charger la configuration de synchronisation persistée si présente
+    let mut cloud_sync_cfg = app_cfg.cloud_sync.clone();
+    if let Ok(Some(saved_json)) = param_repo.get_value("cloud_sync_config") {
+        if let Ok(loaded) = serde_json::from_str::<CloudSyncConfig>(&saved_json) {
+            cloud_sync_cfg = loaded;
+        }
+    }
+
+    let sync_service = Arc::new(SyncService::new(
+        cloud_sync_cfg,
+        sync_repo.clone(),
+        book_repo.clone(),
+        tag_repo.clone(),
+        app_cfg.library_path.clone(),
+    ));
 
     let plugin_service = PluginService::new(param_repo.clone(), Some(app_cfg.plugins_path.clone()));
     let metadata_service = MetadataService::new(plugin_service.clone());
     let conversion_service = ConversionService::new(plugin_service.clone());
 
-    let book_service = Arc::new(BookService::new(
-        book_repo,
-        param_repo,
-        tag_repo,
-        metadata_service,
-        plugin_service,
-        conversion_service,
-        app_cfg.library_path.clone(),
-    ));
+    let book_service = Arc::new(
+        BookService::new(
+            book_repo,
+            param_repo,
+            tag_repo,
+            metadata_service,
+            plugin_service,
+            conversion_service,
+            app_cfg.library_path.clone(),
+        )
+        .with_sync_repo(sync_repo, sync_service.client_id()),
+    );
 
     scan_and_index_library(&book_service);
 
@@ -69,6 +90,27 @@ fn init_services() -> AppServices {
         app_cfg.litestream.clone(),
         app_cfg.database_path.clone(),
     ));
+
+    // Déclencheur périodique de synchronisation en tâche de fond (toutes les 60s)
+    let periodic_sync = sync_service.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if periodic_sync.is_backend_available() && periodic_sync.config().enabled {
+                let s_clone = periodic_sync.clone();
+                let res = tokio::task::spawn_blocking(move || s_clone.sync_now()).await;
+                if let Ok(Ok(report)) = res {
+                    if report.pulled_events > 0 || report.downloaded_books > 0 {
+                        info!(
+                            "Synchro périodique Google Drive : {} événements appliqués, {} livres reçus",
+                            report.pulled_events, report.downloaded_books
+                        );
+                    }
+                }
+            }
+        }
+    });
 
     // Spawn OPDS Server in background
     let opds_bs = book_service.clone();
@@ -85,6 +127,7 @@ fn init_services() -> AppServices {
 
     AppServices {
         book_service,
+        sync_service,
         device_service,
         litestream_service,
         opds_port,
@@ -218,11 +261,15 @@ fn main() {
 fn App() -> Element {
     let services = use_hook(init_services);
     let book_service = services.book_service.clone();
+    let sync_service = services.sync_service.clone();
     let litestream = services.litestream_service.clone();
     let opds_port = services.opds_port;
     let device_service = services.device_service.clone();
     let mut connected_devices = use_signal(|| device_service.detect_connected_devices());
 
+    let mut sync_config = use_signal(|| sync_service.config());
+    let mut is_syncing = use_signal(|| false);
+    let mut sync_message = use_signal(|| None::<String>);
 
     let mut books = use_signal(|| {
         book_service
@@ -421,20 +468,24 @@ fn App() -> Element {
     let handle_save_metadata = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |(b_id, title, author, publ, desc, tags): (
+        move |(b_id, title, author, publ, desc, isbn, pdate, tags): (
             String,
             String,
             String,
+            Option<String>,
+            Option<String>,
             Option<String>,
             Option<String>,
             Vec<String>,
         )| {
-            match bs.update_book_metadata(
+            match bs.update_book_metadata_full(
                 &b_id,
                 &title,
                 &author,
                 publ.as_deref(),
                 desc.as_deref(),
+                isbn.as_deref(),
+                pdate.as_deref(),
                 tags,
             ) {
                 Ok(updated) => {
@@ -444,6 +495,24 @@ fn App() -> Element {
                 }
                 Err(e) => {
                     tracing::error!("Erreur lors de la mise à jour des métadonnées: {e}");
+                }
+            }
+        }
+    };
+
+    // Handle book automatic enrichment
+    let handle_enrich_metadata = {
+        let bs = book_service.clone();
+        let mut refresh = refresh_library.clone();
+        move |b_id: String| {
+            match bs.enrich_book(&b_id) {
+                Ok(updated) => {
+                    tracing::info!("Métadonnées enrichies avec succès pour: {}", updated.title);
+                    selected_book.set(Some(updated));
+                    refresh();
+                }
+                Err(e) => {
+                    tracing::error!("Erreur lors de l'enrichissement des métadonnées: {e}");
                 }
             }
         }
@@ -536,6 +605,126 @@ fn App() -> Element {
         }
     };
 
+    // Handle manual cloud sync trigger
+    let handle_sync_now = {
+        let ss = sync_service.clone();
+        let pr = services.book_service.param_repo().clone();
+        let refresh = refresh_library.clone();
+        move |()| {
+            if *is_syncing.read() {
+                return;
+            }
+            is_syncing.set(true);
+            sync_message.set(Some("Synchronisation avec Google Drive en cours...".to_string()));
+            let ss_cloned = ss.clone();
+            let pr_cloned = pr.clone();
+            let mut refresh_cloned = refresh.clone();
+            dioxus::prelude::spawn(async move {
+                let res = tokio::task::spawn_blocking(move || {
+                    let r = ss_cloned.sync_now();
+                    let cfg = ss_cloned.config();
+                    if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+                        let _ = pr_cloned.set_value("cloud_sync_config", &cfg_json);
+                    }
+                    (r, cfg)
+                })
+                .await;
+
+                is_syncing.set(false);
+                match res {
+                    Ok((Ok(report), updated_cfg)) => {
+                        sync_config.set(updated_cfg);
+                        let msg = format!(
+                            "Synchro réussie : {} envoyé(s), {} reçu(s), {} événement(s)",
+                            report.uploaded_books, report.downloaded_books, report.pulled_events
+                        );
+                        tracing::info!("{msg}");
+                        sync_message.set(Some(msg));
+                        refresh_cloned();
+                    }
+                    Ok((Err(e), _)) => {
+                        let err_msg = format!("Erreur de synchronisation : {e}");
+                        tracing::error!("{err_msg}");
+                        sync_message.set(Some(err_msg));
+                    }
+                    Err(e) => {
+                        tracing::error!("Erreur de tâche asynchrone : {e}");
+                        sync_message.set(Some("Erreur inattendue lors de la synchro".to_string()));
+                    }
+                }
+            });
+        }
+    };
+
+    // Handle picking Google Drive folder via file dialog
+    let handle_pick_sync_folder = {
+        let ss = sync_service.clone();
+        let pr = services.book_service.param_repo().clone();
+        move |()| {
+            if let Some(folder) = rfd::FileDialog::new()
+                .set_title("Sélectionner le dossier de synchronisation Google Drive")
+                .pick_folder()
+            {
+                if let Ok(()) = ss.set_sync_folder(folder) {
+                    let cfg = ss.config();
+                    if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+                        let _ = pr.set_value("cloud_sync_config", &cfg_json);
+                    }
+                    sync_config.set(cfg);
+                    sync_message.set(Some("Dossier Google Drive configuré avec succès !".to_string()));
+                }
+            }
+        }
+    };
+
+    // Handle auto-detecting Google Drive folder
+    let handle_auto_detect_folder = {
+        let ss = sync_service.clone();
+        let pr = services.book_service.param_repo().clone();
+        move |()| {
+            if let Some(folder) = FolderSyncBackend::auto_detect_google_drive() {
+                if let Ok(()) = ss.set_sync_folder(folder) {
+                    let cfg = ss.config();
+                    if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+                        let _ = pr.set_value("cloud_sync_config", &cfg_json);
+                    }
+                    sync_config.set(cfg);
+                    sync_message.set(Some("Dossier Google Drive détecté et configuré !".to_string()));
+                }
+            } else {
+                sync_message.set(Some("Google Drive n'a pas été détecté automatiquement dans les chemins standards.".to_string()));
+            }
+        }
+    };
+
+    // Handle toggle auto-download books
+    let handle_toggle_auto_download = {
+        let ss = sync_service.clone();
+        let pr = services.book_service.param_repo().clone();
+        move |auto_dl: bool| {
+            ss.set_auto_download_books(auto_dl);
+            let cfg = ss.config();
+            if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+                let _ = pr.set_value("cloud_sync_config", &cfg_json);
+            }
+            sync_config.set(cfg);
+        }
+    };
+
+    // Handle toggle cloud sync enabled
+    let handle_toggle_sync_enabled = {
+        let ss = sync_service.clone();
+        let pr = services.book_service.param_repo().clone();
+        move |enabled: bool| {
+            ss.set_enabled(enabled);
+            let cfg = ss.config();
+            if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+                let _ = pr.set_value("cloud_sync_config", &cfg_json);
+            }
+            sync_config.set(cfg);
+        }
+    };
+
     let litestream_status_str = match litestream.status() {
         vellum_core::litestream_service::LitestreamStatus::Running => "En cours de synchronisation",
         vellum_core::litestream_service::LitestreamStatus::Stopped => "Arrêté (en attente)",
@@ -555,8 +744,11 @@ fn App() -> Element {
             Header {
                 search_query: search_query,
                 connected_devices: connected_devices.read().clone(),
+                sync_available: sync_service.is_backend_available(),
+                is_syncing: *is_syncing.read(),
                 on_import: handle_import.clone(),
                 on_sync_device: handle_sync_device.clone(),
+                on_sync_cloud: handle_sync_now.clone(),
                 on_open_settings: move |_| settings_open.set(true),
             }
 
@@ -658,6 +850,7 @@ fn App() -> Element {
                             on_convert: handle_convert.clone(),
                             on_change_cover: handle_change_cover.clone(),
                             on_save_metadata: handle_save_metadata.clone(),
+                            on_enrich_metadata: handle_enrich_metadata.clone(),
                             on_open_translate: move |b| translating_book.set(Some(b)),
                             on_export_to_device: handle_export_to_device.clone(),
                         }
@@ -698,6 +891,15 @@ fn App() -> Element {
                     opds_running: true,
                     litestream_status_text: litestream_status_str,
                     plugins: plugin_descriptors,
+                    sync_config: sync_config.read().clone(),
+                    sync_available: sync_service.is_backend_available(),
+                    is_syncing: *is_syncing.read(),
+                    sync_message: sync_message.read().clone(),
+                    on_sync_now: handle_sync_now.clone(),
+                    on_select_folder: handle_pick_sync_folder.clone(),
+                    on_auto_detect_folder: handle_auto_detect_folder.clone(),
+                    on_toggle_auto_download: handle_toggle_auto_download.clone(),
+                    on_toggle_enabled: handle_toggle_sync_enabled.clone(),
                     on_close: move |_| settings_open.set(false),
                 }
             }

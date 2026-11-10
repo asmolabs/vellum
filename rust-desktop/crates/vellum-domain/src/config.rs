@@ -1,3 +1,4 @@
+use crate::sync::CloudSyncConfig;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -28,6 +29,7 @@ pub struct AppConfig {
     pub database_path: PathBuf,
     pub opds_port: u16,
     pub litestream: LitestreamConfig,
+    pub cloud_sync: CloudSyncConfig,
 }
 
 impl Default for AppConfig {
@@ -40,6 +42,7 @@ impl Default for AppConfig {
             database_path: vellum_dir.join("metadata.db"),
             opds_port: 8085,
             litestream: LitestreamConfig::default(),
+            cloud_sync: CloudSyncConfig::default(),
         }
     }
 }

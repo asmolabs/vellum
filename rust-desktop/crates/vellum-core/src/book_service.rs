@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use vellum_domain::{Book, BookFormat, Tag, VellumError, VellumResult};
-use vellum_storage::{BookRepository, ParamRepository, TagRepository};
+use vellum_storage::{BookRepository, ParamRepository, SyncRepository, TagRepository};
 
 use crate::conversion_service::ConversionService;
 use crate::metadata_service::MetadataService;
@@ -33,6 +33,8 @@ pub struct BookService {
     book_repo: BookRepository,
     param_repo: ParamRepository,
     tag_repo: TagRepository,
+    sync_repo: Option<SyncRepository>,
+    client_id: String,
     metadata_service: MetadataService,
     plugin_service: PluginService,
     conversion_service: ConversionService,
@@ -53,6 +55,8 @@ impl BookService {
             book_repo,
             param_repo,
             tag_repo,
+            sync_repo: None,
+            client_id: "default-client".to_string(),
             metadata_service,
             plugin_service,
             conversion_service,
@@ -60,6 +64,12 @@ impl BookService {
         };
         let _ = service.ensure_library_directory();
         service
+    }
+
+    pub fn with_sync_repo(mut self, sync_repo: SyncRepository, client_id: impl Into<String>) -> Self {
+        self.sync_repo = Some(sync_repo);
+        self.client_id = client_id.into();
+        self
     }
 
     pub fn library_path(&self) -> &Path {
@@ -213,18 +223,100 @@ impl BookService {
         }
 
         let meta = self.metadata_service.extract_metadata(source_file);
-        let title = meta.title.unwrap_or_else(|| {
-            source_file
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("Sans titre")
-                .to_string()
-        });
-        let author = meta.author.unwrap_or_else(|| "Auteur inconnu".to_string());
-        let description = meta.description;
-        let publisher = meta.publisher;
-        let publish_date = meta.publish_date;
-        let tags_list = meta.tags;
+
+        let mut input_meta: HashMap<String, serde_json::Value> = HashMap::new();
+        if let Some(ref t) = meta.title {
+            input_meta.insert("title".to_string(), serde_json::json!(t));
+        } else if let Some(stem) = source_file.file_stem().and_then(|s| s.to_str()) {
+            input_meta.insert("title".to_string(), serde_json::json!(stem));
+        }
+        if let Some(ref a) = meta.author {
+            input_meta.insert("author".to_string(), serde_json::json!(a));
+        }
+        if let Some(ref p) = meta.publisher {
+            input_meta.insert("publisher".to_string(), serde_json::json!(p));
+        }
+        if let Some(ref d) = meta.publish_date {
+            input_meta.insert("publishDate".to_string(), serde_json::json!(d));
+        }
+        if let Some(ref desc) = meta.description {
+            input_meta.insert("description".to_string(), serde_json::json!(desc));
+        }
+        if let Some(ref isbn) = meta.isbn {
+            input_meta.insert("isbn".to_string(), serde_json::json!(isbn));
+        }
+        input_meta.insert("tags".to_string(), serde_json::json!(meta.tags));
+
+        let enriched = self
+            .plugin_service
+            .run_import_enrichers(Some(source_file), input_meta);
+
+        let title = enriched
+            .get("title")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .or(meta.title)
+            .unwrap_or_else(|| {
+                source_file
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Sans titre")
+                    .to_string()
+            });
+
+        let author = enriched
+            .get("author")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .or(meta.author)
+            .unwrap_or_else(|| "Auteur inconnu".to_string());
+
+        let publisher = enriched
+            .get("publisher")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .or(meta.publisher);
+
+        let publish_date = enriched
+            .get("publishDate")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .or(meta.publish_date);
+
+        let description = enriched
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .or(meta.description);
+
+        let isbn = enriched
+            .get("isbn")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .or(meta.isbn);
+
+        let mut tags_list = meta.tags;
+        if let Some(tags_val) = enriched.get("tags").and_then(|v| v.as_array()) {
+            for tv in tags_val {
+                if let Some(t_str) = tv.as_str().map(str::trim).filter(|s| !s.is_empty()) {
+                    if !tags_list.iter().any(|t| t.eq_ignore_ascii_case(t_str)) {
+                        tags_list.push(t_str.to_string());
+                    }
+                }
+            }
+        }
 
         let book_id = Uuid::new_v4().to_string();
         let clean_author = Self::sanitize_filename(&author);
@@ -255,12 +347,30 @@ impl BookService {
                         .to_string(),
                 );
             }
+        } else if let Some(b64) = enriched.get("coverData").and_then(|v| v.as_str()) {
+            use base64::Engine;
+            if let Ok(cover_bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                if cover_bytes.len() > 500 {
+                    let ext = enriched.get("coverExt").and_then(|v| v.as_str()).unwrap_or(".jpg");
+                    let cover_filename = format!("cover{ext}");
+                    let cover_file_abs = book_dir_abs.join(&cover_filename);
+                    if fs::write(&cover_file_abs, cover_bytes).is_ok() {
+                        cover_path_rel = Some(
+                            book_dir_rel
+                                .join(cover_filename)
+                                .to_string_lossy()
+                                .to_string(),
+                        );
+                    }
+                }
+            }
         }
 
         let mut book = Book::new(title, author);
         book.id = book_id.clone();
         book.publisher = publisher;
         book.publish_date = publish_date;
+        book.isbn = isbn;
         book.description = description;
         book.cover_path = cover_path_rel;
 
@@ -281,7 +391,21 @@ impl BookService {
         );
         book.add_format(format);
 
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookCreated {
+                    book: saved.clone(),
+                    formats: saved.formats.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn update_book(&self, updated: &Book) -> VellumResult<Book> {
@@ -358,7 +482,20 @@ impl BookService {
             }
         }
 
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookUpdated {
+                    book: saved.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn delete_book(&self, book_id: &str, delete_files: bool) -> VellumResult<()> {
@@ -382,7 +519,19 @@ impl BookService {
             }
         }
 
-        self.book_repo.delete(book_id)
+        self.book_repo.delete(book_id)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookDeleted {
+                    book_id: book_id.to_string(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(())
     }
 
     pub fn add_format_to_book(
@@ -450,7 +599,20 @@ impl BookService {
         let fmt = BookFormat::new(ext, target_filename, dest_file_rel, file_size);
         book.add_format(fmt);
 
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookUpdated {
+                    book: saved.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn remove_format_from_book(
@@ -478,7 +640,20 @@ impl BookService {
             }
         }
 
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookUpdated {
+                    book: saved.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn update_reading_progress(
@@ -500,7 +675,24 @@ impl BookService {
         book.is_finished = finished;
         book.last_read_at = Some(Utc::now().to_rfc3339());
 
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::ProgressUpdated {
+                    book_id: saved.id.clone(),
+                    progress_percent: saved.progress_percent,
+                    current_chapter_index: saved.current_chapter_index,
+                    total_chapters: saved.total_chapters,
+                    last_read_at: saved.last_read_at.clone().unwrap_or_default(),
+                    is_finished: saved.is_finished,
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn get_reading_stats(&self) -> VellumResult<ReadingStats> {
@@ -644,7 +836,20 @@ impl BookService {
         let fmt = BookFormat::new(target_ext, target_filename, dest_file_rel, file_size);
         book.add_format(fmt);
 
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookUpdated {
+                    book: saved.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn update_book_metadata(
@@ -654,6 +859,29 @@ impl BookService {
         author: &str,
         publisher: Option<&str>,
         description: Option<&str>,
+        tag_names: Vec<String>,
+    ) -> VellumResult<Book> {
+        self.update_book_metadata_full(
+            book_id,
+            title,
+            author,
+            publisher,
+            description,
+            None,
+            None,
+            tag_names,
+        )
+    }
+
+    pub fn update_book_metadata_full(
+        &self,
+        book_id: &str,
+        title: &str,
+        author: &str,
+        publisher: Option<&str>,
+        description: Option<&str>,
+        isbn: Option<&str>,
+        publish_date: Option<&str>,
         tag_names: Vec<String>,
     ) -> VellumResult<Book> {
         let mut book = self
@@ -669,6 +897,12 @@ impl BookService {
         }
         book.publisher = publisher.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
         book.description = description.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        if let Some(i) = isbn {
+            book.isbn = if i.trim().is_empty() { None } else { Some(i.trim().to_string()) };
+        }
+        if let Some(pd) = publish_date {
+            book.publish_date = if pd.trim().is_empty() { None } else { Some(pd.trim().to_string()) };
+        }
 
         book.tags.clear();
         for t_name in tag_names {
@@ -680,7 +914,129 @@ impl BookService {
             }
         }
 
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookUpdated {
+                    book: saved.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
+    }
+
+    pub fn enrich_book(&self, book_id: &str) -> VellumResult<Book> {
+        let mut book = self
+            .book_repo
+            .find_by_id(book_id)?
+            .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {book_id}")))?;
+
+        let mut input_meta: HashMap<String, serde_json::Value> = HashMap::new();
+        input_meta.insert("title".to_string(), serde_json::json!(book.title));
+        input_meta.insert("author".to_string(), serde_json::json!(book.author));
+        if let Some(ref publ) = book.publisher {
+            input_meta.insert("publisher".to_string(), serde_json::json!(publ));
+        }
+        if let Some(ref date) = book.publish_date {
+            input_meta.insert("publishDate".to_string(), serde_json::json!(date));
+        }
+        if let Some(ref desc) = book.description {
+            input_meta.insert("description".to_string(), serde_json::json!(desc));
+        }
+        if let Some(ref isbn) = book.isbn {
+            input_meta.insert("isbn".to_string(), serde_json::json!(isbn));
+        }
+        let current_tags: Vec<String> = book.tags.iter().map(|t| t.name.clone()).collect();
+        input_meta.insert("tags".to_string(), serde_json::json!(current_tags));
+
+        let source_file = book.formats.first().map(|f| self.library_path.join(&f.filepath));
+
+        let enriched = self
+            .plugin_service
+            .run_import_enrichers(source_file.as_deref(), input_meta);
+
+        if let Some(t) = enriched.get("title").and_then(|v| v.as_str()) {
+            if !t.trim().is_empty() {
+                book.title = t.trim().to_string();
+            }
+        }
+        if let Some(a) = enriched.get("author").and_then(|v| v.as_str()) {
+            if !a.trim().is_empty() {
+                book.author = a.trim().to_string();
+            }
+        }
+        if let Some(p) = enriched.get("publisher").and_then(|v| v.as_str()) {
+            if !p.trim().is_empty() {
+                book.publisher = Some(p.trim().to_string());
+            }
+        }
+        if let Some(d) = enriched.get("publishDate").and_then(|v| v.as_str()) {
+            if !d.trim().is_empty() {
+                book.publish_date = Some(d.trim().to_string());
+            }
+        }
+        if let Some(desc) = enriched.get("description").and_then(|v| v.as_str()) {
+            if !desc.trim().is_empty() {
+                book.description = Some(desc.trim().to_string());
+            }
+        }
+        if let Some(isbn_str) = enriched.get("isbn").and_then(|v| v.as_str()) {
+            if !isbn_str.trim().is_empty() {
+                book.isbn = Some(isbn_str.trim().to_string());
+            }
+        }
+
+        if let Some(tags_val) = enriched.get("tags").and_then(|v| v.as_array()) {
+            for tv in tags_val {
+                if let Some(t_str) = tv.as_str().map(str::trim).filter(|s| !s.is_empty()) {
+                    if !book.tags.iter().any(|t| t.name.eq_ignore_ascii_case(t_str)) {
+                        let tag = Tag::new(t_str);
+                        let _ = self.tag_repo.save(&tag);
+                        book.add_tag(tag);
+                    }
+                }
+            }
+        }
+
+        // Cover download if present in enriched metadata
+        if let Some(b64) = enriched.get("coverData").and_then(|v| v.as_str()) {
+            use base64::Engine;
+            if let Ok(cover_bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                if cover_bytes.len() > 500 {
+                    let ext = enriched.get("coverExt").and_then(|v| v.as_str()).unwrap_or(".jpg");
+                    let clean_author = Self::sanitize_filename(&book.author);
+                    let clean_title = Self::sanitize_filename(&book.title);
+                    let book_dir_rel = PathBuf::from(&clean_author).join(format!("{clean_title} ({})", book.id));
+                    let book_dir_abs = self.library_path.join(&book_dir_rel);
+                    let _ = fs::create_dir_all(&book_dir_abs);
+                    let cover_filename = format!("cover{ext}");
+                    let cover_abs = book_dir_abs.join(&cover_filename);
+                    if fs::write(&cover_abs, cover_bytes).is_ok() {
+                        book.cover_path = Some(book_dir_rel.join(&cover_filename).to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookUpdated {
+                    book: saved.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn update_book_cover(&self, book_id: &str, new_cover_path: &Path) -> VellumResult<Book> {
@@ -723,7 +1079,20 @@ impl BookService {
             .to_string();
 
         book.cover_path = Some(cover_dest_rel);
-        self.book_repo.save(&book)
+        let saved = self.book_repo.save(&book)?;
+
+        if let Some(ref sr) = self.sync_repo {
+            let event = vellum_domain::SyncEvent::new(
+                &self.client_id,
+                vellum_domain::SyncAction::BookUpdated {
+                    book: saved.clone(),
+                    tags: saved.tags.clone(),
+                },
+            );
+            let _ = sr.record_event(&event);
+        }
+
+        Ok(saved)
     }
 
     pub fn translate_book(

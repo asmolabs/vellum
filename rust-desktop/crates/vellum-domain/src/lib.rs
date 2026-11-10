@@ -2,6 +2,7 @@ pub mod config;
 pub mod entity;
 pub mod error;
 pub mod plugin;
+pub mod sync;
 
 pub use config::{AppConfig, LitestreamConfig};
 pub use entity::{Book, BookFormat, Param, ReadingStats, Tag};
@@ -11,5 +12,8 @@ pub use plugin::{
     DeviceAnnotation, DeviceBookInfo, DeviceKind, DeviceReadingProgress, DeviceSyncPlugin,
     ExtractedMetadata, LibraryPlugin, LibraryPluginInfo, MetadataEnricherPlugin, PluginDescriptor,
     PluginType, TestResult, VellumPlugin,
+};
+pub use sync::{
+    CloudSyncConfig, CloudSyncMode, SyncAction, SyncDelta, SyncEvent, SyncReport,
 };
 

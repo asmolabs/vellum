@@ -94,6 +94,7 @@ impl BookFormatPlugin for MobiFormatPlugin {
         let mut author = None;
         let mut publisher = None;
         let mut publish_date = None;
+        let mut isbn = None;
         let mut description = None;
         let mut tags = vec!["Kindle".to_string()];
         let mut cover_data = None;
@@ -154,6 +155,7 @@ impl BookFormatPlugin for MobiFormatPlugin {
                     100 if author.is_none() && !val_str.is_empty() => author = Some(val_str),
                     101 if !val_str.is_empty() => publisher = Some(val_str),
                     103 if !val_str.is_empty() => description = Some(val_str),
+                    104 if !val_str.is_empty() => isbn = Some(val_str),
                     105 if !val_str.is_empty() => {
                         if !tags.iter().any(|t| t == &val_str) {
                             tags.push(val_str);
@@ -199,6 +201,7 @@ impl BookFormatPlugin for MobiFormatPlugin {
             author,
             publisher,
             publish_date,
+            isbn,
             description,
             tags,
             cover_data,

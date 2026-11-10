@@ -105,7 +105,7 @@ public class KindleSyncPlugin implements DeviceSyncPlugin {
         File[] files = dir.listFiles();
         if (files == null) return;
 
-        Set<String> supported = Set.of("azw3", "azw", "mobi", "pdf", "txt", "prc", "kfx");
+        Set<String> supported = Set.of("azw3", "azw", "mobi", "pdf", "epub", "txt", "prc", "kfx");
 
         for (File f : files) {
             if (f.getName().startsWith(".")) continue;

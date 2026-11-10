@@ -153,6 +153,7 @@ impl BookFormatPlugin for ComicFormatPlugin {
             author,
             publisher: None,
             publish_date: None,
+            isbn: None,
             description,
             tags,
             cover_data,

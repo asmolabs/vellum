@@ -150,6 +150,7 @@ pub struct ExtractedMetadata {
     pub author: Option<String>,
     pub publisher: Option<String>,
     pub publish_date: Option<String>,
+    pub isbn: Option<String>,
     pub description: Option<String>,
     pub tags: Vec<String>,
     pub cover_data: Option<Vec<u8>>,

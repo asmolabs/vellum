@@ -20,15 +20,16 @@ impl BookRepository {
 
         tx.execute(
             "INSERT INTO books (
-                id, title, author, publisher, publish_date, description, cover_path,
+                id, title, author, publisher, publish_date, isbn, description, cover_path,
                 added_at, current_chapter_index, total_chapters, progress_percent,
                 last_read_at, is_finished, rating
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 author = excluded.author,
                 publisher = excluded.publisher,
                 publish_date = excluded.publish_date,
+                isbn = excluded.isbn,
                 description = excluded.description,
                 cover_path = excluded.cover_path,
                 added_at = excluded.added_at,
@@ -44,6 +45,7 @@ impl BookRepository {
                 book.author,
                 book.publisher,
                 book.publish_date,
+                book.isbn,
                 book.description,
                 book.cover_path,
                 book.added_at,
@@ -127,7 +129,7 @@ impl BookRepository {
                 "SELECT DISTINCT b.id
                  FROM books b
                  LEFT JOIN book_tags bt ON bt.book_id = b.id
-                 WHERE (?1 IS NULL OR LOWER(b.title) LIKE ?1 OR LOWER(b.author) LIKE ?1 OR LOWER(COALESCE(b.description, '')) LIKE ?1)
+                 WHERE (?1 IS NULL OR LOWER(b.title) LIKE ?1 OR LOWER(b.author) LIKE ?1 OR LOWER(COALESCE(b.isbn, '')) LIKE ?1 OR LOWER(COALESCE(b.description, '')) LIKE ?1)
                    AND (?2 IS NULL OR bt.tag_name = ?2)
                  ORDER BY b.added_at DESC",
             )
@@ -182,28 +184,29 @@ impl BookRepository {
     fn load_book_by_id(conn: &Connection, id: &str) -> VellumResult<Option<Book>> {
         let book_opt = conn
             .query_row(
-                "SELECT id, title, author, publisher, publish_date, description, cover_path,
+                "SELECT id, title, author, publisher, publish_date, isbn, description, cover_path,
                         added_at, current_chapter_index, total_chapters, progress_percent,
                         last_read_at, is_finished, rating
                  FROM books WHERE id = ?1",
                 params![id],
                 |row| {
-                    let is_fin: i32 = row.get::<_, Option<i32>>(12)?.unwrap_or(0);
+                    let is_fin: i32 = row.get::<_, Option<i32>>(13)?.unwrap_or(0);
                     Ok(Book {
                         id: row.get(0)?,
                         title: row.get(1)?,
                         author: row.get(2)?,
                         publisher: row.get(3)?,
                         publish_date: row.get(4)?,
-                        description: row.get(5)?,
-                        cover_path: row.get(6)?,
-                        added_at: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
-                        current_chapter_index: row.get::<_, Option<i32>>(8)?.unwrap_or(0),
-                        total_chapters: row.get::<_, Option<i32>>(9)?.unwrap_or(0),
-                        progress_percent: row.get::<_, Option<f64>>(10)?.unwrap_or(0.0),
-                        last_read_at: row.get(11)?,
+                        isbn: row.get(5)?,
+                        description: row.get(6)?,
+                        cover_path: row.get(7)?,
+                        added_at: row.get::<_, Option<String>>(8)?.unwrap_or_default(),
+                        current_chapter_index: row.get::<_, Option<i32>>(9)?.unwrap_or(0),
+                        total_chapters: row.get::<_, Option<i32>>(10)?.unwrap_or(0),
+                        progress_percent: row.get::<_, Option<f64>>(11)?.unwrap_or(0.0),
+                        last_read_at: row.get(12)?,
                         is_finished: is_fin != 0,
-                        rating: row.get(13)?,
+                        rating: row.get(14)?,
                         formats: Vec::new(),
                         tags: Vec::new(),
                     })

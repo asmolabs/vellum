@@ -103,6 +103,7 @@ impl BookFormatPlugin for EpubFormatPlugin {
         let publisher = find_first_element_text(&opf_doc, "publisher");
         let publish_date = find_first_element_text(&opf_doc, "date");
         let description = find_first_element_text(&opf_doc, "description");
+        let isbn = find_isbn(&opf_doc);
 
         let mut tags = Vec::new();
         for node in opf_doc
@@ -149,12 +150,44 @@ impl BookFormatPlugin for EpubFormatPlugin {
             author,
             publisher,
             publish_date,
+            isbn,
             description,
             tags,
             cover_data,
             cover_ext,
         })
     }
+}
+
+fn find_isbn(doc: &Document) -> Option<String> {
+    for node in doc
+        .descendants()
+        .filter(|n| n.is_element() && n.tag_name().name().eq_ignore_ascii_case("identifier"))
+    {
+        let text = node.text().map(str::trim).unwrap_or("");
+        let scheme = node
+            .attribute("scheme")
+            .or_else(|| node.attribute("opf:scheme"))
+            .unwrap_or("");
+        let id_attr = node.attribute("id").unwrap_or("");
+
+        let is_isbn = scheme.eq_ignore_ascii_case("isbn")
+            || id_attr.to_lowercase().contains("isbn")
+            || text.to_lowercase().contains("isbn")
+            || text.starts_with("978")
+            || text.starts_with("979");
+
+        if is_isbn || (!text.is_empty() && (text.len() == 10 || text.len() == 13 || text.len() == 14 || text.len() == 17)) {
+            let clean: String = text
+                .chars()
+                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
+                .collect();
+            if clean.len() == 10 || clean.len() == 13 {
+                return Some(clean);
+            }
+        }
+    }
+    None
 }
 
 fn find_first_element_text(doc: &Document, local_name: &str) -> Option<String> {

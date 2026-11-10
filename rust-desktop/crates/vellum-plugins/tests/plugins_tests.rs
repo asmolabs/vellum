@@ -234,3 +234,19 @@ fn test_external_plugin_loader_creates_and_loads_sample_plugin() {
     let test_res = loaded[0].test_plugin(&HashMap::new());
     assert!(test_res.success);
 }
+
+#[test]
+fn test_google_books_enricher_plugin_metadata() {
+    use vellum_domain::VellumPlugin;
+    use vellum_plugins::enricher::GoogleBooksEnricherPlugin;
+
+    let enricher = GoogleBooksEnricherPlugin::new();
+    let desc = enricher.descriptor();
+    assert_eq!(desc.id, "google-books-enricher");
+    assert!(desc.config_schema.iter().any(|c| c.key == "api_key"));
+    assert!(desc.config_schema.iter().any(|c| c.key == "fallback_openlibrary"));
+
+    let test_result = enricher.test_configuration(&HashMap::new());
+    // In CI or offline test, it will return either success HTTP 200 or connection error, but shouldn't panic
+    assert!(!test_result.message.is_empty());
+}

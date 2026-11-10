@@ -236,4 +236,33 @@ impl PluginService {
 
         Ok(plugin.test_plugin(&config))
     }
+
+    pub fn is_plugin_enabled(&self, plugin_id: &str) -> bool {
+        let key = format!("plugin.{plugin_id}.enabled");
+        self.param_repo
+            .get_value(&key)
+            .ok()
+            .flatten()
+            .and_then(|v| v.parse::<bool>().ok())
+            .unwrap_or(true)
+    }
+
+    pub fn run_import_enrichers(
+        &self,
+        book_file: Option<&std::path::Path>,
+        current_metadata: HashMap<String, serde_json::Value>,
+    ) -> HashMap<String, serde_json::Value> {
+        let mut meta = current_metadata;
+        for enricher in self.get_enricher_plugins() {
+            let id = enricher.descriptor().id.clone();
+            if !self.is_plugin_enabled(&id) {
+                continue;
+            }
+            let config = self.get_plugin_config(&id).unwrap_or_default();
+            let dummy_path = std::path::PathBuf::from("book");
+            let file_ref = book_file.unwrap_or(&dummy_path);
+            meta = enricher.enrich_metadata(file_ref, meta, &config);
+        }
+        meta
+    }
 }

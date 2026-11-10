@@ -7,6 +7,7 @@ pub mod opds_server;
 pub mod plugin_service;
 pub mod reader_provider;
 pub mod reader_store;
+pub mod sync_service;
 
 pub use book_service::{BookService, DuplicateBookInfo};
 pub use conversion_service::ConversionService;
@@ -17,4 +18,5 @@ pub use opds_server::OpdsServer;
 pub use plugin_service::PluginService;
 pub use reader_provider::{BookContentProvider, ReaderContent, ReaderSection};
 pub use reader_store::*;
+pub use sync_service::{CloudSyncBackend, FolderSyncBackend, SyncService};
 

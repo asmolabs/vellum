@@ -352,6 +352,27 @@ async fn test_update_book_metadata_and_cover() {
     let full_cov = book_service.library_path().join(&cov_rel);
     assert!(full_cov.exists());
     assert_eq!(std::fs::read(&full_cov).unwrap(), b"fake_jpeg_header_content");
+
+    // 3. Update metadata with ISBN & Publish date
+    let with_isbn = book_service
+        .update_book_metadata_full(
+            &book.id,
+            "Le Nouveau Titre",
+            "Auteur Célèbre",
+            Some("Éditions Galaxie"),
+            Some("Un synopsis incroyable."),
+            Some("9780441013593"),
+            Some("1965"),
+            vec!["Space Opera".to_string()],
+        )
+        .unwrap();
+    assert_eq!(with_isbn.isbn.as_deref(), Some("9780441013593"));
+    assert_eq!(with_isbn.publish_date.as_deref(), Some("1965"));
+
+    // 4. Enrich book
+    let enriched = book_service.enrich_book(&book.id).unwrap();
+    assert_eq!(enriched.id, book.id);
+    assert!(enriched.isbn.is_some());
 }
 
 #[tokio::test]
@@ -561,6 +582,136 @@ async fn test_epub_nested_div_pagination_and_text_integrity() {
     assert!(all_pages_content.contains("Troisième paragraphe"));
     assert!(all_pages_content.contains("Quatrième paragraphe"));
     assert!(all_pages_content.contains("Cinquième et dernier paragraphe du chapitre."));
+}
+
+#[tokio::test]
+async fn test_two_clients_sync_via_google_drive_folder() {
+    let temp_root = TempDir::new().expect("tempdir");
+    let gdrive_folder = temp_root.path().join("GoogleDrive").join("Vellum");
+
+    // Client A setup
+    let client_a_dir = temp_root.path().join("client_a");
+    let client_a_lib = client_a_dir.join("library");
+    let client_a_db = vellum_storage::Database::open(client_a_dir.join("vellum.db")).unwrap();
+    let client_a_books = vellum_storage::BookRepository::new(client_a_db.clone());
+    let client_a_tags = vellum_storage::TagRepository::new(client_a_db.clone());
+    let client_a_sync_repo = vellum_storage::SyncRepository::new(client_a_db.clone());
+
+    let mut cfg_a = vellum_domain::CloudSyncConfig::default();
+    cfg_a.client_id = "client-macbook-a".to_string();
+    cfg_a.sync_folder_path = Some(gdrive_folder.clone());
+    cfg_a.enabled = true;
+    cfg_a.auto_download_books = true;
+
+    let sync_service_a = vellum_core::SyncService::new(
+        cfg_a,
+        client_a_sync_repo,
+        client_a_books.clone(),
+        client_a_tags.clone(),
+        client_a_lib.clone(),
+    );
+
+    // Client B setup (completely separate machine / directory)
+    let client_b_dir = temp_root.path().join("client_b");
+    let client_b_lib = client_b_dir.join("library");
+    let client_b_db = vellum_storage::Database::open(client_b_dir.join("vellum.db")).unwrap();
+    let client_b_books = vellum_storage::BookRepository::new(client_b_db.clone());
+    let client_b_tags = vellum_storage::TagRepository::new(client_b_db.clone());
+    let client_b_sync_repo = vellum_storage::SyncRepository::new(client_b_db.clone());
+
+    let mut cfg_b = vellum_domain::CloudSyncConfig::default();
+    cfg_b.client_id = "client-imac-b".to_string();
+    cfg_b.sync_folder_path = Some(gdrive_folder.clone());
+    cfg_b.enabled = true;
+    cfg_b.auto_download_books = true;
+
+    let sync_service_b = vellum_core::SyncService::new(
+        cfg_b,
+        client_b_sync_repo,
+        client_b_books.clone(),
+        client_b_tags.clone(),
+        client_b_lib.clone(),
+    );
+
+    // 1. Client A imports a book
+    let book_id = "book-fondation-1";
+    let mut book = vellum_domain::Book::new("Fondation", "Isaac Asimov");
+    book.id = book_id.to_string();
+    book.isbn = Some("9782207249117".to_string());
+    let fmt_rel = "Isaac Asimov/Fondation (book-fondation-1)/fondation.epub";
+    let fmt_abs = client_a_lib.join(fmt_rel);
+    std::fs::create_dir_all(fmt_abs.parent().unwrap()).unwrap();
+    std::fs::write(&fmt_abs, b"fake epub binary content on client a").unwrap();
+
+    let fmt = vellum_domain::BookFormat::new("epub", "fondation.epub", fmt_rel, 36);
+    book.add_format(fmt.clone());
+    let tag = vellum_domain::Tag::new("Science-Fiction");
+    book.add_tag(tag.clone());
+
+    client_a_books.save(&book).unwrap();
+    client_a_tags.save(&tag).unwrap();
+
+    // Client A records BookCreated sync event
+    sync_service_a
+        .record_event(vellum_domain::SyncAction::BookCreated {
+            book: book.clone(),
+            formats: vec![fmt],
+            tags: vec![tag],
+        })
+        .unwrap();
+
+    // Client A syncs with Google Drive
+    let report_a = sync_service_a.sync_now().unwrap();
+    assert_eq!(report_a.uploaded_books, 1);
+    assert_eq!(report_a.pushed_events, 1);
+
+    // 2. Client B syncs with Google Drive (initial pull)
+    assert_eq!(client_b_books.count().unwrap(), 0);
+    let report_b = sync_service_b.sync_now().unwrap();
+    assert_eq!(report_b.pulled_events, 1);
+    assert_eq!(report_b.downloaded_books, 1);
+
+    // Verify Client B has the book in its local database
+    let book_on_b = client_b_books.find_by_id(book_id).unwrap().unwrap();
+    assert_eq!(book_on_b.title, "Fondation");
+    assert_eq!(book_on_b.author, "Isaac Asimov");
+    assert_eq!(book_on_b.isbn.as_deref(), Some("9782207249117"));
+    assert_eq!(book_on_b.tags.len(), 1);
+
+    // Verify Client B downloaded the actual file
+    let file_on_b = client_b_lib.join(fmt_rel);
+    assert!(file_on_b.exists());
+    assert_eq!(
+        std::fs::read_to_string(&file_on_b).unwrap(),
+        "fake epub binary content on client a"
+    );
+
+    // 3. Client B reads up to page 50 (progress 33%)
+    sync_service_b
+        .record_event(vellum_domain::SyncAction::ProgressUpdated {
+            book_id: book_id.to_string(),
+            progress_percent: 33.0,
+            current_chapter_index: 2,
+            total_chapters: 10,
+            last_read_at: "2026-11-10T12:00:00Z".to_string(),
+            is_finished: false,
+        })
+        .unwrap();
+
+    let report_b_push = sync_service_b.sync_now().unwrap();
+    assert_eq!(report_b_push.pushed_events, 1);
+
+    // 4. Client A syncs and receives the updated reading progress from Client B!
+    let report_a_pull = sync_service_a.sync_now().unwrap();
+    assert_eq!(report_a_pull.pulled_events, 1);
+
+    let book_on_a = client_a_books.find_by_id(book_id).unwrap().unwrap();
+    assert_eq!(book_on_a.progress_percent, 33.0);
+    assert_eq!(book_on_a.current_chapter_index, 2);
+    assert_eq!(
+        book_on_a.last_read_at.as_deref(),
+        Some("2026-11-10T12:00:00Z")
+    );
 }
 
 

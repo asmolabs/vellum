@@ -71,6 +71,7 @@ impl Database {
                 author TEXT NOT NULL,
                 publisher TEXT,
                 publish_date TEXT,
+                isbn TEXT,
                 description TEXT,
                 cover_path TEXT,
                 added_at TEXT,
@@ -110,9 +111,39 @@ impl Database {
                 key TEXT NOT NULL,
                 value TEXT NOT NULL,
                 updated_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS sync_events (
+                id TEXT PRIMARY KEY NOT NULL,
+                client_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                action_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                synced_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS applied_deltas (
+                filename TEXT PRIMARY KEY NOT NULL,
+                client_id TEXT NOT NULL,
+                applied_at TEXT NOT NULL
             );",
         )
         .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        // Automatic migration for existing databases without 'isbn' column
+        let has_isbn: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'isbn'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+
+        if !has_isbn {
+            let _ = conn.execute("ALTER TABLE books ADD COLUMN isbn TEXT;", []);
+        }
+
         Ok(())
     }
 }

@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use dioxus::prelude::*;
+use std::path::PathBuf;
 use vellum_domain::Book;
 
 #[component]
@@ -12,16 +12,27 @@ pub fn DetailDrawer(
     on_delete: EventHandler<String>,
     on_convert: EventHandler<(String, String)>,
     on_change_cover: EventHandler<(String, PathBuf)>,
-    on_save_metadata: EventHandler<(String, String, String, Option<String>, Option<String>, Vec<String>)>,
+    on_save_metadata: EventHandler<(
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Vec<String>,
+    )>,
+    on_enrich_metadata: EventHandler<String>,
     on_open_translate: EventHandler<Book>,
     on_export_to_device: EventHandler<(String, vellum_domain::DeviceKind)>,
 ) -> Element {
-
     let mut is_editing = use_signal(|| false);
 
     let mut edit_title = use_signal(|| book.title.clone());
     let mut edit_author = use_signal(|| book.author.clone());
     let mut edit_publisher = use_signal(|| book.publisher.clone().unwrap_or_default());
+    let mut edit_publish_date = use_signal(|| book.publish_date.clone().unwrap_or_default());
+    let mut edit_isbn = use_signal(|| book.isbn.clone().unwrap_or_default());
     let mut edit_description = use_signal(|| book.description.clone().unwrap_or_default());
     let mut edit_tags = use_signal(|| {
         book.tags
@@ -33,8 +44,14 @@ pub fn DetailDrawer(
 
     let title = book.title.clone();
     let author = book.author.clone();
-    let publisher = book.publisher.clone().unwrap_or_else(|| "Éditeur non renseigné".to_string());
-    let description = book.description.clone().unwrap_or_else(|| "Aucune description disponible.".to_string());
+    let publisher = book
+        .publisher
+        .clone()
+        .unwrap_or_else(|| "Éditeur non renseigné".to_string());
+    let description = book
+        .description
+        .clone()
+        .unwrap_or_else(|| "Aucune description disponible.".to_string());
     let formats = book.formats.clone();
     let tags = book.tags.clone();
     let book_id = book.id.clone();
@@ -76,7 +93,11 @@ pub fn DetailDrawer(
     let init_a = author.clone();
     let init_p = book.publisher.clone().unwrap_or_default();
     let init_d = book.description.clone().unwrap_or_default();
-    let init_tags = tags.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ");
+    let init_tags = tags
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
 
     rsx! {
         div {
@@ -158,6 +179,27 @@ pub fn DetailDrawer(
                             }
                         }
 
+                        div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
+                            div { class: "drawer-form-group",
+                                label { class: "drawer-form-label", "ISBN :" }
+                                input {
+                                    class: "drawer-input",
+                                    placeholder: "Ex: 9782207249117",
+                                    value: "{edit_isbn}",
+                                    oninput: move |e| edit_isbn.set(e.value()),
+                                }
+                            }
+                            div { class: "drawer-form-group",
+                                label { class: "drawer-form-label", "Date de publication :" }
+                                input {
+                                    class: "drawer-input",
+                                    placeholder: "Ex: 1965",
+                                    value: "{edit_publish_date}",
+                                    oninput: move |e| edit_publish_date.set(e.value()),
+                                }
+                            }
+                        }
+
                         div { class: "drawer-form-group",
                             label { class: "drawer-form-label", "Tags / Catégories (séparés par virgule) :" }
                             input {
@@ -205,6 +247,16 @@ pub fn DetailDrawer(
                                         } else {
                                             Some(edit_description.read().trim().to_string())
                                         };
+                                        let isbn_val = if edit_isbn.read().trim().is_empty() {
+                                            None
+                                        } else {
+                                            Some(edit_isbn.read().trim().to_string())
+                                        };
+                                        let date_val = if edit_publish_date.read().trim().is_empty() {
+                                            None
+                                        } else {
+                                            Some(edit_publish_date.read().trim().to_string())
+                                        };
 
                                         on_save_metadata.call((
                                             b_id.clone(),
@@ -212,6 +264,8 @@ pub fn DetailDrawer(
                                             edit_author.read().clone(),
                                             pub_val,
                                             desc_val,
+                                            isbn_val,
+                                            date_val,
                                             t_list,
                                         ));
                                         is_editing.set(false);
@@ -256,6 +310,12 @@ pub fn DetailDrawer(
                             h3 { class: "drawer-title", "{title}" }
                             div { class: "drawer-author", "{author}" }
                             div { style: "font-size: 12px; color: var(--text-muted); margin-top: 4px;", "{publisher}" }
+                            if let Some(ref isbn_val) = book.isbn {
+                                div { style: "font-size: 11px; color: var(--text-muted); font-family: monospace; margin-top: 3px;", "ISBN: {isbn_val}" }
+                            }
+                            if let Some(ref date_val) = book.publish_date {
+                                div { style: "font-size: 11px; color: var(--text-muted); margin-top: 2px;", "Publié : {date_val}" }
+                            }
 
                             if book.progress_percent > 0.0 {
                                 div { style: "margin-top: 10px;",
@@ -278,6 +338,16 @@ pub fn DetailDrawer(
                                         move |_| on_read.call(book_clone.clone())
                                     },
                                     "📖 Lire l'ouvrage"
+                                }
+
+                                button {
+                                    class: "drawer-action-btn",
+                                    style: "width: 100%; justify-content: center; background: rgba(59, 130, 246, 0.12); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); font-weight: 600;",
+                                    onclick: {
+                                        let b_id = book_id.clone();
+                                        move |_| on_enrich_metadata.call(b_id.clone())
+                                    },
+                                    "✨ Enrichir avec Google Books"
                                 }
 
                                 button {
@@ -414,4 +484,3 @@ pub fn DetailDrawer(
         }
     }
 }
-
