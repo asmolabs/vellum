@@ -831,6 +831,107 @@ async fn test_mail_service_validation() {
     assert!(conn_res.is_err());
 }
 
+#[tokio::test]
+async fn test_calibre_library_import() {
+    use vellum_core::CalibreImporter;
+    use rusqlite::Connection;
+
+    let temp_calibre = TempDir::new().expect("temp calibre dir");
+    let calibre_root = temp_calibre.path();
+    let db_path = calibre_root.join("metadata.db");
+
+    // 1. Create a Calibre SQLite database schema and sample data
+    let conn = Connection::open(&db_path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE books (
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            sort TEXT,
+            timestamp TEXT,
+            pubdate TEXT,
+            series_index REAL DEFAULT 1.0,
+            author_sort TEXT,
+            isbn TEXT,
+            path TEXT,
+            has_cover INTEGER DEFAULT 0
+        );
+        CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sort TEXT);
+        CREATE TABLE books_authors_link (id INTEGER PRIMARY KEY, book INTEGER, author INTEGER);
+        CREATE TABLE series (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sort TEXT);
+        CREATE TABLE books_series_link (id INTEGER PRIMARY KEY, book INTEGER, series INTEGER);
+        CREATE TABLE tags (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE books_tags_link (id INTEGER PRIMARY KEY, book INTEGER, tag INTEGER);
+        CREATE TABLE comments (id INTEGER PRIMARY KEY, book INTEGER, text TEXT);
+        CREATE TABLE publishers (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE books_publishers_link (id INTEGER PRIMARY KEY, book INTEGER, publisher INTEGER);
+        CREATE TABLE data (id INTEGER PRIMARY KEY, book INTEGER, format TEXT, uncompressed_size INTEGER, name TEXT);
+        
+        -- Insert author
+        INSERT INTO authors (id, name) VALUES (1, 'Isaac Asimov');
+        -- Insert series
+        INSERT INTO series (id, name) VALUES (1, 'Foundation Saga');
+        -- Insert tag
+        INSERT INTO tags (id, name) VALUES (1, 'Space Opera');
+        -- Insert publisher
+        INSERT INTO publishers (id, name) VALUES (1, 'Gnome Press');
+        
+        -- Insert book 1
+        INSERT INTO books (id, title, series_index, isbn, path, has_cover) 
+        VALUES (1, 'Foundation', 1.0, '9780553293357', 'Isaac Asimov/Foundation (1)', 1);
+        INSERT INTO books_authors_link (book, author) VALUES (1, 1);
+        INSERT INTO books_series_link (book, series) VALUES (1, 1);
+        INSERT INTO books_tags_link (book, tag) VALUES (1, 1);
+        INSERT INTO books_publishers_link (book, publisher) VALUES (1, 1);
+        INSERT INTO comments (book, text) VALUES (1, '<p>The first book in the Foundation series.</p>');
+        INSERT INTO data (book, format, uncompressed_size, name) VALUES (1, 'EPUB', 256000, 'Foundation - Isaac Asimov');
+        ",
+    )
+    .unwrap();
+
+    // 2. Create the file on disk matching Calibre's layout
+    let book_dir = calibre_root.join("Isaac Asimov").join("Foundation (1)");
+    std::fs::create_dir_all(&book_dir).unwrap();
+    let epub_file = book_dir.join("Foundation - Isaac Asimov.epub");
+    std::fs::write(&epub_file, b"dummy epub content").unwrap();
+    let cover_file = book_dir.join("cover.jpg");
+    std::fs::write(&cover_file, b"dummy cover jpeg").unwrap();
+
+    // 3. Test detection
+    assert!(CalibreImporter::is_calibre_library(calibre_root));
+    assert!(CalibreImporter::is_calibre_library(&db_path));
+
+    // 4. Run import into Vellum
+    let temp_vellum = TempDir::new().expect("temp vellum dir");
+    let book_service = create_test_services(&temp_vellum);
+
+    let report = CalibreImporter::import_calibre_library(calibre_root, true, &book_service)
+        .expect("import calibre library");
+
+    assert_eq!(report.books_imported, 1);
+    assert_eq!(report.formats_imported, 1);
+    assert_eq!(report.series_count, 1);
+    assert_eq!(report.tags_count, 1);
+    assert_eq!(report.errors.len(), 0);
+
+    // 5. Verify book in Vellum repository
+    let all_books = book_service.book_repo().find_all().unwrap();
+    assert_eq!(all_books.len(), 1);
+    let imported_book = &all_books[0];
+    assert_eq!(imported_book.title, "Foundation");
+    assert_eq!(imported_book.author, "Isaac Asimov");
+    assert_eq!(imported_book.series.as_deref(), Some("Foundation Saga"));
+    assert_eq!(imported_book.series_index, Some(1.0));
+    assert_eq!(imported_book.publisher.as_deref(), Some("Gnome Press"));
+    assert_eq!(
+        imported_book.description.as_deref(),
+        Some("The first book in the Foundation series.")
+    );
+    assert!(imported_book.cover_path.is_some());
+    assert_eq!(imported_book.formats.len(), 1);
+    assert_eq!(imported_book.formats[0].format, "epub");
+}
+
+
 
 
 

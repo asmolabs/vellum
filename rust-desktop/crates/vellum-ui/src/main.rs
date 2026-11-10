@@ -24,7 +24,7 @@ use vellum_core::mail_service::MailService;
 use vellum_core::metadata_service::MetadataService;
 use vellum_core::opds_server::OpdsServer;
 use vellum_core::plugin_service::PluginService;
-use vellum_core::{FolderSyncBackend, SyncService};
+use vellum_core::{FolderSyncBackend, SearchQuery, SyncService};
 use vellum_domain::{AppConfig, Book, CloudSyncConfig, DeviceKind, SmtpConfig};
 use vellum_storage::{BookRepository, Database, ParamRepository, SyncRepository, TagRepository};
 
@@ -369,7 +369,8 @@ fn App() -> Element {
         let sort = *current_sort.read();
         let tag_filter = selected_tag.read().clone();
         let series_filter = selected_series.read().clone();
-        let query = search_query.read().trim().to_lowercase();
+        let raw_query = search_query.read();
+        let parsed_query = SearchQuery::parse(&raw_query);
 
         let mut list: Vec<Book> = all
             .iter()
@@ -399,15 +400,9 @@ fn App() -> Element {
                     }
                 }
 
-                // Query Search
-                if !query.is_empty() {
-                    let in_title = b.title.to_lowercase().contains(&query);
-                    let in_author = b.author.to_lowercase().contains(&query);
-                    let in_series = b.series.as_deref().map(|s| s.to_lowercase().contains(&query)).unwrap_or(false);
-                    let in_tags = b.tags.iter().any(|t| t.name.to_lowercase().contains(&query));
-                    if !in_title && !in_author && !in_tags && !in_series {
-                        return false;
-                    }
+                // Calibre Advanced Query Search (author:, series:, tag:, format:, not, quotes...)
+                if !parsed_query.is_empty() && !parsed_query.matches(b) {
+                    return false;
                 }
 
                 true
@@ -452,6 +447,58 @@ fn App() -> Element {
                     }
                 }
                 refresh();
+            }
+        }
+    };
+
+    // Handle Calibre library import via native folder/file picker
+    let handle_import_calibre = {
+        let bs = book_service.clone();
+        let refresh = refresh_library.clone();
+        move |()| {
+            let folder = rfd::FileDialog::new()
+                .set_title("Sélectionner le dossier de votre bibliothèque Calibre (ou fichier metadata.db)")
+                .pick_folder();
+
+            let target_path = if let Some(f) = folder {
+                Some(f)
+            } else {
+                rfd::FileDialog::new()
+                    .set_title("Sélectionner le fichier metadata.db de Calibre")
+                    .add_filter("Base de données Calibre", &["db"])
+                    .pick_file()
+            };
+
+            if let Some(path) = target_path {
+                tracing::info!("Importation de la bibliothèque Calibre depuis: {:?}", path);
+                let bs_cloned = bs.clone();
+                let mut refresh_cloned = refresh.clone();
+                spawn(async move {
+                    let path_cloned = path.clone();
+                    let res = tokio::task::spawn_blocking(move || {
+                        bs_cloned.import_calibre_library(&path_cloned, true)
+                    })
+                    .await;
+
+                    match res {
+                        Ok(Ok(report)) => {
+                            tracing::info!(
+                                "Migration Calibre terminée avec succès : {} livres importés, {} formats, {} séries, {} tags",
+                                report.books_imported,
+                                report.formats_imported,
+                                report.series_count,
+                                report.tags_count
+                            );
+                            refresh_cloned();
+                        }
+                        Ok(Err(e)) => {
+                            tracing::error!("Erreur lors de l'import Calibre: {e}");
+                        }
+                        Err(e) => {
+                            tracing::error!("Tâche de fond interrompue: {e}");
+                        }
+                    }
+                });
             }
         }
     };
@@ -922,6 +969,7 @@ fn App() -> Element {
         let mut ss = selected_series.clone();
         let mut hr = handle_read.clone();
         let mut hi = handle_import.clone();
+        let hic = handle_import_calibre.clone();
         let mut hsc = handle_sync_now.clone();
         let mut so = settings_open.clone();
         move |act: PaletteAction| {
@@ -949,6 +997,7 @@ fn App() -> Element {
                     ss.set(None);
                 }
                 PaletteAction::ImportBooks => hi(()),
+                PaletteAction::ImportCalibre => hic(()),
                 PaletteAction::SyncCloud => hsc(()),
                 PaletteAction::OpenSettings => so.set(true),
             }
@@ -977,6 +1026,7 @@ fn App() -> Element {
                 sync_available: sync_service.is_backend_available(),
                 is_syncing: *is_syncing.read(),
                 on_import: handle_import.clone(),
+                on_import_calibre: handle_import_calibre.clone(),
                 on_sync_device: handle_sync_device.clone(),
                 on_sync_cloud: handle_sync_now.clone(),
                 on_open_palette: move |_| palette_open.set(true),

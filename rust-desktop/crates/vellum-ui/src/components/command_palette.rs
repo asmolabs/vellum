@@ -10,6 +10,7 @@ pub enum PaletteAction {
     FilterFinished,
     FilterToRead,
     ImportBooks,
+    ImportCalibre,
     SyncCloud,
     OpenSettings,
 }
@@ -45,6 +46,7 @@ pub fn CommandPalette(
     // Quick built-in actions
     let all_actions = [
         ("📥 Importer des livres (Fichiers EPUB, PDF, CBZ...)", PaletteAction::ImportBooks, "import ajouter"),
+        ("📦 Importer une bibliothèque Calibre (metadata.db)", PaletteAction::ImportCalibre, "calibre import migration db metadata"),
         ("☁️ Synchroniser maintenant avec Google Drive", PaletteAction::SyncCloud, "synchro drive cloud gdrive"),
         ("⚙️ Ouvrir les Paramètres & Diagnostics", PaletteAction::OpenSettings, "paramètres settings config"),
         ("📖 Afficher les livres en cours de lecture", PaletteAction::FilterReading, "en cours lecture reading"),

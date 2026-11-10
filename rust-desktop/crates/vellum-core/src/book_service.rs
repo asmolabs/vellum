@@ -1274,4 +1274,17 @@ impl BookService {
         self.book_repo.save(&new_book)?;
         Ok(new_book)
     }
+
+    /// Imports an entire Calibre library (metadata.db) into Vellum
+    pub fn import_calibre_library(
+        &self,
+        calibre_path: &Path,
+        copy_files: bool,
+    ) -> VellumResult<crate::calibre_importer::CalibreImportReport> {
+        crate::calibre_importer::CalibreImporter::import_calibre_library(
+            calibre_path,
+            copy_files,
+            self,
+        )
+    }
 }

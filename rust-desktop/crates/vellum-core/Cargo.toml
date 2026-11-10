@@ -27,6 +27,7 @@ base64.workspace = true
 dirs.workspace = true
 tempfile.workspace = true
 lettre.workspace = true
+rusqlite.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

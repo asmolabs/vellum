@@ -9,6 +9,7 @@ pub fn Header(
     sync_available: bool,
     is_syncing: bool,
     on_import: EventHandler<()>,
+    on_import_calibre: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
     on_sync_cloud: EventHandler<()>,
     on_open_palette: EventHandler<()>,
@@ -26,7 +27,7 @@ pub fn Header(
                 span { class: "search-icon-slot", "🔍" }
                 input {
                     r#type: "text",
-                    placeholder: "Rechercher par titre, auteur, saga...",
+                    placeholder: "Rechercher (ex: Dune, author:Herbert, series:Fondation, tag:SF)...",
                     value: "{search_query}",
                     oninput: move |evt| search_query.set(evt.value()),
                 }
@@ -96,6 +97,14 @@ pub fn Header(
                     }
                 }
 
+                button {
+                    class: "btn btn-secondary",
+                    style: "border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; font-size: 12px; gap: 6px; padding: 6px 12px;",
+                    title: "Migrer ou importer une bibliothèque Calibre existante (metadata.db)",
+                    onclick: move |_| on_import_calibre.call(()),
+                    span { "📦" }
+                    span { "Calibre" }
+                }
                 button {
                     class: "btn btn-primary",
                     onclick: move |_| on_import.call(()),
