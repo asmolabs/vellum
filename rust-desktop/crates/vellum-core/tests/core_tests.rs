@@ -931,6 +931,102 @@ async fn test_calibre_library_import() {
     assert_eq!(imported_book.formats[0].format, "epub");
 }
 
+#[tokio::test]
+async fn test_epub_inspector_and_toc_editor() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    // Create an EPUB with a heading and a missing TOC
+    let incoming = temp.path().join("incoming");
+    std::fs::create_dir_all(&incoming).unwrap();
+    let epub_path = incoming.join("Dune.epub");
+
+    {
+        let f = File::create(&epub_path).unwrap();
+        let mut zip = ZipWriter::new(f);
+        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        zip.start_file("mimetype", stored).unwrap();
+        zip.write_all(b"application/epub+zip").unwrap();
+
+        zip.start_file("META-INF/container.xml", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>"#,
+        )
+        .unwrap();
+
+        zip.start_file("content.opf", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Dune</dc:title>
+    <dc:creator>Frank Herbert</dc:creator>
+  </metadata>
+  <manifest>
+    <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1"/>
+  </spine>
+</package>"#,
+        )
+        .unwrap();
+
+        zip.start_file("ch1.xhtml", deflated).unwrap();
+        zip.write_all(
+            br#"<!DOCTYPE html><html><body><h1>Chapitre Premier : Arrakis</h1><p>Dune</p></body></html>"#,
+        )
+        .unwrap();
+
+        // Add a junk file to test linting & cleaning
+        zip.start_file(".DS_Store", deflated).unwrap();
+        zip.write_all(b"junk").unwrap();
+
+        zip.finish().unwrap();
+    }
+
+    let book = book_service.import_book(&epub_path).expect("import book");
+
+    // 1. Inspect EPUB
+    let diag = book_service.inspect_book_epub(&book.id).expect("inspect epub");
+    assert_eq!(diag.epub_version, "2.0");
+    assert_eq!(diag.spine_count, 1);
+    assert_eq!(diag.toc_entries_count, 0); // Missing TOC detected
+    assert!(diag.issues.iter().any(|i| i.code == "MISSING_TOC"));
+    assert!(diag.issues.iter().any(|i| i.code == "ORPHAN_ZIP_FILE"));
+
+    // 2. Generate TOC from headings
+    let generated_toc = book_service
+        .generate_book_toc_from_headings(&book.id)
+        .expect("generate toc");
+    assert_eq!(generated_toc.len(), 1);
+    assert_eq!(generated_toc[0].label, "Chapitre Premier : Arrakis");
+
+    // 3. Save TOC
+    book_service
+        .update_book_toc(&book.id, &generated_toc)
+        .expect("update toc");
+
+    // 4. Retrieve TOC
+    let retrieved_toc = book_service.get_book_toc(&book.id).expect("get toc");
+    assert_eq!(retrieved_toc.len(), 1);
+    assert_eq!(retrieved_toc[0].label, "Chapitre Premier : Arrakis");
+
+    // 5. Clean & repair
+    let diag_after = book_service.repair_book_epub(&book.id).expect("repair epub");
+    assert!(!diag_after.issues.iter().any(|i| i.code == "ORPHAN_ZIP_FILE"));
+    assert!(diag_after.toc_entries_count >= 1);
+    assert!(diag_after.is_valid);
+}
+
+
 
 
 

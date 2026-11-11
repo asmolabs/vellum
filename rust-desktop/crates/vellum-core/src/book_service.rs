@@ -6,10 +6,13 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use vellum_domain::{Book, BookFormat, Tag, VellumError, VellumResult};
+use vellum_domain::{
+    Book, BookFormat, EpubDiagnostics, EpubTocEntry, Tag, VellumError, VellumResult,
+};
 use vellum_storage::{BookRepository, ParamRepository, SyncRepository, TagRepository};
 
 use crate::conversion_service::ConversionService;
+use crate::epub_editor::EpubEditor;
 use crate::metadata_service::MetadataService;
 use crate::plugin_service::PluginService;
 
@@ -39,6 +42,12 @@ pub struct BookService {
     plugin_service: PluginService,
     conversion_service: ConversionService,
     library_path: PathBuf,
+}
+
+impl PartialEq for BookService {
+    fn eq(&self, other: &Self) -> bool {
+        self.client_id == other.client_id && self.library_path == other.library_path
+    }
 }
 
 impl BookService {
@@ -1333,5 +1342,65 @@ impl BookService {
         tracing::info!("Livre '{}' exporté avec succès vers {:?}", book.title, dest_path);
 
         Ok(dest_path)
+    }
+
+    fn resolve_epub_path(&self, book_id: &str) -> VellumResult<(Book, PathBuf)> {
+        let book = self
+            .book_repo
+            .find_by_id(book_id)?
+            .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {book_id}")))?;
+
+        let format_entry = book
+            .formats
+            .iter()
+            .find(|f| f.format.eq_ignore_ascii_case("epub") || f.format.eq_ignore_ascii_case("kepub"))
+            .ok_or_else(|| {
+                VellumError::NotFound(format!("Le livre '{}' ne possède aucun format EPUB", book.title))
+            })?;
+
+        let path = if Path::new(&format_entry.filepath).is_absolute() {
+            PathBuf::from(&format_entry.filepath)
+        } else {
+            self.library_path.join(&format_entry.filepath)
+        };
+
+        if !path.exists() {
+            return Err(VellumError::NotFound(format!(
+                "Fichier EPUB introuvable sur le disque: {:?}",
+                path
+            )));
+        }
+
+        Ok((book, path))
+    }
+
+    /// Inspects the internal structure of a book's EPUB file (manifest, spine, toc, issues)
+    pub fn inspect_book_epub(&self, book_id: &str) -> VellumResult<EpubDiagnostics> {
+        let (_book, epub_path) = self.resolve_epub_path(book_id)?;
+        EpubEditor::inspect(&epub_path)
+    }
+
+    /// Extracts the Table of Contents from a book's EPUB file
+    pub fn get_book_toc(&self, book_id: &str) -> VellumResult<Vec<EpubTocEntry>> {
+        let (_book, epub_path) = self.resolve_epub_path(book_id)?;
+        EpubEditor::extract_toc(&epub_path)
+    }
+
+    /// Saves an updated Table of Contents back to the book's EPUB file
+    pub fn update_book_toc(&self, book_id: &str, new_toc: &[EpubTocEntry]) -> VellumResult<()> {
+        let (_book, epub_path) = self.resolve_epub_path(book_id)?;
+        EpubEditor::save_toc(&epub_path, new_toc)
+    }
+
+    /// Automatically generates a fresh Table of Contents based on HTML heading tags
+    pub fn generate_book_toc_from_headings(&self, book_id: &str) -> VellumResult<Vec<EpubTocEntry>> {
+        let (_book, epub_path) = self.resolve_epub_path(book_id)?;
+        EpubEditor::generate_toc_from_headings(&epub_path)
+    }
+
+    /// Cleans and repairs the book's EPUB file (mimetype placement, DRM stripping, TOC generation)
+    pub fn repair_book_epub(&self, book_id: &str) -> VellumResult<EpubDiagnostics> {
+        let (_book, epub_path) = self.resolve_epub_path(book_id)?;
+        EpubEditor::clean_and_repair(&epub_path)
     }
 }

@@ -10,8 +10,8 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BulkEditModal, CommandPalette, DetailDrawer, Header, PaletteAction, ReaderModal,
-    SettingsModal, Sidebar, TranslateModal, TranslationRequest,
+    BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header, PaletteAction,
+    ReaderModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption};
 use styles::APP_CSS;
@@ -309,6 +309,7 @@ fn App() -> Element {
     let mut selected_ids = use_signal(|| std::collections::HashSet::<String>::new());
     let mut translating_book = use_signal(|| None::<Book>);
     let mut is_translating = use_signal(|| false);
+    let mut epub_editing_book = use_signal(|| None::<Book>);
 
     let mail_service = services.mail_service.clone();
     let mut smtp_config = use_signal(|| services.smtp_config.clone());
@@ -1231,9 +1232,25 @@ fn App() -> Element {
                             is_sending_kindle: *is_sending_kindle.read(),
                             on_send_to_kindle: handle_send_to_kindle.clone(),
                             on_export_file: handle_export_file.clone(),
+                            on_open_epub_editor: move |b| epub_editing_book.set(Some(b)),
                         }
 
                     }
+                }
+            }
+
+            // EPUB Inspector & TOC Editor Modal
+            if let Some(book) = epub_editing_book.read().as_ref() {
+                EpubEditorModal {
+                    book: book.clone(),
+                    book_service: book_service.clone(),
+                    on_close: move |_| epub_editing_book.set(None),
+                    on_updated: {
+                        let mut refresh = refresh_library.clone();
+                        move |_| {
+                            refresh();
+                        }
+                    },
                 }
             }
 

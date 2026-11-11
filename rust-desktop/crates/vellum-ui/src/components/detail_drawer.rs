@@ -31,6 +31,7 @@ pub fn DetailDrawer(
     is_sending_kindle: bool,
     on_send_to_kindle: EventHandler<Book>,
     on_export_file: EventHandler<(String, Option<String>)>,
+    on_open_epub_editor: EventHandler<Book>,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
 
@@ -429,6 +430,18 @@ pub fn DetailDrawer(
                                         move |_| on_export_file.call((b_id.clone(), None))
                                     },
                                     "💾 Exporter le fichier..."
+                                }
+
+                                if book.formats.iter().any(|f| f.format.eq_ignore_ascii_case("epub") || f.format.eq_ignore_ascii_case("kepub")) {
+                                    button {
+                                        class: "drawer-action-btn",
+                                        style: "width: 100%; justify-content: center; background: rgba(14, 165, 233, 0.12); color: #38bdf8; border-color: rgba(14, 165, 233, 0.3); font-weight: 600;",
+                                        onclick: {
+                                            let book_clone = book.clone();
+                                            move |_| on_open_epub_editor.call(book_clone.clone())
+                                        },
+                                        "🛠️ Inspecteur & TOC EPUB"
+                                    }
                                 }
 
                                 // eReader Export Actions
