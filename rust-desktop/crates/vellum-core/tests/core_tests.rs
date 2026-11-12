@@ -1284,6 +1284,98 @@ async fn test_news_recipe_generation_and_library_import() {
     assert!(provider.chapter_html(1).contains("Antigravity 2.0 Unveiled"));
 }
 
+#[tokio::test]
+async fn test_library_health_audit_and_merge_books() {
+    let tmp = tempfile::tempdir().unwrap();
+    let library_dir = tmp.path().join("library");
+    std::fs::create_dir_all(&library_dir).unwrap();
+
+    let db = vellum_storage::Database::open_in_memory().unwrap();
+    let book_repo = vellum_storage::BookRepository::new(db.clone());
+    let param_repo = vellum_storage::ParamRepository::new(db.clone());
+    let tag_repo = vellum_storage::TagRepository::new(db.clone());
+
+    let plugin_service = vellum_core::PluginService::new(param_repo.clone(), None);
+    let metadata_service = vellum_core::MetadataService::new(plugin_service.clone());
+    let conversion_service = vellum_core::ConversionService::new(plugin_service.clone());
+
+    let book_service = vellum_core::BookService::new(
+        book_repo,
+        param_repo,
+        tag_repo,
+        metadata_service,
+        plugin_service,
+        conversion_service,
+        library_dir.clone(),
+    );
+
+    // Create a dummy EPUB file on disk
+    let dummy_epub = library_dir.join("test.epub");
+    std::fs::write(&dummy_epub, b"PK00dummyepubdata").unwrap();
+
+    // Create a dummy PDF file on disk
+    let dummy_pdf = library_dir.join("test.pdf");
+    std::fs::write(&dummy_pdf, b"%PDF-1.4 dummy pdf data").unwrap();
+
+    // Create Book 1: EPUB with tag "Classique"
+    let mut b1 = vellum_domain::Book::new("Les Misérables", "Victor Hugo");
+    b1.description = Some("Un immense roman social et historique.".to_string());
+    b1.publisher = Some("A. Lacroix, Verboeckhoven & Ce".to_string());
+    b1.publish_date = Some("1862".to_string());
+    b1.isbn = Some("9782070409228".to_string());
+    b1.progress_percent = 25.0;
+    b1.add_tag(vellum_domain::Tag::new("Classique"));
+    let _ = book_service.tag_repo().save(&vellum_domain::Tag::new("Classique"));
+    let b1 = book_service.book_repo().save(&b1).unwrap();
+    let b1 = book_service.add_format_to_book(&b1.id, &dummy_epub).unwrap();
+
+    // Create Book 2: Duplicate with slight title variation and author inversion, in PDF format
+    let mut b2 = vellum_domain::Book::new("Les Misérables - Tome 1 (Édition Collector)", "Hugo Victor");
+    b2.progress_percent = 60.0;
+    b2.add_tag(vellum_domain::Tag::new("Roman"));
+    let _ = book_service.tag_repo().save(&vellum_domain::Tag::new("Roman"));
+    let b2 = book_service.book_repo().save(&b2).unwrap();
+    let b2 = book_service.add_format_to_book(&b2.id, &dummy_pdf).unwrap();
+
+    // 1. Audit: Should detect 1 duplicate pair with high similarity
+    let audit1 = book_service.audit_library().expect("audit library");
+    assert_eq!(audit1.total_books, 2);
+    assert_eq!(audit1.duplicate_pairs.len(), 1);
+    assert!(audit1.duplicate_pairs[0].similarity_score >= 0.85);
+    assert_eq!(audit1.total_formats, 2);
+
+    // 2. Merge Book 2 into Book 1
+    let merged = book_service.merge_books(&b1.id, &b2.id).expect("merge books");
+
+    // Verify merged result
+    assert_eq!(merged.id, b1.id);
+    assert_eq!(merged.title, "Les Misérables");
+    assert_eq!(merged.author, "Victor Hugo");
+    // Formats: now contains both EPUB and PDF
+    assert_eq!(merged.formats.len(), 2);
+    assert!(merged.formats.iter().any(|f| f.format == "epub"));
+    assert!(merged.formats.iter().any(|f| f.format == "pdf"));
+    // Tags: contains both "Classique" and "Roman"
+    assert!(merged.tags.iter().any(|t| t.name == "Classique"));
+    assert!(merged.tags.iter().any(|t| t.name == "Roman"));
+    // Reading progress: took the highest (60%)
+    assert_eq!(merged.progress_percent, 60.0);
+    // Description preserved
+    assert!(merged.description.as_ref().unwrap().contains("roman social"));
+
+    // Verify Book 2 was deleted from repository
+    let b2_check = book_service.book_repo().find_by_id(&b2.id).unwrap();
+    assert!(b2_check.is_none());
+
+    // 3. Re-audit: Now only 1 book and 0 duplicates!
+    let audit2 = book_service.audit_library().expect("second audit");
+    assert_eq!(audit2.total_books, 1);
+    assert_eq!(audit2.duplicate_pairs.len(), 0);
+    assert_eq!(audit2.total_formats, 2);
+    assert!(audit2.overall_score >= audit1.overall_score);
+}
+
+
 
 
 

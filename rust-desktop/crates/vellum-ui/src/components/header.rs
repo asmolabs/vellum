@@ -10,6 +10,7 @@ pub fn Header(
     is_syncing: bool,
     on_import: EventHandler<()>,
     on_import_calibre: EventHandler<()>,
+    on_open_audit: EventHandler<()>,
     on_open_news: EventHandler<()>,
     on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
@@ -99,6 +100,14 @@ pub fn Header(
                     }
                 }
 
+                button {
+                    class: "btn btn-secondary",
+                    style: "border-color: rgba(52, 211, 153, 0.4); color: #34d399; font-size: 12px; gap: 6px; padding: 6px 12px;",
+                    title: "Audit de santé, détection des doublons et fusion intelligente",
+                    onclick: move |_| on_open_audit.call(()),
+                    span { "🛡️" }
+                    span { "Santé" }
+                }
                 button {
                     class: "btn btn-secondary",
                     style: "border-color: rgba(14, 165, 233, 0.4); color: #38bdf8; font-size: 12px; gap: 6px; padding: 6px 12px;",

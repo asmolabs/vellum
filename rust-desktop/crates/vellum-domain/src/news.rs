@@ -52,3 +52,4 @@ pub struct NewsArticle {
     pub content_html: String,
     pub feed_name: String,
 }
+

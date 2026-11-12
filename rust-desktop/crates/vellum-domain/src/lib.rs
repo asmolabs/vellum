@@ -2,6 +2,7 @@ pub mod config;
 pub mod entity;
 pub mod epub;
 pub mod error;
+pub mod health;
 pub mod news;
 pub mod plugin;
 pub mod sync;
@@ -11,6 +12,7 @@ pub use config::{AppConfig, LitestreamConfig, SmtpConfig};
 pub use entity::{Book, BookFormat, Param, ReadingStats, Tag};
 pub use epub::{EpubDiagnostics, EpubIssue, EpubIssueSeverity, EpubTocEntry};
 pub use error::{VellumError, VellumResult};
+pub use health::{DuplicatePair, IncompleteBookIssue, LibraryHealthReport, MissingFileIssue};
 pub use news::{NewsArticle, NewsFeedConfig, NewsRecipe};
 pub use plugin::{
     BookConverterPlugin, BookFormatPlugin, BookTransformationPlugin, ConfigField,

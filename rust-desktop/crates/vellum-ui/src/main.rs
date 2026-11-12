@@ -11,8 +11,8 @@ mod styles;
 
 use components::{
     BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header,
-    NewsRecipesModal, PaletteAction, ReaderModal, SettingsModal, Sidebar, TranslateModal,
-    TranslationRequest,
+    LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal, SettingsModal, Sidebar,
+    TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption};
 use styles::APP_CSS;
@@ -320,6 +320,7 @@ fn App() -> Element {
     let mut is_translating = use_signal(|| false);
     let mut epub_editing_book = use_signal(|| None::<Book>);
     let mut news_recipes_open = use_signal(|| false);
+    let mut audit_open = use_signal(|| false);
 
     let news_service = services.news_service.clone();
     let mail_service = services.mail_service.clone();
@@ -1017,6 +1018,7 @@ fn App() -> Element {
         let mut hsc = handle_sync_now.clone();
         let mut so = settings_open.clone();
         let mut nro = news_recipes_open.clone();
+        let mut ao = audit_open.clone();
         move |act: PaletteAction| {
             match act {
                 PaletteAction::SelectBook(b) => sb.set(Some(b)),
@@ -1044,6 +1046,7 @@ fn App() -> Element {
                 PaletteAction::ImportBooks => hi(()),
                 PaletteAction::ImportCalibre => hic(()),
                 PaletteAction::OpenNewsRecipes => nro.set(true),
+                PaletteAction::OpenLibraryAudit => ao.set(true),
                 PaletteAction::OpenWebCompanion => {
                     let _ = open::that(&format!("http://localhost:{opds_port}"));
                 }
@@ -1083,6 +1086,7 @@ fn App() -> Element {
                 is_syncing: *is_syncing.read(),
                 on_import: handle_import.clone(),
                 on_import_calibre: handle_import_calibre.clone(),
+                on_open_audit: move |_| audit_open.set(true),
                 on_open_news: move |_| news_recipes_open.set(true),
                 on_open_web_companion: handle_open_web_companion.clone(),
                 on_sync_device: handle_sync_device.clone(),
@@ -1295,6 +1299,20 @@ fn App() -> Element {
                     news_service: news_service.clone(),
                     on_close: move |_| news_recipes_open.set(false),
                     on_imported: {
+                        let mut refresh = refresh_library.clone();
+                        move |_| {
+                            refresh();
+                        }
+                    },
+                }
+            }
+
+            // Library Health & Audit Modal
+            if *audit_open.read() {
+                LibraryAuditModal {
+                    book_service: book_service.clone(),
+                    on_close: move |_| audit_open.set(false),
+                    on_updated: {
                         let mut refresh = refresh_library.clone();
                         move |_| {
                             refresh();
