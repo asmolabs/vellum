@@ -57,3 +57,4 @@ pub struct EpubDiagnostics {
     pub issues: Vec<EpubIssue>,
     pub is_valid: bool,
 }
+

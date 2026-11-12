@@ -10,6 +10,7 @@ pub fn Header(
     is_syncing: bool,
     on_import: EventHandler<()>,
     on_import_calibre: EventHandler<()>,
+    on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
     on_sync_cloud: EventHandler<()>,
     on_open_palette: EventHandler<()>,
@@ -97,6 +98,14 @@ pub fn Header(
                     }
                 }
 
+                button {
+                    class: "btn btn-secondary",
+                    style: "border-color: rgba(99, 102, 241, 0.4); color: #818cf8; font-size: 12px; gap: 6px; padding: 6px 12px;",
+                    title: "Ouvrir le Compagnon Web Mobile & Serveur OPDS dans le navigateur",
+                    onclick: move |_| on_open_web_companion.call(()),
+                    span { "🌐" }
+                    span { "Web" }
+                }
                 button {
                     class: "btn btn-secondary",
                     style: "border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; font-size: 12px; gap: 6px; padding: 6px 12px;",

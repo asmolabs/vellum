@@ -5,13 +5,15 @@ use axum::extract::{Path as AxPath, Query, State};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use axum::Router;
+use axum::routing::{get, post};
+use axum::{Json, Router};
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
 
 use crate::book_service::BookService;
+use crate::reader_provider::create_content_provider;
+use crate::web_companion_assets::{library_page_html, reader_page_html};
 use vellum_domain::VellumResult;
 
 #[derive(Clone)]
@@ -25,6 +27,49 @@ pub struct CatalogQuery {
     pub tag: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookDto {
+    pub id: String,
+    pub title: String,
+    pub author: String,
+    pub series: Option<String>,
+    pub series_index: Option<f64>,
+    pub publisher: Option<String>,
+    pub publish_date: Option<String>,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    pub formats: Vec<FormatDto>,
+    pub has_cover: bool,
+    pub added_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FormatDto {
+    pub format: String,
+    pub filename: String,
+    pub filesize: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TocItemDto {
+    pub index: usize,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChapterContentDto {
+    pub chapter_index: usize,
+    pub total_chapters: usize,
+    pub title: String,
+    pub html: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProgressUpdateDto {
+    pub chapter_index: usize,
+    pub percentage: Option<f64>,
+}
+
 impl OpdsServer {
     pub fn new(book_service: BookService) -> Self {
         Self { book_service }
@@ -33,6 +78,19 @@ impl OpdsServer {
     pub fn router(book_service: BookService) -> Router {
         let shared = Arc::new(book_service);
         Router::new()
+            // 1. Web Companion & Mobile Reader UI
+            .route("/", get(web_library_handler))
+            .route("/read/:id", get(web_reader_handler))
+            // 2. REST API for Web & Mobile Clients
+            .route("/api/status", get(api_status_handler))
+            .route("/api/books", get(api_books_handler))
+            .route("/api/books/:id", get(api_book_detail_handler))
+            .route("/api/books/:id/cover", get(cover_handler))
+            .route("/api/books/:id/toc", get(api_book_toc_handler))
+            .route("/api/books/:id/chapter/:idx", get(api_book_chapter_handler))
+            .route("/api/books/:id/progress", post(api_book_progress_handler))
+            .route("/api/books/:id/download/:format", get(download_handler))
+            // 3. OPDS 1.2 Catalog Feed (for KOReader, Moon+, etc.)
             .route("/opds", get(root_catalog_handler))
             .route("/opds/books", get(books_catalog_handler))
             .route("/opds/covers/:id", get(cover_handler))
@@ -77,6 +135,197 @@ pub fn get_mime_type(format: &str) -> &'static str {
         _ => "application/octet-stream",
     }
 }
+
+// --- Web Handlers ---
+
+async fn web_library_handler() -> Response {
+    let html = library_page_html();
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    (StatusCode::OK, headers, html).into_response()
+}
+
+async fn web_reader_handler(AxPath(_book_id): AxPath<String>) -> Response {
+    let html = reader_page_html();
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    (StatusCode::OK, headers, html).into_response()
+}
+
+// --- REST API Handlers ---
+
+async fn api_status_handler(State(service): State<Arc<BookService>>) -> Response {
+    let count = service.book_repo().count().unwrap_or(0);
+    Json(serde_json::json!({
+        "status": "ok",
+        "version": "1.0.0",
+        "total_books": count,
+    }))
+    .into_response()
+}
+
+async fn api_books_handler(
+    State(service): State<Arc<BookService>>,
+    Query(query): Query<CatalogQuery>,
+) -> Response {
+    let books = service
+        .get_books(query.search.as_deref(), query.tag.as_deref())
+        .unwrap_or_default();
+
+    let dtos: Vec<BookDto> = books
+        .into_iter()
+        .map(|b| {
+            let formats = b
+                .formats
+                .iter()
+                .map(|f| FormatDto {
+                    format: f.format.clone(),
+                    filename: f.filename.clone(),
+                    filesize: f.filesize,
+                })
+                .collect();
+            let tags = b.tags.into_iter().map(|t| t.name).collect();
+            let has_cover = b.cover_path.is_some();
+            BookDto {
+                id: b.id,
+                title: b.title,
+                author: b.author,
+                series: b.series,
+                series_index: b.series_index,
+                publisher: b.publisher,
+                publish_date: b.publish_date,
+                description: b.description,
+                tags,
+                formats,
+                has_cover,
+                added_at: b.added_at,
+            }
+        })
+        .collect();
+
+    Json(dtos).into_response()
+}
+
+async fn api_book_detail_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath(book_id): AxPath<String>,
+) -> Response {
+    if let Ok(Some(b)) = service.get_book_by_id(&book_id) {
+        let formats = b
+            .formats
+            .iter()
+            .map(|f| FormatDto {
+                format: f.format.clone(),
+                filename: f.filename.clone(),
+                filesize: f.filesize,
+            })
+            .collect();
+        let tags = b.tags.into_iter().map(|t| t.name).collect();
+        let has_cover = b.cover_path.is_some();
+        let dto = BookDto {
+            id: b.id,
+            title: b.title,
+            author: b.author,
+            series: b.series,
+            series_index: b.series_index,
+            publisher: b.publisher,
+            publish_date: b.publish_date,
+            description: b.description,
+            tags,
+            formats,
+            has_cover,
+            added_at: b.added_at,
+        };
+        Json(dto).into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
+}
+
+async fn api_book_toc_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath(book_id): AxPath<String>,
+) -> Response {
+    if let Ok(Some(book)) = service.get_book_by_id(&book_id) {
+        if let Some(fmt) = book
+            .formats
+            .iter()
+            .find(|f| f.format.eq_ignore_ascii_case("epub"))
+            .or_else(|| book.formats.first())
+        {
+            let path = service.get_file_for_format(fmt);
+            if path.exists() {
+                let provider = create_content_provider(&path);
+                let toc_raw = provider.get_table_of_contents();
+                let toc_dtos: Vec<TocItemDto> = toc_raw
+                    .into_iter()
+                    .map(|(index, title)| TocItemDto { index, title })
+                    .collect();
+                return Json(toc_dtos).into_response();
+            }
+        }
+    }
+    StatusCode::NOT_FOUND.into_response()
+}
+
+async fn api_book_chapter_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath((book_id, chapter_idx)): AxPath<(String, usize)>,
+) -> Response {
+    if let Ok(Some(book)) = service.get_book_by_id(&book_id) {
+        if let Some(fmt) = book
+            .formats
+            .iter()
+            .find(|f| f.format.eq_ignore_ascii_case("epub"))
+            .or_else(|| book.formats.first())
+        {
+            let path = service.get_file_for_format(fmt);
+            if path.exists() {
+                let provider = create_content_provider(&path);
+                let total = provider.chapter_count();
+                if chapter_idx < total {
+                    let title = provider.chapter_title(chapter_idx);
+                    let html = provider.chapter_html(chapter_idx);
+                    return Json(ChapterContentDto {
+                        chapter_index: chapter_idx,
+                        total_chapters: total,
+                        title,
+                        html,
+                    })
+                    .into_response();
+                }
+            }
+        }
+    }
+    StatusCode::NOT_FOUND.into_response()
+}
+
+async fn api_book_progress_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath(book_id): AxPath<String>,
+    Json(body): Json<ProgressUpdateDto>,
+) -> Response {
+    let percent = body.percentage.unwrap_or(0.0) * 100.0;
+    let finished = percent >= 99.0;
+    if let Ok(_) = service.update_reading_progress(
+        &book_id,
+        body.chapter_index as i32,
+        0,
+        percent,
+        finished,
+    ) {
+        return Json(serde_json::json!({ "status": "ok" })).into_response();
+    }
+    StatusCode::NOT_FOUND.into_response()
+}
+
+// --- OPDS Catalog Handlers ---
 
 async fn root_catalog_handler() -> Response {
     let now = Utc::now().to_rfc3339();
@@ -129,7 +378,7 @@ async fn books_catalog_handler(
   <updated>{now}</updated>
   <author><name>Vellum</name></author>
   <link rel="self" href="/opds/books" type="application/atom+xml;profile=opds-catalog"/>
-  <link rel="start" href="/opds" type="application/atom+xml;profile=opds-catalog"/>
+  <link rel="start" href="/opds/books" type="application/atom+xml;profile=opds-catalog"/>
 "#
     );
 

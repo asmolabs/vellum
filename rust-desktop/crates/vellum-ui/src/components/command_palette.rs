@@ -11,6 +11,7 @@ pub enum PaletteAction {
     FilterToRead,
     ImportBooks,
     ImportCalibre,
+    OpenWebCompanion,
     SyncCloud,
     OpenSettings,
 }
@@ -47,6 +48,7 @@ pub fn CommandPalette(
     let all_actions = [
         ("📥 Importer des livres (Fichiers EPUB, PDF, CBZ...)", PaletteAction::ImportBooks, "import ajouter"),
         ("📦 Importer une bibliothèque Calibre (metadata.db)", PaletteAction::ImportCalibre, "calibre import migration db metadata"),
+        ("🌐 Ouvrir le Compagnon Web Mobile & OPDS (navigateur)", PaletteAction::OpenWebCompanion, "web companion mobile lecteur opds phone navigateur"),
         ("☁️ Synchroniser maintenant avec Google Drive", PaletteAction::SyncCloud, "synchro drive cloud gdrive"),
         ("⚙️ Ouvrir les Paramètres & Diagnostics", PaletteAction::OpenSettings, "paramètres settings config"),
         ("📖 Afficher les livres en cours de lecture", PaletteAction::FilterReading, "en cours lecture reading"),

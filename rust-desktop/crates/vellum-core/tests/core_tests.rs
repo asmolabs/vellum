@@ -1026,6 +1026,192 @@ async fn test_epub_inspector_and_toc_editor() {
     assert!(diag_after.is_valid);
 }
 
+#[tokio::test]
+async fn test_web_companion_server_and_api() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    // Create an EPUB book
+    let incoming = temp.path().join("incoming");
+    std::fs::create_dir_all(&incoming).unwrap();
+    let epub_path = incoming.join("Hyperion.epub");
+
+    {
+        let f = File::create(&epub_path).unwrap();
+        let mut zip = ZipWriter::new(f);
+        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        zip.start_file("mimetype", stored).unwrap();
+        zip.write_all(b"application/epub+zip").unwrap();
+
+        zip.start_file("META-INF/container.xml", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>"#,
+        )
+        .unwrap();
+
+        zip.start_file("content.opf", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Hyperion</dc:title>
+    <dc:creator>Dan Simmons</dc:creator>
+  </metadata>
+  <manifest>
+    <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="c1"/>
+    <itemref idref="c2"/>
+  </spine>
+</package>"#,
+        )
+        .unwrap();
+
+        zip.start_file("ch1.xhtml", deflated).unwrap();
+        zip.write_all(
+            br#"<!DOCTYPE html><html><body><h1>Chapitre 1 : Le Consul</h1><p>Sur le vaisseau...</p></body></html>"#,
+        )
+        .unwrap();
+
+        zip.start_file("ch2.xhtml", deflated).unwrap();
+        zip.write_all(
+            r#"<!DOCTYPE html><html><body><h2>Chapitre 2 : Le Prêtre</h2><p>Le père Duré...</p></body></html>"#.as_bytes(),
+        )
+        .unwrap();
+
+        zip.finish().unwrap();
+    }
+
+    let book = book_service.import_book(&epub_path).expect("import book");
+
+    // Spawn server on ephemeral port (port 0 binds any free port)
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let app = vellum_core::opds_server::OpdsServer::router(book_service.clone());
+
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let client = reqwest::Client::new();
+    let base_url = format!("http://127.0.0.1:{port}");
+
+    // 1. Test Web Companion Library Page (HTML)
+    let res_html = client.get(&base_url).send().await.unwrap();
+    assert_eq!(res_html.status(), 200);
+    let body_html = res_html.text().await.unwrap();
+    assert!(body_html.contains("Vellum Companion"));
+
+    // 2. Test Web Reader Page (HTML)
+    let res_reader = client
+        .get(&format!("{base_url}/read/{}", book.id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_reader.status(), 200);
+    let body_reader = res_reader.text().await.unwrap();
+    assert!(body_reader.contains("Lecteur Vellum"));
+
+    // 3. Test API Status
+    let res_status = client
+        .get(&format!("{base_url}/api/status"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_status.status(), 200);
+    let json_status: serde_json::Value = res_status.json().await.unwrap();
+    assert_eq!(json_status["status"], "ok");
+    assert_eq!(json_status["total_books"], 1);
+
+    // 4. Test API Books List
+    let res_books = client
+        .get(&format!("{base_url}/api/books"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_books.status(), 200);
+    let json_books: Vec<vellum_core::opds_server::BookDto> = res_books.json().await.unwrap();
+    assert_eq!(json_books.len(), 1);
+    assert_eq!(json_books[0].title, "Hyperion");
+    assert_eq!(json_books[0].author, "Dan Simmons");
+
+    // 5. Test API Book Details
+    let res_detail = client
+        .get(&format!("{base_url}/api/books/{}", book.id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_detail.status(), 200);
+    let json_detail: vellum_core::opds_server::BookDto = res_detail.json().await.unwrap();
+    assert_eq!(json_detail.id, book.id);
+    assert_eq!(json_detail.title, "Hyperion");
+
+    // 6. Test API Book TOC
+    let res_toc = client
+        .get(&format!("{base_url}/api/books/{}/toc", book.id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_toc.status(), 200);
+    let json_toc: Vec<vellum_core::opds_server::TocItemDto> = res_toc.json().await.unwrap();
+    assert_eq!(json_toc.len(), 2);
+    assert_eq!(json_toc[0].title, "Chapitre 1 : Le Consul");
+    assert_eq!(json_toc[1].title, "Chapitre 2 : Le Prêtre");
+
+    // 7. Test API Book Chapter
+    let res_ch = client
+        .get(&format!("{base_url}/api/books/{}/chapter/0", book.id))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_ch.status(), 200);
+    let json_ch: vellum_core::opds_server::ChapterContentDto = res_ch.json().await.unwrap();
+    assert_eq!(json_ch.chapter_index, 0);
+    assert_eq!(json_ch.total_chapters, 2);
+    assert!(json_ch.html.contains("Sur le vaisseau"));
+
+    // 8. Test API Reading Progress Update
+    let res_prog = client
+        .post(&format!("{base_url}/api/books/{}/progress", book.id))
+        .json(&serde_json::json!({
+            "chapter_index": 1,
+            "percentage": 0.5
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_prog.status(), 200);
+
+    let updated_book = book_service.get_book_by_id(&book.id).unwrap().unwrap();
+    assert_eq!(updated_book.current_chapter_index, 1);
+    assert_eq!(updated_book.progress_percent, 50.0);
+
+    // 9. Test OPDS Feed XML
+    let res_opds = client.get(&format!("{base_url}/opds")).send().await.unwrap();
+    assert_eq!(res_opds.status(), 200);
+    let opds_xml = res_opds.text().await.unwrap();
+    assert!(opds_xml.contains("Vellum Desktop Ebook Library"));
+
+    let res_opds_books = client
+        .get(&format!("{base_url}/opds/books"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res_opds_books.status(), 200);
+    let opds_books_xml = res_opds_books.text().await.unwrap();
+    assert!(opds_books_xml.contains("Hyperion"));
+}
+
+
 
 
 

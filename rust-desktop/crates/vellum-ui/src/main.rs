@@ -1031,9 +1031,19 @@ fn App() -> Element {
                 }
                 PaletteAction::ImportBooks => hi(()),
                 PaletteAction::ImportCalibre => hic(()),
+                PaletteAction::OpenWebCompanion => {
+                    let _ = open::that(&format!("http://localhost:{opds_port}"));
+                }
                 PaletteAction::SyncCloud => hsc(()),
                 PaletteAction::OpenSettings => so.set(true),
             }
+        }
+    };
+
+    let handle_open_web_companion = {
+        let port = opds_port;
+        move |_| {
+            let _ = open::that(&format!("http://localhost:{port}"));
         }
     };
 
@@ -1060,6 +1070,7 @@ fn App() -> Element {
                 is_syncing: *is_syncing.read(),
                 on_import: handle_import.clone(),
                 on_import_calibre: handle_import_calibre.clone(),
+                on_open_web_companion: handle_open_web_companion.clone(),
                 on_sync_device: handle_sync_device.clone(),
                 on_sync_cloud: handle_sync_now.clone(),
                 on_open_palette: move |_| palette_open.set(true),

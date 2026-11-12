@@ -13,6 +13,7 @@ pub mod reader_provider;
 pub mod reader_store;
 pub mod search_query;
 pub mod sync_service;
+pub mod web_companion_assets;
 
 pub use book_service::{BookService, DuplicateBookInfo};
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
