@@ -10,8 +10,9 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header, PaletteAction,
-    ReaderModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
+    BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header,
+    NewsRecipesModal, PaletteAction, ReaderModal, SettingsModal, Sidebar, TranslateModal,
+    TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption};
 use styles::APP_CSS;
@@ -22,6 +23,7 @@ use vellum_core::device_service::DeviceService;
 use vellum_core::litestream_service::LitestreamService;
 use vellum_core::mail_service::MailService;
 use vellum_core::metadata_service::MetadataService;
+use vellum_core::news_service::NewsService;
 use vellum_core::opds_server::OpdsServer;
 use vellum_core::plugin_service::PluginService;
 use vellum_core::{FolderSyncBackend, SearchQuery, SyncService};
@@ -35,6 +37,7 @@ struct AppServices {
     device_service: Arc<DeviceService>,
     litestream_service: Arc<LitestreamService>,
     mail_service: Arc<MailService>,
+    news_service: Arc<NewsService>,
     smtp_config: SmtpConfig,
     opds_port: u16,
 }
@@ -136,6 +139,11 @@ fn init_services() -> AppServices {
         }
     }
     let mail_service = Arc::new(MailService::new(app_cfg.library_path.clone()));
+    let news_service = Arc::new(NewsService::new(
+        (*book_service).clone(),
+        param_repo.clone(),
+        Some(mail_service.clone()),
+    ));
 
     AppServices {
         book_service,
@@ -143,6 +151,7 @@ fn init_services() -> AppServices {
         device_service,
         litestream_service,
         mail_service,
+        news_service,
         smtp_config: smtp_cfg,
         opds_port,
     }
@@ -310,7 +319,9 @@ fn App() -> Element {
     let mut translating_book = use_signal(|| None::<Book>);
     let mut is_translating = use_signal(|| false);
     let mut epub_editing_book = use_signal(|| None::<Book>);
+    let mut news_recipes_open = use_signal(|| false);
 
+    let news_service = services.news_service.clone();
     let mail_service = services.mail_service.clone();
     let mut smtp_config = use_signal(|| services.smtp_config.clone());
     let mut is_testing_smtp = use_signal(|| false);
@@ -1005,6 +1016,7 @@ fn App() -> Element {
         let hic = handle_import_calibre.clone();
         let mut hsc = handle_sync_now.clone();
         let mut so = settings_open.clone();
+        let mut nro = news_recipes_open.clone();
         move |act: PaletteAction| {
             match act {
                 PaletteAction::SelectBook(b) => sb.set(Some(b)),
@@ -1031,6 +1043,7 @@ fn App() -> Element {
                 }
                 PaletteAction::ImportBooks => hi(()),
                 PaletteAction::ImportCalibre => hic(()),
+                PaletteAction::OpenNewsRecipes => nro.set(true),
                 PaletteAction::OpenWebCompanion => {
                     let _ = open::that(&format!("http://localhost:{opds_port}"));
                 }
@@ -1070,6 +1083,7 @@ fn App() -> Element {
                 is_syncing: *is_syncing.read(),
                 on_import: handle_import.clone(),
                 on_import_calibre: handle_import_calibre.clone(),
+                on_open_news: move |_| news_recipes_open.set(true),
                 on_open_web_companion: handle_open_web_companion.clone(),
                 on_sync_device: handle_sync_device.clone(),
                 on_sync_cloud: handle_sync_now.clone(),
@@ -1272,6 +1286,20 @@ fn App() -> Element {
                     is_translating: *is_translating.read(),
                     on_close: move |_| translating_book.set(None),
                     on_start_translate: handle_start_translate.clone(),
+                }
+            }
+
+            // News Recipes Modal (RSS to EPUB)
+            if *news_recipes_open.read() {
+                NewsRecipesModal {
+                    news_service: news_service.clone(),
+                    on_close: move |_| news_recipes_open.set(false),
+                    on_imported: {
+                        let mut refresh = refresh_library.clone();
+                        move |_| {
+                            refresh();
+                        }
+                    },
                 }
             }
 

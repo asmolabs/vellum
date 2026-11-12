@@ -1211,6 +1211,80 @@ async fn test_web_companion_server_and_api() {
     assert!(opds_books_xml.contains("Hyperion"));
 }
 
+#[tokio::test]
+async fn test_news_recipe_generation_and_library_import() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    // Mock local RSS HTTP server
+    let rss_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Echo Tech Daily</title>
+    <link>http://echotech.local</link>
+    <description>Latest tech stories</description>
+    <item>
+      <title>Antigravity 2.0 Unveiled</title>
+      <link>http://echotech.local/anti2</link>
+      <author>Jean Dupont</author>
+      <pubDate>Thu, 12 Nov 2026 06:00:00 GMT</pubDate>
+      <description>&lt;p&gt;Google DeepMind launches next gen agent.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>"#;
+
+    let app = axum::Router::new().route(
+        "/feed.xml",
+        axum::routing::get(move || async move {
+            let mut headers = axum::http::HeaderMap::new();
+            headers.insert(
+                axum::http::header::CONTENT_TYPE,
+                axum::http::HeaderValue::from_static("application/xml"),
+            );
+            (axum::http::StatusCode::OK, headers, rss_content)
+        }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let param_repo = vellum_storage::ParamRepository::new(vellum_storage::Database::open_in_memory().unwrap());
+    let news_service = vellum_core::NewsService::new(book_service.clone(), param_repo, None);
+
+    let mut recipe = vellum_domain::NewsRecipe::new("custom-tech", "Echo Tech");
+    recipe.feeds.push(vellum_domain::NewsFeedConfig::new(
+        "echofeed",
+        "Echo Tech",
+        format!("http://127.0.0.1:{port}/feed.xml"),
+    ));
+
+    news_service.save_recipes(&[recipe.clone()]).expect("save recipe");
+
+    // Run recipe and import into library
+    let imported_book = news_service
+        .run_recipe_and_import("custom-tech")
+        .await
+        .expect("run recipe");
+
+    assert!(imported_book.title.contains("Echo Tech"));
+    assert_eq!(imported_book.author, "Vellum News Engine");
+    assert!(imported_book.tags.iter().any(|t| t.name == "Actualités"));
+    assert!(imported_book.tags.iter().any(|t| t.name == "Presse"));
+    assert_eq!(imported_book.formats.len(), 1);
+    assert_eq!(imported_book.formats[0].format, "epub");
+
+    // Verify it is readable via reader provider
+    let file_path = book_service.get_file_for_format(&imported_book.formats[0]);
+    assert!(file_path.exists());
+    let provider = vellum_core::reader_provider::create_content_provider(&file_path);
+    assert!(provider.chapter_count() >= 2); // Cover + Article
+    assert!(provider.chapter_html(1).contains("Antigravity 2.0 Unveiled"));
+}
+
+
 
 
 

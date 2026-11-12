@@ -10,6 +10,7 @@ pub fn Header(
     is_syncing: bool,
     on_import: EventHandler<()>,
     on_import_calibre: EventHandler<()>,
+    on_open_news: EventHandler<()>,
     on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
     on_sync_cloud: EventHandler<()>,
@@ -98,6 +99,14 @@ pub fn Header(
                     }
                 }
 
+                button {
+                    class: "btn btn-secondary",
+                    style: "border-color: rgba(14, 165, 233, 0.4); color: #38bdf8; font-size: 12px; gap: 6px; padding: 6px 12px;",
+                    title: "Recettes d'actualités : compiler des flux RSS en journal numérique quotidien (EPUB)",
+                    onclick: move |_| on_open_news.call(()),
+                    span { "📰" }
+                    span { "Actualités" }
+                }
                 button {
                     class: "btn btn-secondary",
                     style: "border-color: rgba(99, 102, 241, 0.4); color: #818cf8; font-size: 12px; gap: 6px; padding: 6px 12px;",

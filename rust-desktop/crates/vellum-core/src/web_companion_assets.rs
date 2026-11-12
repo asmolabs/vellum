@@ -787,3 +787,4 @@ pub fn reader_page_html() -> &'static str {
 </body>
 </html>"#
 }
+
