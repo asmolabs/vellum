@@ -37,3 +37,4 @@ pub struct LibraryHealthReport {
     pub missing_file_issues: Vec<MissingFileIssue>,
     pub clean_books_count: usize,
 }
+

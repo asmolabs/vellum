@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use crate::state::FilterStatus;
-use vellum_core::book_service::ReadingStats;
+use vellum_domain::ReadingStats;
 
 #[component]
 pub fn Sidebar(
@@ -10,6 +10,7 @@ pub fn Sidebar(
     tags_counts: Vec<(String, usize)>,
     series_counts: Vec<(String, usize)>,
     stats: Option<ReadingStats>,
+    on_open_stats: EventHandler<()>,
 ) -> Element {
     let filters = [
         FilterStatus::All,
@@ -108,7 +109,11 @@ pub fn Sidebar(
             }
 
             if let Some(s) = stats {
-                div { class: "sidebar-stats-card",
+                div {
+                    class: "sidebar-stats-card",
+                    style: "cursor: pointer; transition: transform 0.15s, border-color 0.15s;",
+                    onclick: move |_| on_open_stats.call(()),
+                    title: "Cliquer pour ouvrir les statistiques détaillées et le calendrier d'activité",
                     div { class: "stat-row",
                         span { "Total :" }
                         span { class: "stat-val", "{s.total_books}" }
@@ -120,6 +125,10 @@ pub fn Sidebar(
                     div { class: "stat-row",
                         span { "Terminés :" }
                         span { class: "stat-val", "{s.finished_books}" }
+                    }
+                    div {
+                        style: "margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11px; color: #818cf8; text-align: center; font-weight: 600;",
+                        "📊 Voir les statistiques ➔"
                     }
                 }
             }

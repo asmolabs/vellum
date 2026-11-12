@@ -149,6 +149,9 @@ pub struct ReadingStats {
     pub total_books: usize,
     pub finished_books: usize,
     pub in_progress_books: usize,
+    pub favorite_books: usize,
+    pub total_reading_hours: f64,
     pub tag_distribution: BTreeMap<String, usize>,
     pub recently_read: Vec<Book>,
+    pub activity_by_day: HashMap<String, usize>,
 }

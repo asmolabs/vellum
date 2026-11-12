@@ -3,6 +3,12 @@ use vellum_core::reader_provider::BookContentProvider;
 use vellum_domain::Book;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    Grid,
+    Kanban,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterStatus {
     All,
     Reading,

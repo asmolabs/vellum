@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use vellum_domain::{
-    Book, BookFormat, EpubDiagnostics, EpubTocEntry, LibraryHealthReport, Tag, VellumError,
-    VellumResult,
+    Book, BookFormat, EpubDiagnostics, EpubTocEntry, LibraryHealthReport, ReadingStats, Tag,
+    VellumError, VellumResult,
 };
 use vellum_storage::{BookRepository, ParamRepository, SyncRepository, TagRepository};
 
@@ -21,15 +21,6 @@ use crate::plugin_service::PluginService;
 pub struct DuplicateBookInfo {
     pub existing_book: Book,
     pub matching_fields: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReadingStats {
-    pub total_books: usize,
-    pub finished_books: usize,
-    pub in_progress_books: usize,
-    pub tag_distribution: BTreeMap<String, usize>,
-    pub recently_read: Vec<Book>,
 }
 
 #[derive(Clone)]
@@ -715,6 +706,39 @@ impl BookService {
             .iter()
             .filter(|b| b.progress_percent > 0.0 && !b.is_finished)
             .count();
+        let favorite_books = all_books
+            .iter()
+            .filter(|b| {
+                b.rating.unwrap_or(0) >= 4
+                    || b.tags.iter().any(|t| {
+                        let n = t.name.to_lowercase();
+                        n.contains("coup de c") || n.contains("favori")
+                    })
+            })
+            .count();
+
+        let mut total_reading_hours = 0.0;
+        let mut activity_by_day: HashMap<String, usize> = HashMap::new();
+
+        for b in &all_books {
+            let book_hours = if b.is_finished {
+                6.0
+            } else {
+                (b.progress_percent / 100.0) * 6.0
+            };
+            total_reading_hours += book_hours;
+
+            if let Some(ref date_str) = b.last_read_at {
+                if date_str.len() >= 10 {
+                    let day = &date_str[..10];
+                    *activity_by_day.entry(day.to_string()).or_insert(0) += 1;
+                }
+            } else if b.added_at.len() >= 10 {
+                let day = &b.added_at[..10];
+                *activity_by_day.entry(day.to_string()).or_insert(0) += 1;
+            }
+        }
+
         let tag_distribution = self.get_tags_with_counts()?;
 
         let mut recently_read: Vec<Book> = all_books
@@ -728,8 +752,11 @@ impl BookService {
             total_books: total,
             finished_books: finished,
             in_progress_books: in_progress,
+            favorite_books,
+            total_reading_hours: (total_reading_hours * 10.0).round() / 10.0,
             tag_distribution,
             recently_read,
+            activity_by_day,
         })
     }
 

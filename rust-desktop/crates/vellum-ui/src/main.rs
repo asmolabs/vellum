@@ -11,10 +11,10 @@ mod styles;
 
 use components::{
     BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header,
-    LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal, SettingsModal, Sidebar,
-    TranslateModal, TranslationRequest,
+    KanbanBoard, KanbanTargetStatus, LibraryAuditModal, NewsRecipesModal, PaletteAction,
+    ReaderModal, ReadingStatsModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
 };
-use state::{FilterStatus, ReaderSession, SortOption};
+use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
 
 use vellum_core::book_service::BookService;
@@ -307,6 +307,7 @@ fn App() -> Element {
 
     let current_filter = use_signal(|| FilterStatus::All);
     let mut current_sort = use_signal(|| SortOption::RecentAdded);
+    let mut view_mode = use_signal(|| ViewMode::Grid);
     let mut selected_tag = use_signal(|| None::<String>);
     let mut selected_series = use_signal(|| None::<String>);
     let search_query = use_signal(String::new);
@@ -321,6 +322,7 @@ fn App() -> Element {
     let mut epub_editing_book = use_signal(|| None::<Book>);
     let mut news_recipes_open = use_signal(|| false);
     let mut audit_open = use_signal(|| false);
+    let mut stats_open = use_signal(|| false);
 
     let news_service = services.news_service.clone();
     let mail_service = services.mail_service.clone();
@@ -618,6 +620,45 @@ fn App() -> Element {
                 let _ = bs.bulk_delete_books(&ids, true);
                 selected_ids.set(std::collections::HashSet::new());
                 selected_book.set(None);
+                refresh();
+            }
+        }
+    };
+
+    // Handle Kanban status transition
+    let handle_change_book_status = {
+        let bs = book_service.clone();
+        let mut refresh = refresh_library.clone();
+        move |(book_id, target_status): (String, KanbanTargetStatus)| {
+            if let Ok(Some(mut b)) = bs.book_repo().find_by_id(&book_id) {
+                match target_status {
+                    KanbanTargetStatus::ToRead => {
+                        b.progress_percent = 0.0;
+                        b.current_chapter_index = 0;
+                        b.is_finished = false;
+                    }
+                    KanbanTargetStatus::Reading => {
+                        if b.progress_percent == 0.0 {
+                            b.progress_percent = 5.0;
+                        }
+                        b.is_finished = false;
+                        b.last_read_at = Some(chrono::Utc::now().to_rfc3339());
+                    }
+                    KanbanTargetStatus::Finished => {
+                        b.progress_percent = 100.0;
+                        b.is_finished = true;
+                        b.last_read_at = Some(chrono::Utc::now().to_rfc3339());
+                    }
+                    KanbanTargetStatus::Favorite => {
+                        b.rating = Some(5);
+                        let fav_tag = vellum_domain::Tag::new("Coup de cœur");
+                        let _ = bs.tag_repo().save(&fav_tag);
+                        if !b.tags.iter().any(|t| t.name == "Coup de cœur") {
+                            b.add_tag(fav_tag);
+                        }
+                    }
+                }
+                let _ = bs.update_book(&b);
                 refresh();
             }
         }
@@ -1019,10 +1060,14 @@ fn App() -> Element {
         let mut so = settings_open.clone();
         let mut nro = news_recipes_open.clone();
         let mut ao = audit_open.clone();
+        let mut sto = stats_open.clone();
+        let mut vm = view_mode.clone();
         move |act: PaletteAction| {
             match act {
                 PaletteAction::SelectBook(b) => sb.set(Some(b)),
                 PaletteAction::ReadBook(b) => hr(b),
+                PaletteAction::SetViewGrid => vm.set(ViewMode::Grid),
+                PaletteAction::SetViewKanban => vm.set(ViewMode::Kanban),
                 PaletteAction::FilterAll => {
                     cf.set(FilterStatus::All);
                     st.set(None);
@@ -1047,6 +1092,7 @@ fn App() -> Element {
                 PaletteAction::ImportCalibre => hic(()),
                 PaletteAction::OpenNewsRecipes => nro.set(true),
                 PaletteAction::OpenLibraryAudit => ao.set(true),
+                PaletteAction::OpenReadingStats => sto.set(true),
                 PaletteAction::OpenWebCompanion => {
                     let _ = open::that(&format!("http://localhost:{opds_port}"));
                 }
@@ -1104,7 +1150,8 @@ fn App() -> Element {
                     selected_series: selected_series,
                     tags_counts: tags_counts,
                     series_counts: series_counts,
-                    stats: reading_stats,
+                    stats: reading_stats.clone(),
+                    on_open_stats: move |_| stats_open.set(true),
                 }
 
                 // Books Library
@@ -1142,6 +1189,28 @@ fn App() -> Element {
                         }
 
                         div { style: "display: flex; align-items: center; gap: 8px;",
+                            // View Mode Toggle (Grid vs Kanban PAL)
+                            div { style: "display: flex; align-items: center; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 2px; border: 1px solid var(--border-subtle); margin-right: 4px;",
+                                button {
+                                    style: if *view_mode.read() == ViewMode::Grid {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                                    } else {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                                    },
+                                    onclick: move |_| view_mode.set(ViewMode::Grid),
+                                    "⊞ Grille"
+                                }
+                                button {
+                                    style: if *view_mode.read() == ViewMode::Kanban {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                                    } else {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                                    },
+                                    onclick: move |_| view_mode.set(ViewMode::Kanban),
+                                    "📋 Kanban PAL"
+                                }
+                            }
+
                             if !filtered_books.is_empty() {
                                 {
                                     let all_selected = filtered_books.iter().all(|b| selected_ids.read().contains(&b.id));
@@ -1198,7 +1267,14 @@ fn App() -> Element {
                         }
                     }
 
-                    if filtered_books.is_empty() {
+                    if *view_mode.read() == ViewMode::Kanban {
+                        KanbanBoard {
+                            books: filtered_books.clone(),
+                            on_select: move |selected| selected_book.set(Some(selected)),
+                            on_read: handle_read.clone(),
+                            on_change_status: handle_change_book_status.clone(),
+                        }
+                    } else if filtered_books.is_empty() {
                         div {
                             style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); padding: 60px 0;",
                             span { style: "font-size: 40px;", "📚" }
@@ -1318,6 +1394,17 @@ fn App() -> Element {
                             refresh();
                         }
                     },
+                }
+            }
+
+            // Reading Stats & Annual Heatmap Modal
+            if *stats_open.read() {
+                if let Some(ref st) = reading_stats {
+                    ReadingStatsModal {
+                        stats: st.clone(),
+                        on_close: move |_| stats_open.set(false),
+                        on_read_book: handle_read.clone(),
+                    }
                 }
             }
 
