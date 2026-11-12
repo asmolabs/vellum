@@ -1,6 +1,31 @@
 use dioxus::prelude::*;
 use crate::state::ReaderSession;
-use vellum_core::reader_store::SearchResult;
+use vellum_core::reader_store::{ComicFitMode, ComicReadingMode, SearchResult};
+
+fn step_page(
+    mut session: Signal<Option<ReaderSession>>,
+    on_progress_update: EventHandler<(usize, usize, f64)>,
+    forward: bool,
+) {
+    let mut mut_sess = session.write();
+    if let Some(s) = mut_sess.as_mut() {
+        let step = if s.is_comic() && s.prefs.comic_reading_mode == ComicReadingMode::DoublePage {
+            2
+        } else {
+            1
+        };
+        if forward {
+            if s.current_page + 1 < s.total_pages {
+                s.current_page = (s.current_page + step).min(s.total_pages.saturating_sub(1));
+            }
+        } else {
+            s.current_page = s.current_page.saturating_sub(step);
+        }
+        let (p, tot, pct) = (s.current_page, s.total_pages, s.progress_percent());
+        drop(mut_sess);
+        on_progress_update.call((p, tot, pct));
+    }
+}
 
 #[component]
 pub fn ReaderModal(
@@ -101,43 +126,56 @@ pub fn ReaderModal(
     let brightness_pct = prefs.brightness;
     let warmth_opacity = (prefs.warmth as f32 / 100.0) * 0.75;
     let is_spread = prefs.two_columns;
+    let is_comic = sess.is_comic();
+    let is_webtoon = is_comic && prefs.comic_reading_mode == ComicReadingMode::Webtoon;
+    let is_double = is_comic && prefs.comic_reading_mode == ComicReadingMode::DoublePage;
 
-    let frame_card_class = if is_spread {
+    let frame_card_class = if is_webtoon {
+        "reader-screen-card webtoon-mode"
+    } else if is_double {
+        "reader-screen-card comic-double-mode"
+    } else if is_spread {
         "reader-screen-card spread-mode"
     } else {
         "reader-screen-card"
+    };
+
+    let fit_class = match prefs.comic_fit_mode {
+        ComicFitMode::FitHeight => "fit-height",
+        ComicFitMode::FitWidth => "fit-width",
+        ComicFitMode::Original => "fit-original",
+    };
+
+    let full_card_class = if is_comic {
+        format!("{frame_card_class} {fit_class}")
+    } else {
+        frame_card_class.to_string()
     };
 
     let frame_style = format!(
         "background-color: {card_bg}; color: {text_color}; font-family: {font_family}; font-size: {font_size}px; border: 1px solid {border_color}; filter: brightness({brightness_pct}%);"
     );
 
-    let body_style = format!(
-        "padding: 22px {margin_h}px; text-align: {justify_css}; line-height: {line_height};"
-    );
-
-    let go_prev = move |_| {
-        let mut mut_sess = session.write();
-        if let Some(s) = mut_sess.as_mut() {
-            if s.current_page > 0 {
-                s.current_page -= 1;
-                let (p, tot, pct) = (s.current_page, s.total_pages, s.progress_percent());
-                drop(mut_sess);
-                on_progress_update.call((p, tot, pct));
-            }
-        }
+    let body_style = if is_webtoon {
+        "padding: 0; overflow-y: auto; height: 100%; text-align: center;".to_string()
+    } else {
+        format!("padding: 22px {margin_h}px; text-align: {justify_css}; line-height: {line_height};")
     };
 
-    let go_next = move |_| {
-        let mut mut_sess = session.write();
-        if let Some(s) = mut_sess.as_mut() {
-            if s.current_page + 1 < s.total_pages {
-                s.current_page += 1;
-                let (p, tot, pct) = (s.current_page, s.total_pages, s.progress_percent());
-                drop(mut_sess);
-                on_progress_update.call((p, tot, pct));
-            }
-        }
+    let body_class = if is_webtoon {
+        "reader-screen-body webtoon-mode"
+    } else {
+        "reader-screen-body"
+    };
+
+    let on_left_click = move |_| {
+        let fwd = is_comic && prefs.comic_rtl;
+        step_page(session, on_progress_update, fwd);
+    };
+
+    let on_right_click = move |_| {
+        let fwd = !(is_comic && prefs.comic_rtl);
+        step_page(session, on_progress_update, fwd);
     };
 
     let go_history_back = move |_| {
@@ -170,27 +208,20 @@ pub fn ReaderModal(
         }
 
         match key {
-            "ArrowLeft" | "PageUp" | "Backspace" => {
-                let mut mut_sess = session.write();
-                if let Some(s) = mut_sess.as_mut() {
-                    if s.current_page > 0 {
-                        s.current_page -= 1;
-                        let (p, tot, pct) = (s.current_page, s.total_pages, s.progress_percent());
-                        drop(mut_sess);
-                        on_progress_update.call((p, tot, pct));
-                    }
-                }
+            "ArrowLeft" | "PageUp" => {
+                let fwd = is_comic && prefs.comic_rtl;
+                step_page(session, on_progress_update, fwd);
             }
             "ArrowRight" | "PageDown" | " " | "Enter" => {
-                let mut mut_sess = session.write();
-                if let Some(s) = mut_sess.as_mut() {
-                    if s.current_page + 1 < s.total_pages {
-                        s.current_page += 1;
-                        let (p, tot, pct) = (s.current_page, s.total_pages, s.progress_percent());
-                        drop(mut_sess);
-                        on_progress_update.call((p, tot, pct));
-                    }
-                }
+                let fwd = if is_comic && prefs.comic_rtl && key == "ArrowRight" {
+                    false
+                } else {
+                    true
+                };
+                step_page(session, on_progress_update, fwd);
+            }
+            "Backspace" => {
+                step_page(session, on_progress_update, false);
             }
             "Escape" => {
                 if selected_text.read().is_some() {
@@ -258,6 +289,29 @@ pub fn ReaderModal(
 
     let is_chrome_visible = *show_chrome.read();
     let current_drawer = active_drawer.read().clone();
+
+    let footer_left = if is_comic {
+        match prefs.comic_reading_mode {
+            ComicReadingMode::Webtoon => format!("Défilement Webtoon continu • {} planches", total_pages),
+            ComicReadingMode::DoublePage => {
+                let next_p = (cur_page + 2).min(total_pages);
+                if next_p > cur_page + 1 {
+                    format!("Planches {}-{} sur {} • {}", cur_page + 1, next_p, total_pages, if prefs.comic_rtl { "Sens Manga (D➔G)" } else { "Sens BD (G➔D)" })
+                } else {
+                    format!("Planche {} sur {} • {}", cur_page + 1, total_pages, if prefs.comic_rtl { "Sens Manga (D➔G)" } else { "Sens BD (G➔D)" })
+                }
+            }
+            ComicReadingMode::SinglePage => format!("Planche {} sur {} • {}", cur_page + 1, total_pages, if prefs.comic_rtl { "Sens Manga (D➔G)" } else { "Sens BD (G➔D)" }),
+        }
+    } else {
+        format!("Page {page_in_ch} sur {total_in_ch} • {chapter_title}")
+    };
+
+    let footer_right = if is_comic && prefs.comic_reading_mode == ComicReadingMode::Webtoon {
+        format!("{} planches", total_pages)
+    } else {
+        format!("Page {} / {} ({:.0}%)", cur_page + 1, total_pages.max(1), progress)
+    };
 
     rsx! {
         div {
@@ -353,47 +407,137 @@ pub fn ReaderModal(
                         }
                     }
 
-                    div { style: "display: flex; align-items: center; gap: 12px;",
-                        // Remaining reading time estimate badge
-                        div {
-                            style: "display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 14px; font-size: 11px; color: var(--text-secondary); cursor: default;",
-                            title: "Temps restant estimé : {time_ch} dans ce chapitre • {time_book} pour finir le livre (basé sur {prefs.words_per_minute} mpm)",
-                            span { "⏱" }
-                            span { "{time_ch}" }
+                    div { style: "display: flex; align-items: center; gap: 10px;",
+                        // Comic Toolbar Controls
+                        if is_comic {
+                            div { class: "comic-mode-pill",
+                                button {
+                                    class: if prefs.comic_reading_mode == ComicReadingMode::SinglePage { "comic-pill-btn active" } else { "comic-pill-btn" },
+                                    title: "Mode 1 planche",
+                                    onclick: move |_| {
+                                        let mut mut_sess = session.write();
+                                        if let Some(s) = mut_sess.as_mut() {
+                                            s.prefs.comic_reading_mode = ComicReadingMode::SinglePage;
+                                            s.save_prefs();
+                                        }
+                                    },
+                                    "📄 1 Page"
+                                }
+                                button {
+                                    class: if prefs.comic_reading_mode == ComicReadingMode::DoublePage { "comic-pill-btn active" } else { "comic-pill-btn" },
+                                    title: "Mode double-page (planche manga/BD)",
+                                    onclick: move |_| {
+                                        let mut mut_sess = session.write();
+                                        if let Some(s) = mut_sess.as_mut() {
+                                            s.prefs.comic_reading_mode = ComicReadingMode::DoublePage;
+                                            if s.current_page % 2 != 0 && s.current_page > 0 {
+                                                s.current_page -= 1;
+                                            }
+                                            s.save_prefs();
+                                        }
+                                    },
+                                    "📖 2 Pages"
+                                }
+                                button {
+                                    class: if prefs.comic_reading_mode == ComicReadingMode::Webtoon { "comic-pill-btn active" } else { "comic-pill-btn" },
+                                    title: "Mode Webtoon (défilement vertical infini)",
+                                    onclick: move |_| {
+                                        let mut mut_sess = session.write();
+                                        if let Some(s) = mut_sess.as_mut() {
+                                            s.prefs.comic_reading_mode = ComicReadingMode::Webtoon;
+                                            s.save_prefs();
+                                        }
+                                    },
+                                    "📜 Webtoon"
+                                }
+                            }
+
+                            // RTL Manga direction toggle button
+                            button {
+                                class: if prefs.comic_rtl { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                style: "font-size: 11px; padding: 4px 10px;",
+                                title: if prefs.comic_rtl { "Sens japonais : Droite à Gauche (Actif)" } else { "Sens occidental : Gauche à Droite (Actif)" },
+                                onclick: move |_| {
+                                    let mut mut_sess = session.write();
+                                    if let Some(s) = mut_sess.as_mut() {
+                                        s.prefs.comic_rtl = !s.prefs.comic_rtl;
+                                        s.save_prefs();
+                                    }
+                                },
+                                if prefs.comic_rtl { "🇯🇵 Manga (D ➔ G)" } else { "🇫🇷 BD (G ➔ D)" }
+                            }
+
+                            // Fit mode quick toggle
+                            button {
+                                class: "btn btn-secondary",
+                                style: "font-size: 11px; padding: 4px 10px;",
+                                title: match prefs.comic_fit_mode {
+                                    ComicFitMode::FitHeight => "Ajusté à la hauteur de l'écran",
+                                    ComicFitMode::FitWidth => "Ajusté à la largeur",
+                                    ComicFitMode::Original => "Taille originale de l'image (100%)",
+                                },
+                                onclick: move |_| {
+                                    let mut mut_sess = session.write();
+                                    if let Some(s) = mut_sess.as_mut() {
+                                        s.prefs.comic_fit_mode = match s.prefs.comic_fit_mode {
+                                            ComicFitMode::FitHeight => ComicFitMode::FitWidth,
+                                            ComicFitMode::FitWidth => ComicFitMode::Original,
+                                            ComicFitMode::Original => ComicFitMode::FitHeight,
+                                        };
+                                        s.save_prefs();
+                                    }
+                                },
+                                match prefs.comic_fit_mode {
+                                    ComicFitMode::FitHeight => "↕ Hauteur",
+                                    ComicFitMode::FitWidth => "↔ Largeur",
+                                    ComicFitMode::Original => "🔍 100%",
+                                }
+                            }
                         }
 
-                        // Quick font size
-                        div { style: "display: flex; align-items: center; gap: 2px;",
-                            button {
-                                class: "btn btn-icon",
-                                title: "Réduire police (-)",
-                                onclick: move |_| {
-                                    let mut mut_sess = session.write();
-                                    if let Some(s) = mut_sess.as_mut() {
-                                        if s.prefs.font_size > 12 {
-                                            s.prefs.font_size -= 2;
-                                            s.font_size = s.prefs.font_size;
-                                            s.save_prefs();
-                                        }
-                                    }
-                                },
-                                "A-"
+                        // Text Book Controls (Reading time & Font size)
+                        if !is_comic {
+                            // Remaining reading time estimate badge
+                            div {
+                                style: "display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 14px; font-size: 11px; color: var(--text-secondary); cursor: default;",
+                                title: "Temps restant estimé : {time_ch} dans ce chapitre • {time_book} pour finir le livre (basé sur {prefs.words_per_minute} mpm)",
+                                span { "⏱" }
+                                span { "{time_ch}" }
                             }
-                            span { style: "font-size: 11px; width: 22px; text-align: center; color: var(--text-primary);", "{font_size}" }
-                            button {
-                                class: "btn btn-icon",
-                                title: "Agrandir police (+)",
-                                onclick: move |_| {
-                                    let mut mut_sess = session.write();
-                                    if let Some(s) = mut_sess.as_mut() {
-                                        if s.prefs.font_size < 36 {
-                                            s.prefs.font_size += 2;
-                                            s.font_size = s.prefs.font_size;
-                                            s.save_prefs();
+
+                            // Quick font size
+                            div { style: "display: flex; align-items: center; gap: 2px;",
+                                button {
+                                    class: "btn btn-icon",
+                                    title: "Réduire police (-)",
+                                    onclick: move |_| {
+                                        let mut mut_sess = session.write();
+                                        if let Some(s) = mut_sess.as_mut() {
+                                            if s.prefs.font_size > 12 {
+                                                s.prefs.font_size -= 2;
+                                                s.font_size = s.prefs.font_size;
+                                                s.save_prefs();
+                                            }
                                         }
-                                    }
-                                },
-                                "A+"
+                                    },
+                                    "A-"
+                                }
+                                span { style: "font-size: 11px; width: 22px; text-align: center; color: var(--text-primary);", "{font_size}" }
+                                button {
+                                    class: "btn btn-icon",
+                                    title: "Agrandir police (+)",
+                                    onclick: move |_| {
+                                        let mut mut_sess = session.write();
+                                        if let Some(s) = mut_sess.as_mut() {
+                                            if s.prefs.font_size < 36 {
+                                                s.prefs.font_size += 2;
+                                                s.font_size = s.prefs.font_size;
+                                                s.save_prefs();
+                                            }
+                                        }
+                                    },
+                                    "A+"
+                                }
                             }
                         }
 
@@ -1112,178 +1256,305 @@ pub fn ReaderModal(
                             }
                         }
 
-                        // Typography / Font Family
-                        div { class: "settings-group",
-                            span { class: "settings-label", "Police de caractères" }
-                            div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 6px;",
-                                button {
-                                    class: if prefs.font_family == "literata" { "btn btn-secondary active" } else { "btn btn-secondary" },
-                                    style: "font-family: Georgia, serif; font-size: 12px;",
-                                    onclick: move |_| {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.font_family = "literata".to_string();
-                                            s.is_serif = true;
-                                            s.save_prefs();
-                                        }
-                                    },
-                                    "Literata"
+                        if is_comic {
+                            // Comic / Manga Settings Section
+                            div { class: "settings-group",
+                                span { class: "settings-label", "Mode de lecture BD & Manga" }
+                                div { style: "display: flex; gap: 6px; margin-bottom: 8px;",
+                                    button {
+                                        class: if prefs.comic_reading_mode == ComicReadingMode::SinglePage { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_reading_mode = ComicReadingMode::SinglePage;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "📄 1 Page"
+                                    }
+                                    button {
+                                        class: if prefs.comic_reading_mode == ComicReadingMode::DoublePage { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_reading_mode = ComicReadingMode::DoublePage;
+                                                if s.current_page % 2 != 0 && s.current_page > 0 {
+                                                    s.current_page -= 1;
+                                                }
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "📖 2 Pages"
+                                    }
+                                    button {
+                                        class: if prefs.comic_reading_mode == ComicReadingMode::Webtoon { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_reading_mode = ComicReadingMode::Webtoon;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "📜 Webtoon"
+                                    }
                                 }
-                                button {
-                                    class: if prefs.font_family == "merriweather" { "btn btn-secondary active" } else { "btn btn-secondary" },
-                                    style: "font-family: Georgia, serif; font-size: 12px;",
-                                    onclick: move |_| {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.font_family = "merriweather".to_string();
-                                            s.is_serif = true;
-                                            s.save_prefs();
-                                        }
-                                    },
-                                    "Merriweather"
-                                }
-                                button {
-                                    class: if prefs.font_family == "serif" { "btn btn-secondary active" } else { "btn btn-secondary" },
-                                    style: "font-family: Georgia, serif; font-size: 12px;",
-                                    onclick: move |_| {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.font_family = "serif".to_string();
-                                            s.is_serif = true;
-                                            s.save_prefs();
-                                        }
-                                    },
-                                    "Georgia"
-                                }
-                                button {
-                                    class: if prefs.font_family == "sans" { "btn btn-secondary active" } else { "btn btn-secondary" },
-                                    style: "font-family: sans-serif; font-size: 12px;",
-                                    onclick: move |_| {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.font_family = "sans".to_string();
-                                            s.is_serif = false;
-                                            s.save_prefs();
-                                        }
-                                    },
-                                    "Sans-serif"
-                                }
-                                button {
-                                    class: if prefs.font_family == "dyslexic" { "btn btn-secondary active" } else { "btn btn-secondary" },
-                                    style: "font-size: 12px; grid-column: span 2;",
-                                    onclick: move |_| {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.font_family = "dyslexic".to_string();
-                                            s.is_serif = false;
-                                            s.save_prefs();
-                                        }
-                                    },
-                                    "OpenDyslexic (Accessibilité)"
+                                p { style: "font-size: 11px; color: var(--text-muted); margin: 0; line-height: 1.4;",
+                                    match prefs.comic_reading_mode {
+                                        ComicReadingMode::SinglePage => "Affichage d'une planche avec ajustement dynamique.",
+                                        ComicReadingMode::DoublePage => "Affichage de 2 planches côte à côte comme un livre ouvert.",
+                                        ComicReadingMode::Webtoon => "Défilement vertical continu et infini, sans coupure.",
+                                    }
                                 }
                             }
-                        }
 
-                        // Font size slider
-                        div { class: "settings-group",
-                            div { style: "display: flex; justify-content: space-between; align-items: center;",
-                                span { class: "settings-label", "Taille de police" }
-                                span { style: "font-size: 12px; font-weight: 600; color: var(--accent-primary);", "{prefs.font_size} px" }
+                            div { class: "settings-group",
+                                span { class: "settings-label", "Sens de lecture" }
+                                div { style: "display: flex; gap: 8px;",
+                                    button {
+                                        class: if !prefs.comic_rtl { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_rtl = false;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "🇫🇷 BD (G ➔ D)"
+                                    }
+                                    button {
+                                        class: if prefs.comic_rtl { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_rtl = true;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "🇯🇵 Manga (D ➔ G)"
+                                    }
+                                }
                             }
-                            input {
-                                r#type: "range",
-                                min: "13",
-                                max: "32",
-                                value: "{prefs.font_size}",
-                                style: "accent-color: var(--accent-primary); cursor: pointer;",
-                                oninput: move |e| {
-                                    if let Ok(v) = e.value().parse::<u32>() {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.font_size = v;
-                                            s.font_size = v;
-                                            s.save_prefs();
+
+                            div { class: "settings-group",
+                                span { class: "settings-label", "Ajustement de l'image" }
+                                div { style: "display: flex; gap: 6px;",
+                                    button {
+                                        class: if prefs.comic_fit_mode == ComicFitMode::FitHeight { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_fit_mode = ComicFitMode::FitHeight;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "↕ Hauteur"
+                                    }
+                                    button {
+                                        class: if prefs.comic_fit_mode == ComicFitMode::FitWidth { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_fit_mode = ComicFitMode::FitWidth;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "↔ Largeur"
+                                    }
+                                    button {
+                                        class: if prefs.comic_fit_mode == ComicFitMode::Original { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.comic_fit_mode = ComicFitMode::Original;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "Taille 100%"
+                                    }
+                                }
+                            }
+                        } else {
+                            // Text Typography & Layout Settings (EPUB / MOBI / TXT)
+                            div { class: "settings-group",
+                                span { class: "settings-label", "Police de caractères" }
+                                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 6px;",
+                                    button {
+                                        class: if prefs.font_family == "literata" { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "font-family: Georgia, serif; font-size: 12px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.font_family = "literata".to_string();
+                                                s.is_serif = true;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "Literata"
+                                    }
+                                    button {
+                                        class: if prefs.font_family == "merriweather" { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "font-family: Georgia, serif; font-size: 12px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.font_family = "merriweather".to_string();
+                                                s.is_serif = true;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "Merriweather"
+                                    }
+                                    button {
+                                        class: if prefs.font_family == "serif" { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "font-family: Georgia, serif; font-size: 12px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.font_family = "serif".to_string();
+                                                s.is_serif = true;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "Georgia"
+                                    }
+                                    button {
+                                        class: if prefs.font_family == "sans" { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "font-family: sans-serif; font-size: 12px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.font_family = "sans".to_string();
+                                                s.is_serif = false;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "Sans-serif"
+                                    }
+                                    button {
+                                        class: if prefs.font_family == "dyslexic" { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "font-size: 12px; grid-column: span 2;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.font_family = "dyslexic".to_string();
+                                                s.is_serif = false;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        "OpenDyslexic (Accessibilité)"
+                                    }
+                                }
+                            }
+
+                            // Font size slider
+                            div { class: "settings-group",
+                                div { style: "display: flex; justify-content: space-between; align-items: center;",
+                                    span { class: "settings-label", "Taille de police" }
+                                    span { style: "font-size: 12px; font-weight: 600; color: var(--accent-primary);", "{prefs.font_size} px" }
+                                }
+                                input {
+                                    r#type: "range",
+                                    min: "13",
+                                    max: "32",
+                                    value: "{prefs.font_size}",
+                                    style: "accent-color: var(--accent-primary); cursor: pointer;",
+                                    oninput: move |e| {
+                                        if let Ok(v) = e.value().parse::<u32>() {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.font_size = v;
+                                                s.font_size = v;
+                                                s.save_prefs();
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Line height slider
-                        div { class: "settings-group",
-                            div { style: "display: flex; justify-content: space-between; align-items: center;",
-                                span { class: "settings-label", "Interligne" }
-                                span { style: "font-size: 12px; font-weight: 600; color: var(--accent-primary);", "{prefs.line_height:.2}" }
-                            }
-                            input {
-                                r#type: "range",
-                                min: "130",
-                                max: "220",
-                                value: "{(prefs.line_height * 100.0) as u32}",
-                                style: "accent-color: var(--accent-primary); cursor: pointer;",
-                                oninput: move |e| {
-                                    if let Ok(v) = e.value().parse::<f32>() {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.line_height = v / 100.0;
-                                            s.save_prefs();
+                            // Line height slider
+                            div { class: "settings-group",
+                                div { style: "display: flex; justify-content: space-between; align-items: center;",
+                                    span { class: "settings-label", "Interligne" }
+                                    span { style: "font-size: 12px; font-weight: 600; color: var(--accent-primary);", "{prefs.line_height:.2}" }
+                                }
+                                input {
+                                    r#type: "range",
+                                    min: "130",
+                                    max: "220",
+                                    value: "{(prefs.line_height * 100.0) as u32}",
+                                    style: "accent-color: var(--accent-primary); cursor: pointer;",
+                                    oninput: move |e| {
+                                        if let Ok(v) = e.value().parse::<f32>() {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.line_height = v / 100.0;
+                                                s.save_prefs();
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Horizontal Margins
-                        div { class: "settings-group",
-                            div { style: "display: flex; justify-content: space-between; align-items: center;",
-                                span { class: "settings-label", "Marges latérales" }
-                                span { style: "font-size: 12px; font-weight: 600; color: var(--accent-primary);", "{prefs.margin_horizontal} px" }
-                            }
-                            input {
-                                r#type: "range",
-                                min: "16",
-                                max: "64",
-                                value: "{prefs.margin_horizontal}",
-                                style: "accent-color: var(--accent-primary); cursor: pointer;",
-                                oninput: move |e| {
-                                    if let Ok(v) = e.value().parse::<u32>() {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.margin_horizontal = v;
-                                            s.save_prefs();
+                            // Horizontal Margins
+                            div { class: "settings-group",
+                                div { style: "display: flex; justify-content: space-between; align-items: center;",
+                                    span { class: "settings-label", "Marges latérales" }
+                                    span { style: "font-size: 12px; font-weight: 600; color: var(--accent-primary);", "{prefs.margin_horizontal} px" }
+                                }
+                                input {
+                                    r#type: "range",
+                                    min: "16",
+                                    max: "64",
+                                    value: "{prefs.margin_horizontal}",
+                                    style: "accent-color: var(--accent-primary); cursor: pointer;",
+                                    oninput: move |e| {
+                                        if let Ok(v) = e.value().parse::<u32>() {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.margin_horizontal = v;
+                                                s.save_prefs();
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Spread mode & Justification
-                        div { class: "settings-group",
-                            span { class: "settings-label", "Disposition & Alignement" }
-                            div { style: "display: flex; gap: 8px;",
-                                button {
-                                    class: if prefs.justify_text { "btn btn-secondary active" } else { "btn btn-secondary" },
-                                    style: "flex: 1; font-size: 11px;",
-                                    onclick: move |_| {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.justify_text = !s.prefs.justify_text;
-                                            s.save_prefs();
-                                        }
-                                    },
-                                    if prefs.justify_text { "Justifié" } else { "Aligné gauche" }
-                                }
-                                button {
-                                    class: if prefs.two_columns { "btn btn-secondary active" } else { "btn btn-secondary" },
-                                    style: "flex: 1; font-size: 11px;",
-                                    onclick: move |_| {
-                                        let mut mut_sess = session.write();
-                                        if let Some(s) = mut_sess.as_mut() {
-                                            s.prefs.two_columns = !s.prefs.two_columns;
-                                            s.save_prefs();
-                                        }
-                                    },
-                                    if prefs.two_columns { "📖 2 Pages (Spread)" } else { "📄 1 Page" }
+                            // Spread mode & Justification
+                            div { class: "settings-group",
+                                span { class: "settings-label", "Disposition & Alignement" }
+                                div { style: "display: flex; gap: 8px;",
+                                    button {
+                                        class: if prefs.justify_text { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.justify_text = !s.prefs.justify_text;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        if prefs.justify_text { "Justifié" } else { "Aligné gauche" }
+                                    }
+                                    button {
+                                        class: if prefs.two_columns { "btn btn-secondary active" } else { "btn btn-secondary" },
+                                        style: "flex: 1; font-size: 11px;",
+                                        onclick: move |_| {
+                                            let mut mut_sess = session.write();
+                                            if let Some(s) = mut_sess.as_mut() {
+                                                s.prefs.two_columns = !s.prefs.two_columns;
+                                                s.save_prefs();
+                                            }
+                                        },
+                                        if prefs.two_columns { "📖 2 Pages (Spread)" } else { "📄 1 Page" }
+                                    }
                                 }
                             }
                         }
@@ -1393,19 +1664,27 @@ pub fn ReaderModal(
 
             // eReader Main Reading Viewport with Tap Zones
             div { class: "reader-viewport-area",
-                // Left Tap Zone (Previous Page)
-                div {
-                    class: "reader-tap-zone left",
-                    title: "Page précédente (Flèche gauche)",
-                    onclick: go_prev,
-                    if can_prev {
-                        span { class: "reader-tap-indicator", "‹" }
+                // Left Tap Zone (Previous Page or Next Page in Manga RTL)
+                if !is_webtoon {
+                    div {
+                        class: "reader-tap-zone left",
+                        title: if is_comic && prefs.comic_rtl { "Page suivante (Manga D ➔ G)" } else { "Page précédente (Flèche gauche)" },
+                        onclick: on_left_click,
+                        if is_comic && prefs.comic_rtl {
+                            if can_next {
+                                span { class: "reader-tap-indicator", "›" }
+                            }
+                        } else {
+                            if can_prev {
+                                span { class: "reader-tap-indicator", "‹" }
+                            }
+                        }
                     }
                 }
 
                 // Center eReader Screen Card
                 div {
-                    class: "{frame_card_class}",
+                    class: "{full_card_class}",
                     style: "{frame_style}",
 
                     // Screen Header (Discreet eReader Chapter Header)
@@ -1413,14 +1692,14 @@ pub fn ReaderModal(
                         span { class: "reader-screen-header-title", "{chapter_title}" }
                     }
 
-                    // Screen Body (Strictly Paginated, No Cutoff Lines)
+                    // Screen Body (Strictly Paginated, No Cutoff Lines, or Continuous Webtoon)
                     div {
-                        class: "reader-screen-body",
+                        class: "{body_class}",
                         style: "{body_style}",
                         if current_html.trim().is_empty() {
                             div {
                                 style: "margin: auto; text-align: center; color: var(--text-muted); padding: 60px 20px;",
-                                p { style: "font-size: 15px; font-weight: 500;", "Aucun contenu textuel disponible pour cette page." }
+                                p { style: "font-size: 15px; font-weight: 500;", "Aucun contenu textuel ou graphique disponible pour cette page." }
                             }
                         } else {
                             div {
@@ -1433,30 +1712,40 @@ pub fn ReaderModal(
                     // Screen Footer (eReader Page Count & Book Progress)
                     div { class: "reader-screen-footer",
                         div { class: "reader-footer-left",
-                            "Page {page_in_ch} sur {total_in_ch} • {chapter_title}"
+                            "{footer_left}"
                         }
                         div { class: "reader-footer-right",
-                            "Page {cur_page + 1} / {total_pages.max(1)} ({progress:.0}%)"
+                            "{footer_right}"
                         }
                     }
                 }
 
                 // Center Tap Zone (Toggle Chrome)
-                div {
-                    class: "reader-tap-zone center",
-                    onclick: move |_| {
-                        let cur = *show_chrome.read();
-                        show_chrome.set(!cur);
-                    },
+                if !is_webtoon {
+                    div {
+                        class: "reader-tap-zone center",
+                        onclick: move |_| {
+                            let cur = *show_chrome.read();
+                            show_chrome.set(!cur);
+                        },
+                    }
                 }
 
-                // Right Tap Zone (Next Page)
-                div {
-                    class: "reader-tap-zone right",
-                    title: "Page suivante (Flèche droite / Espace)",
-                    onclick: go_next,
-                    if can_next {
-                        span { class: "reader-tap-indicator", "›" }
+                // Right Tap Zone (Next Page or Previous Page in Manga RTL)
+                if !is_webtoon {
+                    div {
+                        class: "reader-tap-zone right",
+                        title: if is_comic && prefs.comic_rtl { "Page précédente (Manga D ➔ G)" } else { "Page suivante (Flèche droite / Espace)" },
+                        onclick: on_right_click,
+                        if is_comic && prefs.comic_rtl {
+                            if can_prev {
+                                span { class: "reader-tap-indicator", "‹" }
+                            }
+                        } else {
+                            if can_next {
+                                span { class: "reader-tap-indicator", "›" }
+                            }
+                        }
                     }
                 }
             }
@@ -1466,9 +1755,9 @@ pub fn ReaderModal(
                 div { class: "reader-bottom-nav",
                     button {
                         class: "btn btn-secondary",
-                        disabled: !can_prev,
-                        onclick: go_prev,
-                        "◀ Page précédente"
+                        disabled: if is_comic && prefs.comic_rtl { !can_next } else { !can_prev },
+                        onclick: on_left_click,
+                        if is_comic && prefs.comic_rtl { "Suivante ◀ (Manga)" } else { "◀ Page précédente" }
                     }
 
                     div { style: "display: flex; align-items: center; gap: 16px; flex: 1; max-width: 540px; margin: 0 20px;",
@@ -1482,24 +1771,40 @@ pub fn ReaderModal(
                                 if let Ok(target) = e.value().parse::<usize>() {
                                     let mut mut_sess = session.write();
                                     if let Some(s) = mut_sess.as_mut() {
-                                        s.jump_to_page(target.min(s.total_pages.saturating_sub(1)));
+                                        let aligned = if s.is_comic() && s.prefs.comic_reading_mode == ComicReadingMode::DoublePage && target > 0 {
+                                            target - (target % 2)
+                                        } else {
+                                            target
+                                        };
+                                        s.jump_to_page(aligned.min(s.total_pages.saturating_sub(1)));
                                         let (p, tot, pct) = (s.current_page, s.total_pages, s.progress_percent());
                                         drop(mut_sess);
                                         on_progress_update.call((p, tot, pct));
+
+                                        if is_webtoon {
+                                            let _ = document::eval(&format!(
+                                                "const el = document.getElementById('webtoon-page-{}'); if (el) el.scrollIntoView({{behavior: 'smooth', block: 'start'}});",
+                                                target + 1
+                                            ));
+                                        }
                                     }
                                 }
                             },
                         }
                         span { style: "font-size: 12px; color: var(--text-muted); white-space: nowrap;",
-                            "Page {cur_page + 1} / {total_pages.max(1)} ({progress:.1}%)"
+                            if is_webtoon {
+                                "Planche {cur_page + 1} / {total_pages.max(1)}"
+                            } else {
+                                "Page {cur_page + 1} / {total_pages.max(1)} ({progress:.1}%)"
+                            }
                         }
                     }
 
                     button {
                         class: "btn btn-primary",
-                        disabled: !can_next,
-                        onclick: go_next,
-                        "Page suivante ▶"
+                        disabled: if is_comic && prefs.comic_rtl { !can_prev } else { !can_next },
+                        onclick: on_right_click,
+                        if is_comic && prefs.comic_rtl { "Précédente ▶ (Manga)" } else { "Page suivante ▶" }
                     }
                 }
             }

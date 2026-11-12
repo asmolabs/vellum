@@ -793,11 +793,161 @@ body {
 }
 
 .reader-inner .cbz-container img {
-  max-height: 72vh;
+  max-height: calc(100vh - 170px);
   max-width: 95%;
   object-fit: contain;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   border-radius: 6px;
+}
+
+/* Comic / Manga / Webtoon Layout Styles */
+.reader-screen-card.comic-double-mode {
+  max-width: 1380px;
+  width: 96%;
+}
+
+.reader-screen-card.webtoon-mode {
+  max-width: 820px;
+  width: 100%;
+}
+
+.reader-screen-body.webtoon-mode {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 !important;
+  scroll-behavior: smooth;
+  display: block !important;
+}
+
+.webtoon-strip-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.webtoon-page-item {
+  position: relative;
+  width: 100%;
+  line-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.webtoon-page-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.webtoon-page-badge {
+  position: absolute;
+  bottom: 10px;
+  right: 14px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 12px;
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.webtoon-page-item:hover .webtoon-page-badge {
+  opacity: 1;
+}
+
+/* Double-page Comic Layout */
+.cbz-double-page {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  gap: 8px;
+}
+
+.cbz-double-page .cbz-page {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cbz-double-page .cbz-page img {
+  max-height: calc(100vh - 170px);
+  max-width: 100%;
+  object-fit: contain;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  border-radius: 4px;
+}
+
+/* Fit Modes for Comics */
+.reader-screen-card.fit-height .reader-inner .cbz-container img,
+.reader-screen-card.fit-height .cbz-double-page .cbz-page img {
+  max-height: calc(100vh - 170px);
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.reader-screen-card.fit-width .reader-inner .cbz-container img,
+.reader-screen-card.fit-width .cbz-double-page .cbz-page img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: calc(100vh - 170px);
+  object-fit: contain;
+}
+
+.reader-screen-card.fit-original .reader-inner .cbz-container img,
+.reader-screen-card.fit-original .cbz-double-page .cbz-page img {
+  max-height: none;
+  max-width: none;
+}
+
+/* Comic pill indicator in toolbar */
+.comic-mode-pill {
+  display: flex;
+  align-items: center;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.comic-pill-btn {
+  padding: 3px 9px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.comic-pill-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.comic-pill-btn.active {
+  background: var(--accent-primary);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
 }
 
 .reader-bottom-nav {

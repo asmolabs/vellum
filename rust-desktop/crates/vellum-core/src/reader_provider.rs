@@ -93,6 +93,18 @@ pub trait BookContentProvider: Send + Sync {
     fn is_fixed_layout(&self) -> bool {
         false
     }
+
+    /// Return double-page HTML for comics: shows page `page_index` and `page_index + 1`.
+    /// `rtl`: if true (manga), right page is `page_index`, left page is `page_index + 1`.
+    /// If false (western), left page is `page_index`, right page is `page_index + 1`.
+    fn get_double_page_html(&self, page_index: usize, _theme: &str, _rtl: bool) -> String {
+        self.get_page_html(page_index, _theme, 18, false)
+    }
+
+    /// Return continuous Webtoon HTML containing all comic images as a vertical strip.
+    fn get_webtoon_html(&self) -> String {
+        String::new()
+    }
 }
 
 /// Converts HTML to whitespace-collapsed plain text with basic entity decoding.
@@ -740,6 +752,51 @@ impl BookContentProvider for CbzContentProvider {
 
     fn is_fixed_layout(&self) -> bool {
         true
+    }
+
+    fn get_double_page_html(&self, page_index: usize, _theme: &str, rtl: bool) -> String {
+        if page_index >= self.images_b64.len() {
+            return String::new();
+        }
+        let p1 = &self.images_b64[page_index];
+        let p2_opt = self.images_b64.get(page_index + 1);
+
+        match (p2_opt, rtl) {
+            (Some(p2), true) => {
+                // Manga RTL: first page (p1) is on the right, next page (p2) is on the left
+                format!(
+                    r#"<div class="cbz-double-page rtl"><div class="cbz-page left"><img src="data:{};base64,{}" alt="Page {}"/></div><div class="cbz-page right"><img src="data:{};base64,{}" alt="Page {}"/></div></div>"#,
+                    p2.0, p2.1, page_index + 2,
+                    p1.0, p1.1, page_index + 1
+                )
+            }
+            (Some(p2), false) => {
+                // Western LTR: first page (p1) is on the left, next page (p2) is on the right
+                format!(
+                    r#"<div class="cbz-double-page ltr"><div class="cbz-page left"><img src="data:{};base64,{}" alt="Page {}"/></div><div class="cbz-page right"><img src="data:{};base64,{}" alt="Page {}"/></div></div>"#,
+                    p1.0, p1.1, page_index + 1,
+                    p2.0, p2.1, page_index + 2
+                )
+            }
+            (None, _) => {
+                format!(
+                    r#"<div class="cbz-double-page single"><div class="cbz-page center"><img src="data:{};base64,{}" alt="Page {}"/></div></div>"#,
+                    p1.0, p1.1, page_index + 1
+                )
+            }
+        }
+    }
+
+    fn get_webtoon_html(&self) -> String {
+        let mut html = String::from(r#"<div class="webtoon-strip-container">"#);
+        for (i, (mime, b64)) in self.images_b64.iter().enumerate() {
+            html.push_str(&format!(
+                r#"<div class="webtoon-page-item" id="webtoon-page-{}"><img src="data:{};base64,{}" alt="Page {}" loading="lazy"/><div class="webtoon-page-badge">Page {}</div></div>"#,
+                i + 1, mime, b64, i + 1, i + 1
+            ));
+        }
+        html.push_str("</div>");
+        html
     }
 }
 

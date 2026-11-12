@@ -50,7 +50,7 @@ impl SortOption {
 }
 
 use vellum_core::reader_store::{
-    BookUserData, Bookmark, Highlight, ReaderPreferences, SearchResult,
+    BookUserData, Bookmark, ComicReadingMode, Highlight, ReaderPreferences, SearchResult,
 };
 
 pub struct ReaderSession {
@@ -132,13 +132,39 @@ impl ReaderSession {
         None
     }
 
+    pub fn is_comic(&self) -> bool {
+        self.provider.is_fixed_layout()
+            || self
+                .book
+                .formats
+                .iter()
+                .any(|f| f.format.eq_ignore_ascii_case("cbz") || f.format.eq_ignore_ascii_case("cbr"))
+    }
+
     pub fn current_html(&self) -> String {
-        self.provider.get_page_html(
-            self.current_page,
-            &self.prefs.theme,
-            self.prefs.font_size,
-            self.prefs.font_family != "sans",
-        )
+        if self.is_comic() {
+            match self.prefs.comic_reading_mode {
+                ComicReadingMode::Webtoon => self.provider.get_webtoon_html(),
+                ComicReadingMode::DoublePage => self.provider.get_double_page_html(
+                    self.current_page,
+                    &self.prefs.theme,
+                    self.prefs.comic_rtl,
+                ),
+                ComicReadingMode::SinglePage => self.provider.get_page_html(
+                    self.current_page,
+                    &self.prefs.theme,
+                    self.prefs.font_size,
+                    self.prefs.font_family != "sans",
+                ),
+            }
+        } else {
+            self.provider.get_page_html(
+                self.current_page,
+                &self.prefs.theme,
+                self.prefs.font_size,
+                self.prefs.font_family != "sans",
+            )
+        }
     }
 
     pub fn current_title(&self) -> String {

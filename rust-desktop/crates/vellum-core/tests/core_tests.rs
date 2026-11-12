@@ -180,8 +180,26 @@ async fn test_reader_provider_txt_and_cbz() {
 
     let cbz_provider = create_content_provider(&cbz_path);
     assert_eq!(cbz_provider.total_pages(), 2);
+    assert!(cbz_provider.is_fixed_layout());
     let page1_cbz = cbz_provider.get_page_html(0, "dark", 18, false);
     assert!(page1_cbz.contains("data:image/jpeg;base64,"));
+
+    // 2b. Manga RTL and Western LTR Double-Page Spread
+    let double_ltr = cbz_provider.get_double_page_html(0, "dark", false);
+    assert!(double_ltr.contains("cbz-double-page ltr"));
+    assert!(double_ltr.contains("Page 1"));
+    assert!(double_ltr.contains("Page 2"));
+
+    let double_rtl = cbz_provider.get_double_page_html(0, "dark", true);
+    assert!(double_rtl.contains("cbz-double-page rtl"));
+    assert!(double_rtl.contains("Page 1"));
+    assert!(double_rtl.contains("Page 2"));
+
+    // 2c. Webtoon Continuous Vertical Strip
+    let webtoon_html = cbz_provider.get_webtoon_html();
+    assert!(webtoon_html.contains("webtoon-strip-container"));
+    assert!(webtoon_html.contains("webtoon-page-1"));
+    assert!(webtoon_html.contains("webtoon-page-2"));
 
     // 3. EPUB Reader with spine and embedded images
     let epub_path = temp.path().join("book_with_images.epub");

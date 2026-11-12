@@ -5,6 +5,32 @@ use uuid::Uuid;
 
 use crate::reader_provider::BookContentProvider;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ComicReadingMode {
+    SinglePage,
+    DoublePage,
+    Webtoon,
+}
+
+impl Default for ComicReadingMode {
+    fn default() -> Self {
+        ComicReadingMode::SinglePage
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ComicFitMode {
+    FitHeight,
+    FitWidth,
+    Original,
+}
+
+impl Default for ComicFitMode {
+    fn default() -> Self {
+        ComicFitMode::FitHeight
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReaderPreferences {
     pub theme: String,              // "dark", "sepia", "light", "amoled"
@@ -18,6 +44,14 @@ pub struct ReaderPreferences {
     pub brightness: u8,             // 30 to 100%
     pub animation_style: String,    // "slide", "fade", "none"
     pub words_per_minute: usize,    // Reading speed for time estimation (default: 200)
+
+    // Comic & Manga modes (CBZ / CBR)
+    #[serde(default)]
+    pub comic_reading_mode: ComicReadingMode, // SinglePage, DoublePage, Webtoon
+    #[serde(default)]
+    pub comic_rtl: bool,                      // Japanese Manga direction: Right-to-Left
+    #[serde(default)]
+    pub comic_fit_mode: ComicFitMode,         // FitHeight, FitWidth, Original
 }
 
 impl Default for ReaderPreferences {
@@ -34,6 +68,9 @@ impl Default for ReaderPreferences {
             brightness: 100,
             animation_style: "slide".to_string(),
             words_per_minute: 200,
+            comic_reading_mode: ComicReadingMode::SinglePage,
+            comic_rtl: false,
+            comic_fit_mode: ComicFitMode::FitHeight,
         }
     }
 }
@@ -348,12 +385,18 @@ mod tests {
         prefs.font_size = 22;
         prefs.theme = "sepia".to_string();
         prefs.two_columns = true;
+        prefs.comic_reading_mode = ComicReadingMode::Webtoon;
+        prefs.comic_rtl = true;
+        prefs.comic_fit_mode = ComicFitMode::FitWidth;
 
         prefs.save_to_dir(temp.path()).unwrap();
         let loaded = ReaderPreferences::load_from_dir(temp.path());
         assert_eq!(loaded.font_size, 22);
         assert_eq!(loaded.theme, "sepia");
         assert!(loaded.two_columns);
+        assert_eq!(loaded.comic_reading_mode, ComicReadingMode::Webtoon);
+        assert!(loaded.comic_rtl);
+        assert_eq!(loaded.comic_fit_mode, ComicFitMode::FitWidth);
     }
 
     #[test]
