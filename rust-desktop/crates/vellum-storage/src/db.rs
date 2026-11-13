@@ -161,6 +161,57 @@ impl Database {
             let _ = conn.execute("ALTER TABLE books ADD COLUMN series_index REAL;", []);
         }
 
+        // Full-Text Search (FTS5) virtual table with automatic sync triggers
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
+                book_id UNINDEXED,
+                title,
+                author,
+                publisher,
+                series,
+                isbn,
+                description,
+                tokenize='unicode61 remove_diacritics 2'
+            );
+
+            CREATE TRIGGER IF NOT EXISTS books_fts_ai AFTER INSERT ON books BEGIN
+                INSERT INTO books_fts(book_id, title, author, publisher, series, isbn, description)
+                VALUES (
+                    new.id,
+                    new.title,
+                    new.author,
+                    COALESCE(new.publisher, ''),
+                    COALESCE(new.series, ''),
+                    COALESCE(new.isbn, ''),
+                    COALESCE(new.description, '')
+                );
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS books_fts_au AFTER UPDATE ON books BEGIN
+                DELETE FROM books_fts WHERE book_id = old.id;
+                INSERT INTO books_fts(book_id, title, author, publisher, series, isbn, description)
+                VALUES (
+                    new.id,
+                    new.title,
+                    new.author,
+                    COALESCE(new.publisher, ''),
+                    COALESCE(new.series, ''),
+                    COALESCE(new.isbn, ''),
+                    COALESCE(new.description, '')
+                );
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS books_fts_ad AFTER DELETE ON books BEGIN
+                DELETE FROM books_fts WHERE book_id = old.id;
+            END;
+
+            INSERT INTO books_fts(book_id, title, author, publisher, series, isbn, description)
+            SELECT id, title, author, COALESCE(publisher, ''), COALESCE(series, ''), COALESCE(isbn, ''), COALESCE(description, '')
+            FROM books
+            WHERE id NOT IN (SELECT book_id FROM books_fts);",
+        )
+        .map_err(|e| VellumError::Database(e.to_string()))?;
+
         Ok(())
     }
 }

@@ -154,6 +154,60 @@ impl BookRepository {
         Ok(books)
     }
 
+    /// Recherche plein texte via SQLite FTS5 (insensible aux accents, triée par pertinence BM25).
+    pub fn search_fts(&self, query: &str, tag_name: Option<&str>) -> VellumResult<Vec<Book>> {
+        let fts_terms: Vec<String> = query
+            .split_whitespace()
+            .filter_map(|raw| {
+                let clean: String = raw
+                    .chars()
+                    .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+                    .collect();
+                if clean.chars().any(|c| c.is_alphanumeric()) {
+                    Some(format!("\"{clean}\"*"))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if fts_terms.is_empty() {
+            return self.search_books(None, tag_name);
+        }
+
+        let fts_expr = fts_terms.join(" ");
+        let tag_filter = tag_name
+            .map(str::trim)
+            .filter(|t| !t.is_empty() && !t.eq_ignore_ascii_case("Tous"))
+            .map(String::from);
+
+        let conn = self.db.lock()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT DISTINCT f.book_id
+                 FROM books_fts f
+                 LEFT JOIN book_tags bt ON bt.book_id = f.book_id
+                 WHERE books_fts MATCH ?1
+                   AND (?2 IS NULL OR bt.tag_name = ?2)
+                 ORDER BY bm25(books_fts, 0.0, 10.0, 6.0, 3.0, 4.0, 8.0, 1.0)",
+            )
+            .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        let ids: Vec<String> = stmt
+            .query_map(params![fts_expr, tag_filter], |row| row.get(0))
+            .map_err(|e| VellumError::Database(e.to_string()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        let mut books = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(book) = Self::load_book_by_id(&conn, &id)? {
+                books.push(book);
+            }
+        }
+        Ok(books)
+    }
+
     pub fn count(&self) -> VellumResult<usize> {
         let conn = self.db.lock()?;
         let count: i64 = conn

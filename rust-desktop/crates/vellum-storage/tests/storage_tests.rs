@@ -108,3 +108,32 @@ fn test_sync_repository_events_and_deltas() {
         .unwrap();
     assert!(sync_repo.is_delta_applied("client2_delta1.json").unwrap());
 }
+
+#[test]
+fn test_fts5_accent_insensitive_search_and_bm25_ranking() {
+    let db = Database::open_in_memory().expect("open in-memory db");
+    let book_repo = BookRepository::new(db);
+
+    let mut b1 = Book::new("Les Misérables", "Victor Hugo");
+    b1.description = Some("Roman social majeur du XIXe siècle".to_string());
+    book_repo.save(&b1).unwrap();
+
+    let mut b2 = Book::new("Guide de Paris", "Auteur Divers");
+    b2.description = Some("Évoque les miserables quartiers de l'époque".to_string());
+    book_repo.save(&b2).unwrap();
+
+    // Accent-insensitive + prefix match + BM25 title weight > description weight
+    let hits = book_repo.search_fts("miserab", None).unwrap();
+    assert_eq!(hits.len(), 2);
+    assert_eq!(hits[0].title, "Les Misérables");
+
+    // Special characters shouldn't trigger FTS5 syntax errors
+    let safe_hits = book_repo.search_fts("hugo: \"paris\" + (test)!", None).unwrap();
+    assert!(safe_hits.is_empty());
+
+    // Delete removes from FTS index via trigger
+    book_repo.delete(&b1.id).unwrap();
+    let after_del = book_repo.search_fts("miserables", None).unwrap();
+    assert_eq!(after_del.len(), 1);
+    assert_eq!(after_del[0].id, b2.id);
+}

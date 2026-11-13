@@ -169,6 +169,15 @@ impl BookService {
         self.book_repo.search_books(search, tag)
     }
 
+    /// Recherche plein texte rapide via SQLite FTS5 (insensible aux accents, triée par pertinence BM25).
+    pub fn search_books_fts(
+        &self,
+        query: &str,
+        tag: Option<&str>,
+    ) -> VellumResult<Vec<Book>> {
+        self.book_repo.search_fts(query, tag)
+    }
+
     pub fn get_books_filtered(
         &self,
         search: Option<&str>,

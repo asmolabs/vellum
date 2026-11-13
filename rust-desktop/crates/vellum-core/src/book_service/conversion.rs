@@ -287,5 +287,15 @@ impl BookService {
         Ok(dest_path)
     }
 
-
+    /// Exporte l'ensemble du catalogue de la bibliothèque vers un fichier (CSV, JSON ou BibTeX).
+    pub fn export_catalog(
+        &self,
+        format: crate::catalog_exporter::CatalogFormat,
+        dest: &Path,
+    ) -> VellumResult<usize> {
+        let books = self.book_repo.find_all()?;
+        let count = books.len();
+        crate::catalog_exporter::CatalogExporter::export_to_file(&books, format, dest)?;
+        Ok(count)
+    }
 }

@@ -14,6 +14,7 @@
 pub mod app_services;
 pub mod book_service;
 pub mod calibre_importer;
+pub mod catalog_exporter;
 pub mod conversion_service;
 pub mod device_service;
 pub mod epub_editor;
@@ -36,6 +37,7 @@ pub use book_service::{
     BookService, DuplicateBookInfo, TranslateBookRequest, UpdateMetadataRequest,
 };
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
+pub use catalog_exporter::{CatalogExporter, CatalogFormat};
 pub use conversion_service::ConversionService;
 pub use device_service::{ConnectedDevice, DeviceService};
 pub use epub_editor::EpubEditor;
