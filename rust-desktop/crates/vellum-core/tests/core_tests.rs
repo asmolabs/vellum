@@ -1564,6 +1564,65 @@ fn test_virtual_library_crud_and_query_filtering() {
     assert!(service.list().unwrap().is_empty());
 }
 
+#[test]
+fn test_custom_columns_definition_validation_and_values() {
+    let db = vellum_storage::Database::open_in_memory().unwrap();
+    let book_repo = vellum_storage::BookRepository::new(db.clone());
+    let col_repo = vellum_storage::CustomColumnRepository::new(db);
+    let service = vellum_core::CustomColumnService::new(col_repo);
+
+    let book = vellum_domain::Book::new("Hypérion", "Dan Simmons");
+    book_repo.save(&book).unwrap();
+
+    // Define columns of different types
+    let mood = service
+        .define_column("Reading Mood", "Humeur", vellum_domain::CustomColumnType::Text)
+        .unwrap();
+    assert_eq!(mood.key, "reading_mood");
+
+    let pages = service
+        .define_column("pages", "Nombre de pages", vellum_domain::CustomColumnType::Number)
+        .unwrap();
+    let owned = service
+        .define_column("owned", "Possédé papier", vellum_domain::CustomColumnType::Boolean)
+        .unwrap();
+    let note = service
+        .define_column("personal_rating", "Note perso", vellum_domain::CustomColumnType::Rating)
+        .unwrap();
+
+    // Duplicate key rejected
+    assert!(service
+        .define_column("pages", "Doublon", vellum_domain::CustomColumnType::Number)
+        .is_err());
+
+    // Type validation errors
+    assert!(service.set_book_value(&book.id, "pages", "not-a-number").is_err());
+    assert!(service.set_book_value(&book.id, "owned", "maybe").is_err());
+    assert!(service.set_book_value(&book.id, "personal_rating", "9").is_err());
+
+    // Valid values
+    service.set_book_value(&book.id, "reading_mood", "Épique").unwrap();
+    service.set_book_value(&book.id, "pages", "512").unwrap();
+    service.set_book_value(&book.id, "owned", "oui").unwrap();
+    service.set_book_value(&book.id, "personal_rating", "5").unwrap();
+
+    let values = service.get_book_values(&book.id).unwrap();
+    assert_eq!(values.get("reading_mood").map(String::as_str), Some("Épique"));
+    assert_eq!(values.get("pages").map(String::as_str), Some("512"));
+    assert_eq!(values.get("owned").map(String::as_str), Some("true"));
+    assert_eq!(values.get("personal_rating").map(String::as_str), Some("5"));
+
+    // Clear a value with empty string
+    service.set_book_value(&book.id, "reading_mood", "   ").unwrap();
+    assert!(!service.get_book_values(&book.id).unwrap().contains_key("reading_mood"));
+
+    // Delete column definition cascades to values
+    assert!(service.delete_column(&pages.id).unwrap());
+    assert!(service.delete_column(&owned.id).unwrap());
+    assert!(service.delete_column(&note.id).unwrap());
+    assert_eq!(service.list_columns().unwrap().len(), 1);
+}
+
 
 
 

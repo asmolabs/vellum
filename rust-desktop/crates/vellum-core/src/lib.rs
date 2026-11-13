@@ -16,6 +16,7 @@ pub mod book_service;
 pub mod calibre_importer;
 pub mod catalog_exporter;
 pub mod conversion_service;
+pub mod custom_column_service;
 pub mod device_service;
 pub mod epub_editor;
 pub mod i18n;
@@ -42,6 +43,7 @@ pub use book_service::{
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
 pub use catalog_exporter::{CatalogExporter, CatalogFormat};
 pub use conversion_service::ConversionService;
+pub use custom_column_service::CustomColumnService;
 pub use device_service::{ConnectedDevice, DeviceService};
 pub use epub_editor::EpubEditor;
 pub use i18n::{catalog_for, translate, translate_fmt, Locale};

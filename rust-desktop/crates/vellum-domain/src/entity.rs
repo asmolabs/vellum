@@ -177,3 +177,63 @@ impl VirtualLibrary {
         }
     }
 }
+
+/// Type de données d'une colonne personnalisée.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CustomColumnType {
+    Text,
+    Number,
+    Boolean,
+    Date,
+    Rating,
+}
+
+impl CustomColumnType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CustomColumnType::Text => "text",
+            CustomColumnType::Number => "number",
+            CustomColumnType::Boolean => "boolean",
+            CustomColumnType::Date => "date",
+            CustomColumnType::Rating => "rating",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "text" => Some(Self::Text),
+            "number" => Some(Self::Number),
+            "boolean" | "bool" => Some(Self::Boolean),
+            "date" => Some(Self::Date),
+            "rating" => Some(Self::Rating),
+            _ => None,
+        }
+    }
+}
+
+/// Définition d'une colonne personnalisée sur les livres de la bibliothèque.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomColumnDefinition {
+    pub id: String,
+    pub key: String,
+    pub label: String,
+    pub column_type: CustomColumnType,
+    pub created_at: String,
+}
+
+impl CustomColumnDefinition {
+    pub fn new(
+        key: impl Into<String>,
+        label: impl Into<String>,
+        column_type: CustomColumnType,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            key: key.into(),
+            label: label.into(),
+            column_type,
+            created_at: Utc::now().to_rfc3339(),
+        }
+    }
+}

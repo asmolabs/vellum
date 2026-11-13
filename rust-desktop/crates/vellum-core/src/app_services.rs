@@ -6,13 +6,14 @@ use std::sync::Arc;
 use tracing::info;
 use vellum_domain::{AppConfig, Book, CloudSyncConfig, SmtpConfig};
 use vellum_storage::{
-    BookRepository, Database, ParamRepository, SyncRepository, TagRepository,
-    VirtualLibraryRepository,
+    BookRepository, CustomColumnRepository, Database, ParamRepository, SyncRepository,
+    TagRepository, VirtualLibraryRepository,
 };
 
 use crate::{
-    BookService, ConversionService, DeviceService, LitestreamService, MailService, MetadataService,
-    NewsService, OpdsServer, PluginService, SyncService, VirtualLibraryService,
+    BookService, ConversionService, CustomColumnService, DeviceService, LitestreamService,
+    MailService, MetadataService, NewsService, OpdsServer, PluginService, SyncService,
+    VirtualLibraryService,
 };
 
 /// Conteneur d'injection de dépendances regroupant les services métier de l'application.
@@ -25,6 +26,7 @@ pub struct AppServices {
     pub mail_service: Arc<MailService>,
     pub news_service: Arc<NewsService>,
     pub virtual_library_service: Arc<VirtualLibraryService>,
+    pub custom_column_service: Arc<CustomColumnService>,
     pub smtp_config: SmtpConfig,
     pub opds_port: u16,
 }
@@ -44,6 +46,7 @@ pub fn init_services() -> AppServices {
     let tag_repo = TagRepository::new(db.clone());
     let sync_repo = SyncRepository::new(db.clone());
     let vl_repo = VirtualLibraryRepository::new(db.clone());
+    let custom_col_repo = CustomColumnRepository::new(db.clone());
 
     let mut cloud_sync_cfg = app_cfg.cloud_sync.clone();
     if let Ok(Some(saved_json)) = param_repo.get_value("cloud_sync_config") {
@@ -129,6 +132,7 @@ pub fn init_services() -> AppServices {
         Some(mail_service.clone()),
     ));
     let virtual_library_service = Arc::new(VirtualLibraryService::new(vl_repo));
+    let custom_column_service = Arc::new(CustomColumnService::new(custom_col_repo));
 
     AppServices {
         book_service,
@@ -138,6 +142,7 @@ pub fn init_services() -> AppServices {
         mail_service,
         news_service,
         virtual_library_service,
+        custom_column_service,
         smtp_config: smtp_cfg,
         opds_port,
     }

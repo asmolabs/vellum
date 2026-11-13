@@ -10,6 +10,7 @@
 //! - [`SyncRepository`] : journalisation des événements de synchronisation multi-clients
 
 pub mod book_repo;
+pub mod custom_column_repo;
 pub mod db;
 pub mod param_repo;
 pub mod sync_repo;
@@ -17,6 +18,7 @@ pub mod tag_repo;
 pub mod virtual_library_repo;
 
 pub use book_repo::BookRepository;
+pub use custom_column_repo::CustomColumnRepository;
 pub use db::Database;
 pub use param_repo::ParamRepository;
 pub use sync_repo::SyncRepository;

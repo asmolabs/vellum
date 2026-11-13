@@ -136,6 +136,23 @@ impl Database {
                 query TEXT NOT NULL,
                 color TEXT,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS custom_columns (
+                id TEXT PRIMARY KEY NOT NULL,
+                key TEXT NOT NULL UNIQUE,
+                label TEXT NOT NULL,
+                column_type TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS book_custom_values (
+                book_id TEXT NOT NULL,
+                column_id TEXT NOT NULL,
+                value TEXT NOT NULL,
+                PRIMARY KEY (book_id, column_id),
+                FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+                FOREIGN KEY (column_id) REFERENCES custom_columns(id) ON DELETE CASCADE
             );",
         )
         .map_err(|e| VellumError::Database(e.to_string()))?;
