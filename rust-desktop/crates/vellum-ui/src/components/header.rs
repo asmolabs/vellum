@@ -14,6 +14,7 @@ pub fn Header(
     on_open_audit: EventHandler<()>,
     on_open_content_search: EventHandler<()>,
     on_open_import_rules: EventHandler<()>,
+    on_open_bulk_regex: EventHandler<()>,
     on_open_news: EventHandler<()>,
     on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
@@ -21,6 +22,9 @@ pub fn Header(
     on_open_palette: EventHandler<()>,
     on_open_settings: EventHandler<()>,
 ) -> Element {
+    let mut tools_open = use_signal(|| false);
+    let has_search = !search_query.read().is_empty();
+
     rsx! {
         header { class: "app-header",
             div { class: "logo-area",
@@ -33,9 +37,19 @@ pub fn Header(
                 span { class: "search-icon-slot", "🔍" }
                 input {
                     r#type: "text",
-                    placeholder: "{translate(locale, \"action.search\")} (Dune, author:Herbert, series:Fondation, tag:SF)...",
+                    style: if has_search { "padding-right: 72px;" } else { "padding-right: 48px;" },
+                    placeholder: "{translate(locale, \"action.search\")} (Dune, author:Herbert, tag:SF)...",
                     value: "{search_query}",
                     oninput: move |evt| search_query.set(evt.value()),
+                }
+                if has_search {
+                    button {
+                        class: "btn btn-icon",
+                        style: "position: absolute; right: 44px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; font-size: 11px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.1); color: var(--text-muted); border: none; cursor: pointer;",
+                        title: "Effacer la recherche",
+                        onclick: move |_| search_query.set(String::new()),
+                        "✕"
+                    }
                 }
                 button {
                     class: "btn btn-icon",
@@ -48,56 +62,36 @@ pub fn Header(
 
             div { class: "header-actions",
                 // Synchro Google Drive Multi-Postes
-                button {
-                    class: "btn btn-secondary",
-                    style: if sync_available {
-                        "border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; font-size: 12px; gap: 6px; padding: 6px 12px;"
-                    } else {
-                        "border-color: rgba(255, 255, 255, 0.1); color: var(--text-muted); font-size: 12px; gap: 6px; padding: 6px 12px;"
-                    },
-                    title: if sync_available {
-                        "Synchroniser la bibliothèque avec Google Drive (livres & progression)"
-                    } else {
-                        "Google Drive non configuré — Cliquer pour configurer dans les paramètres"
-                    },
-                    disabled: is_syncing,
-                    onclick: move |_| {
-                        if sync_available {
-                            on_sync_cloud.call(());
-                        } else {
-                            on_open_settings.call(());
-                        }
-                    },
-                    span { if is_syncing { "⏳" } else { "☁️" } }
-                    span {
-                        if is_syncing {
-                            "Synchro en cours..."
-                        } else if sync_available {
-                            "Synchro Drive"
-                        } else {
-                            "Drive (inactif)"
-                        }
+                if sync_available {
+                    button {
+                        class: "btn btn-secondary",
+                        style: "border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;",
+                        title: "Synchroniser la bibliothèque avec Google Drive",
+                        disabled: is_syncing,
+                        onclick: move |_| on_sync_cloud.call(()),
+                        span { if is_syncing { "⏳" } else { "☁️" } }
+                        span { if is_syncing { "Synchro..." } else { "Sync" } }
                     }
                 }
 
-                // Liseuses physiques connectées
+                // Liseuses connectées (Kobo / Kindle)
                 for dev in connected_devices.iter() {
                     {
-                        let dev_kind = dev.kind;
-                        let count = dev.book_count;
-                        let label = match dev_kind {
-                            DeviceKind::Kobo => format!("📱 Kobo ({count})"),
-                            DeviceKind::Kindle => format!("📱 Kindle ({count})"),
-                            DeviceKind::Generic => format!("📱 Liseuse ({count})"),
+                        let kind = dev.kind;
+                        let name = dev.name.clone();
+                        let icon = match kind {
+                            DeviceKind::Kobo => "📖",
+                            DeviceKind::Kindle => "📱",
+                            DeviceKind::Generic => "📲",
                         };
                         rsx! {
                             button {
                                 class: "btn btn-secondary",
-                                style: "border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 12px; gap: 6px; padding: 6px 12px;",
-                                title: "Cliquez pour synchroniser et importer les livres depuis l'appareil",
-                                onclick: move |_| on_sync_device.call(dev_kind),
-                                span { "🔄" }
-                                span { "{label}" }
+                                style: "border-color: rgba(16, 185, 129, 0.4); color: #34d399;",
+                                title: "Synchroniser avec {name}",
+                                onclick: move |_| on_sync_device.call(kind),
+                                span { "{icon}" }
+                                span { "{name}" }
                             }
                         }
                     }
@@ -105,52 +99,89 @@ pub fn Header(
 
                 button {
                     class: "btn btn-secondary",
-                    style: "border-color: rgba(52, 211, 153, 0.4); color: #34d399; font-size: 12px; gap: 6px; padding: 6px 12px;",
-                    title: "Audit de santé, détection des doublons et fusion intelligente",
-                    onclick: move |_| on_open_audit.call(()),
-                    span { "🛡️" }
-                    span { "Santé" }
-                }
-                button {
-                    class: "btn btn-secondary",
-                    style: "border-color: rgba(251, 191, 36, 0.4); color: #fbbf24; font-size: 12px; gap: 6px; padding: 6px 12px;",
-                    title: "Recherche plein texte dans le contenu des livres (FTS5)",
+                    style: "border-color: rgba(251, 191, 36, 0.35); color: #fbbf24;",
+                    title: "Recherche plein texte dans les chapitres (FTS5)",
                     onclick: move |_| on_open_content_search.call(()),
                     span { "🔎" }
                     span { "Contenu" }
                 }
-                button {
-                    class: "btn btn-secondary",
-                    style: "border-color: rgba(244, 114, 182, 0.4); color: #f472b6; font-size: 12px; gap: 6px; padding: 6px 12px;",
-                    title: "Règles d'import automatiques (tags, séries, polish)",
-                    onclick: move |_| on_open_import_rules.call(()),
-                    span { "⚡" }
-                    span { "Règles" }
+
+                // Menu Outils regroupé
+                div { class: "tools-dropdown",
+                    button {
+                        class: "btn btn-secondary",
+                        onclick: move |_| {
+                            let cur = *tools_open.read();
+                            tools_open.set(!cur);
+                        },
+                        span { "🧰" }
+                        span { "Outils ▾" }
+                    }
+
+                    if *tools_open.read() {
+                        div {
+                            style: "position: fixed; inset: 0; z-index: 1199;",
+                            onclick: move |_| tools_open.set(false),
+                        }
+                        div { class: "tools-menu",
+                            button {
+                                class: "tools-menu-item",
+                                onclick: move |_| {
+                                    tools_open.set(false);
+                                    on_open_audit.call(());
+                                },
+                                span { "🛡️" }
+                                span { "Santé & Audit (doublons)" }
+                            }
+                            button {
+                                class: "tools-menu-item",
+                                onclick: move |_| {
+                                    tools_open.set(false);
+                                    on_open_import_rules.call(());
+                                },
+                                span { "⚡" }
+                                span { "Règles d'import automatiques" }
+                            }
+                            button {
+                                class: "tools-menu-item",
+                                onclick: move |_| {
+                                    tools_open.set(false);
+                                    on_open_bulk_regex.call(());
+                                },
+                                span { "🔤" }
+                                span { "Regex en masse" }
+                            }
+                            button {
+                                class: "tools-menu-item",
+                                onclick: move |_| {
+                                    tools_open.set(false);
+                                    on_open_news.call(());
+                                },
+                                span { "📰" }
+                                span { "Recettes d'actualités (RSS)" }
+                            }
+                            button {
+                                class: "tools-menu-item",
+                                onclick: move |_| {
+                                    tools_open.set(false);
+                                    on_open_web_companion.call(());
+                                },
+                                span { "🌐" }
+                                span { "Compagnon Web & OPDS" }
+                            }
+                            button {
+                                class: "tools-menu-item",
+                                onclick: move |_| {
+                                    tools_open.set(false);
+                                    on_import_calibre.call(());
+                                },
+                                span { "📦" }
+                                span { "Importer depuis Calibre" }
+                            }
+                        }
+                    }
                 }
-                button {
-                    class: "btn btn-secondary",
-                    style: "border-color: rgba(14, 165, 233, 0.4); color: #38bdf8; font-size: 12px; gap: 6px; padding: 6px 12px;",
-                    title: "Recettes d'actualités : compiler des flux RSS en journal numérique quotidien (EPUB)",
-                    onclick: move |_| on_open_news.call(()),
-                    span { "📰" }
-                    span { "Actualités" }
-                }
-                button {
-                    class: "btn btn-secondary",
-                    style: "border-color: rgba(99, 102, 241, 0.4); color: #818cf8; font-size: 12px; gap: 6px; padding: 6px 12px;",
-                    title: "Ouvrir le Compagnon Web Mobile & Serveur OPDS dans le navigateur",
-                    onclick: move |_| on_open_web_companion.call(()),
-                    span { "🌐" }
-                    span { "Web" }
-                }
-                button {
-                    class: "btn btn-secondary",
-                    style: "border-color: rgba(167, 139, 250, 0.4); color: #c4b5fd; font-size: 12px; gap: 6px; padding: 6px 12px;",
-                    title: "Migrer ou importer une bibliothèque Calibre existante (metadata.db)",
-                    onclick: move |_| on_import_calibre.call(()),
-                    span { "📦" }
-                    span { "Calibre" }
-                }
+
                 button {
                     class: "btn btn-primary",
                     onclick: move |_| on_import.call(()),

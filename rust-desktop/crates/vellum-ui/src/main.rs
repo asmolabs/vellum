@@ -93,6 +93,7 @@ fn App() -> Element {
     let mut bulk_regex_open = use_signal(|| false);
     let mut import_rules_open = use_signal(|| false);
     let mut is_dragging_files = use_signal(|| false);
+    let mut toast_msg = use_signal(|| None::<(String, bool)>);
 
     let news_service = services.news_service.clone();
     let mail_service = services.mail_service.clone();
@@ -940,6 +941,29 @@ fn App() -> Element {
 
         div {
             class: "app-container",
+            tabindex: "0",
+            onkeydown: move |evt: KeyboardEvent| {
+                if evt.key() == Key::Escape {
+                    palette_open.set(false);
+                    selected_book.set(None);
+                    settings_open.set(false);
+                    bulk_edit_open.set(false);
+                    bulk_regex_open.set(false);
+                    content_search_open.set(false);
+                    import_rules_open.set(false);
+                    news_recipes_open.set(false);
+                    audit_open.set(false);
+                    stats_open.set(false);
+                    translating_book.set(None);
+                    epub_editing_book.set(None);
+                } else if (evt.modifiers().meta() || evt.modifiers().ctrl())
+                    && matches!(evt.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("k"))
+                {
+                    evt.prevent_default();
+                    let cur = *palette_open.read();
+                    palette_open.set(!cur);
+                }
+            },
             ondragenter: move |evt: DragEvent| {
                 evt.prevent_default();
                 is_dragging_files.set(true);
@@ -966,19 +990,40 @@ fn App() -> Element {
                             let bs_task = bs.clone();
                             let mut refresh_task = refresh.clone();
                             spawn(async move {
-                                let _ = tokio::task::spawn_blocking(move || {
+                                let (ok_count, err_count) = tokio::task::spawn_blocking(move || {
+                                    let mut ok = 0usize;
+                                    let mut err = 0usize;
                                     for path in paths {
-                                        if let Err(e) = bs_task.import_book(&path) {
-                                            tracing::error!(
-                                                "Drag & drop import failed for {}: {}",
-                                                path.display(),
-                                                e
-                                            );
+                                        match bs_task.import_book(&path) {
+                                            Ok(_) => ok += 1,
+                                            Err(e) => {
+                                                err += 1;
+                                                tracing::error!(
+                                                    "Drag & drop import failed for {}: {}",
+                                                    path.display(),
+                                                    e
+                                                );
+                                            }
                                         }
                                     }
+                                    (ok, err)
                                 })
-                                .await;
+                                .await
+                                .unwrap_or((0, 1));
                                 refresh_task();
+                                if err_count == 0 {
+                                    toast_msg.set(Some((
+                                        format!("✅ {ok_count} livre(s) importé(s) avec succès"),
+                                        true,
+                                    )));
+                                } else {
+                                    toast_msg.set(Some((
+                                        format!("⚠️ {ok_count} importé(s), {err_count} échec(s)"),
+                                        false,
+                                    )));
+                                }
+                                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                                toast_msg.set(None);
                             });
                         }
                     }
@@ -1005,6 +1050,7 @@ fn App() -> Element {
                 on_open_audit: move |_| audit_open.set(true),
                 on_open_content_search: move |_| content_search_open.set(true),
                 on_open_import_rules: move |_| import_rules_open.set(true),
+                on_open_bulk_regex: move |_| bulk_regex_open.set(true),
                 on_open_news: move |_| news_recipes_open.set(true),
                 on_open_web_companion: handle_open_web_companion,
                 on_sync_device: handle_sync_device.clone(),
@@ -1594,6 +1640,23 @@ fn App() -> Element {
                 ImportRulesModal {
                     book_service: book_service.clone(),
                     on_close: move |_| import_rules_open.set(false),
+                }
+            }
+
+            if let Some((msg, ok)) = toast_msg.read().as_ref() {
+                div {
+                    class: "toast-banner",
+                    style: if *ok {
+                        "background: rgba(20, 83, 45, 0.92); color: #dcfce7; border: 1px solid rgba(34, 197, 94, 0.45);"
+                    } else {
+                        "background: rgba(127, 29, 29, 0.92); color: #fee2e2; border: 1px solid rgba(239, 68, 68, 0.45);"
+                    },
+                    span { "{msg}" }
+                    button {
+                        style: "background: transparent; border: none; color: inherit; cursor: pointer; font-size: 13px; padding: 0 2px;",
+                        onclick: move |_| toast_msg.set(None),
+                        "✕"
+                    }
                 }
             }
         }
