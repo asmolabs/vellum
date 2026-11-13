@@ -1733,6 +1733,17 @@ async fn test_api_export_catalog_csv_json_bibtex() {
         .unwrap();
     assert_eq!(bib_res.status(), 200);
     assert!(bib_res.text().await.unwrap().contains("@book{"));
+
+    let notes_res = reqwest::get(format!("http://127.0.0.1:{port}/api/books/{}/notes", book.id))
+        .await
+        .unwrap();
+    assert_eq!(notes_res.status(), 200);
+    assert!(notes_res.text().await.unwrap().contains("Les Misérables"));
+
+    let sc_res = reqwest::get(format!("http://127.0.0.1:{port}/api/search-content?q=test"))
+        .await
+        .unwrap();
+    assert_eq!(sc_res.status(), 200);
 }
 
 #[test]

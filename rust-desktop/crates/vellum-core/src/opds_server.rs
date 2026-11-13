@@ -34,6 +34,11 @@ pub struct ExportQuery {
     pub format: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ContentSearchQuery {
+    pub q: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookDto {
     pub id: String,
@@ -102,8 +107,10 @@ impl OpdsServer {
             .route("/api/status", get(api_status_handler))
             .route("/api/i18n", get(api_i18n_handler))
             .route("/api/export", get(api_export_handler))
+            .route("/api/search-content", get(api_search_content_handler))
             .route("/api/books", get(api_books_handler))
             .route("/api/books/:id", get(api_book_detail_handler))
+            .route("/api/books/:id/notes", get(api_book_notes_handler))
             .route("/api/books/:id/cover", get(cover_handler))
             .route("/api/books/:id/toc", get(api_book_toc_handler))
             .route("/api/books/:id/chapter/:idx", get(api_book_chapter_handler))
@@ -309,6 +316,27 @@ async fn api_export_handler(
         )
             .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn api_search_content_handler(
+    State(service): State<Arc<BookService>>,
+    Query(query): Query<ContentSearchQuery>,
+) -> Response {
+    let q = query.q.unwrap_or_default();
+    match service.search_inside_books(&q, 25) {
+        Ok(hits) => Json(hits).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn api_book_notes_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath(book_id): AxPath<String>,
+) -> Response {
+    match service.export_book_notes_markdown(&book_id, None) {
+        Ok(md) => ([(CONTENT_TYPE, "text/markdown; charset=utf-8")], md).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
 }
 

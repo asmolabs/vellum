@@ -1166,6 +1166,26 @@ fn App() -> Element {
                             is_sending_kindle: *is_sending_kindle.read(),
                             on_send_to_kindle: handle_send_to_kindle.clone(),
                             on_export_file: handle_export_file.clone(),
+                            on_export_notes_md: {
+                                let bs = book_service.clone();
+                                move |b_id: String| {
+                                    if let Some(dest) = rfd::FileDialog::new()
+                                        .set_file_name("notes.md")
+                                        .add_filter("Markdown", &["md"])
+                                        .save_file()
+                                    {
+                                        match bs.export_book_notes_markdown(&b_id, Some(&dest)) {
+                                            Ok(_) => sync_message.set(Some(format!(
+                                                "📝 Notes exportées : {}",
+                                                dest.display()
+                                            ))),
+                                            Err(e) => sync_message.set(Some(format!(
+                                                "Erreur export notes : {e}"
+                                            ))),
+                                        }
+                                    }
+                                }
+                            },
                             on_open_epub_editor: move |b| epub_editing_book.set(Some(b)),
                             on_polish_epub: {
                                 let bs = book_service.clone();

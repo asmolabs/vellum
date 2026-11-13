@@ -263,7 +263,12 @@ pub fn library_page_html() -> &'static str {
           <span class="logo">📚</span>
           <span>Vellum Companion</span>
         </div>
-        <span class="badge-count" id="book-count">0 livres</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <a href="/api/export?format=csv" class="badge-count" style="text-decoration:none;">CSV</a>
+          <a href="/api/export?format=json" class="badge-count" style="text-decoration:none;">JSON</a>
+          <a href="/api/export?format=bibtex" class="badge-count" style="text-decoration:none;">BibTeX</a>
+          <span class="badge-count" id="book-count">0 livres</span>
+        </div>
       </div>
       <div class="search-row">
         <span class="search-icon">🔍</span>

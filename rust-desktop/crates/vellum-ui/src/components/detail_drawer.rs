@@ -32,6 +32,7 @@ pub fn DetailDrawer(
     is_sending_kindle: bool,
     on_send_to_kindle: EventHandler<Book>,
     on_export_file: EventHandler<(String, Option<String>)>,
+    on_export_notes_md: EventHandler<String>,
     on_open_epub_editor: EventHandler<Book>,
     on_polish_epub: EventHandler<String>,
     custom_columns: Vec<CustomColumnDefinition>,
@@ -436,6 +437,16 @@ pub fn DetailDrawer(
                                         move |_| on_export_file.call((b_id.clone(), None))
                                     },
                                     "💾 Exporter le fichier..."
+                                }
+
+                                button {
+                                    class: "drawer-action-btn",
+                                    style: "width: 100%; justify-content: center; background: rgba(52, 211, 153, 0.12); color: #34d399; border-color: rgba(52, 211, 153, 0.3); font-weight: 600;",
+                                    onclick: {
+                                        let b_id = book_id.clone();
+                                        move |_| on_export_notes_md.call(b_id.clone())
+                                    },
+                                    "📝 Exporter Notes (Markdown)"
                                 }
 
                                 if book.formats.iter().any(|f| f.format.eq_ignore_ascii_case("epub") || f.format.eq_ignore_ascii_case("kepub")) {
