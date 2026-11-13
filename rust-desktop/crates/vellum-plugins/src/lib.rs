@@ -9,6 +9,7 @@
 //! - **Liseuses** (`ereader`) : synchronisation Kobo (`KoboReader.sqlite` en lecture seule) et Kindle (`My Clippings.txt`)
 //! - **Traducteur** (`translator`) : pipeline de traduction IA bilingue avec cache et glossaire
 //! - **Plugins externes** (`external`) : chargeur de plugins JSON/CLI tiers
+//! - **Plugins WASM** (`wasm`) : exécuteur sandboxé WebAssembly (`wasmi`) avec limites mémoire et carburant
 
 pub mod cleaner;
 pub mod converter;
@@ -17,12 +18,14 @@ pub mod ereader;
 pub mod external;
 pub mod format;
 pub mod translator;
+pub mod wasm;
 
 use std::sync::Arc;
 use vellum_domain::{BookConverterPlugin, BookFormatPlugin, DeviceSyncPlugin, VellumPlugin};
 
 pub use ereader::{KindleSyncPlugin, KoboSyncPlugin};
 pub use external::ExternalPluginLoader;
+pub use wasm::{WasmExecutionLimits, WasmExecutionResult, WasmPluginManifest, WasmPluginRunner};
 
 pub fn built_in_format_plugins() -> Vec<Arc<dyn BookFormatPlugin>> {
     vec![
