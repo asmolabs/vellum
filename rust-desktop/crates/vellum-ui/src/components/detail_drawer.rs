@@ -43,7 +43,8 @@ pub fn DetailDrawer(
     let mut edit_title = use_signal(|| book.title.clone());
     let mut edit_author = use_signal(|| book.author.clone());
     let mut edit_series = use_signal(|| book.series.clone().unwrap_or_default());
-    let mut edit_series_index = use_signal(|| book.series_index.map(|i| i.to_string()).unwrap_or_default());
+    let mut edit_series_index =
+        use_signal(|| book.series_index.map(|i| i.to_string()).unwrap_or_default());
     let mut edit_publisher = use_signal(|| book.publisher.clone().unwrap_or_default());
     let mut edit_publish_date = use_signal(|| book.publish_date.clone().unwrap_or_default());
     let mut edit_isbn = use_signal(|| book.isbn.clone().unwrap_or_default());

@@ -7,11 +7,9 @@
 //! éditeur EPUB, palette de commandes, statistiques et modales de configuration).
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;
-use tracing::info;
 
 mod components;
 mod state;
@@ -25,12 +23,7 @@ use components::{
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
 
-use vellum_core::book_service::BookService;
-use vellum_core::device_service::DeviceService;
-use vellum_core::litestream_service::LitestreamService;
-use vellum_core::mail_service::MailService;
-use vellum_core::news_service::NewsService;
-use vellum_core::{init_services, AppServices, FolderSyncBackend, SearchQuery, SyncService};
+use vellum_core::{init_services, CatalogExporter, CatalogFormat, FolderSyncBackend, SearchQuery};
 use vellum_domain::{Book, DeviceKind, SmtpConfig};
 
 fn main() {
@@ -208,7 +201,7 @@ fn App() -> Element {
         match sort {
             SortOption::TitleAsc => list.sort_by_key(|a| a.title.to_lowercase()),
             SortOption::TitleDesc => {
-                list.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()))
+                list.sort_by_key(|a| std::cmp::Reverse(a.title.to_lowercase()))
             }
             SortOption::AuthorAsc => list.sort_by(|a, b| {
                 a.author
@@ -851,7 +844,7 @@ fn App() -> Element {
         "#,
         );
         spawn(async move {
-            while let Ok(_) = eval.recv::<String>().await {
+            while eval.recv::<String>().await.is_ok() {
                 let cur = *palette_open.peek();
                 palette_open.set(!cur);
             }
@@ -1354,6 +1347,32 @@ fn App() -> Element {
                                 }
                                 Err(e) => {
                                     sync_message.set(Some(format!("Erreur Watch Folder : {e}")));
+                                }
+                            }
+                        }
+                    },
+                    on_export_catalog: move |fmt: CatalogFormat| {
+                        let (default_name, ext) = match fmt {
+                            CatalogFormat::Csv => ("vellum-catalogue.csv", "csv"),
+                            CatalogFormat::Json => ("vellum-catalogue.json", "json"),
+                            CatalogFormat::Bibtex => ("vellum-catalogue.bib", "bib"),
+                        };
+                        if let Some(dest) = rfd::FileDialog::new()
+                            .set_file_name(default_name)
+                            .add_filter("Catalogue", &[ext])
+                            .save_file()
+                        {
+                            let all_books = books.read().clone();
+                            match CatalogExporter::export_to_file(&all_books, fmt, &dest) {
+                                Ok(()) => {
+                                    sync_message.set(Some(format!(
+                                        "📚 Catalogue exporté ({} livres) : {}",
+                                        all_books.len(),
+                                        dest.display()
+                                    )));
+                                }
+                                Err(e) => {
+                                    sync_message.set(Some(format!("Erreur export catalogue : {e}")));
                                 }
                             }
                         }

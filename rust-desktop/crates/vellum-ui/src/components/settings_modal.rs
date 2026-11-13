@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use vellum_core::{translate, Locale};
+use vellum_core::{translate, CatalogFormat, Locale};
 use vellum_domain::{
     CloudSyncConfig, CustomColumnDefinition, CustomColumnType, PluginDescriptor, SmtpConfig,
 };
@@ -24,6 +24,7 @@ pub fn SettingsModal(
     on_delete_custom_column: EventHandler<String>,
     watch_folder_path: String,
     on_scan_watch_folder: EventHandler<String>,
+    on_export_catalog: EventHandler<CatalogFormat>,
     on_sync_now: EventHandler<()>,
     on_select_folder: EventHandler<()>,
     on_auto_detect_folder: EventHandler<()>,
@@ -475,6 +476,34 @@ pub fn SettingsModal(
                                 }
                             },
                             "+ Ajouter"
+                        }
+                    }
+                }
+
+                // 4d. Export du catalogue
+                div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
+                    div { style: "font-weight: 600; font-size: 13px;", "📚 Export du catalogue" }
+                    p { style: "font-size: 12px; color: var(--text-secondary);",
+                        "Exportez l'ensemble de votre bibliothèque au format CSV, JSON ou BibTeX."
+                    }
+                    div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
+                        button {
+                            class: "btn btn-secondary",
+                            style: "font-size: 12px;",
+                            onclick: move |_| on_export_catalog.call(CatalogFormat::Csv),
+                            "📄 Exporter CSV"
+                        }
+                        button {
+                            class: "btn btn-secondary",
+                            style: "font-size: 12px;",
+                            onclick: move |_| on_export_catalog.call(CatalogFormat::Json),
+                            "🧾 Exporter JSON"
+                        }
+                        button {
+                            class: "btn btn-secondary",
+                            style: "font-size: 12px;",
+                            onclick: move |_| on_export_catalog.call(CatalogFormat::Bibtex),
+                            "🎓 Exporter BibTeX"
                         }
                     }
                 }

@@ -1,5 +1,5 @@
-use dioxus::prelude::*;
 use crate::state::FilterStatus;
+use dioxus::prelude::*;
 use vellum_core::{translate, Locale};
 use vellum_domain::{ReadingStats, VirtualLibrary};
 
