@@ -34,3 +34,4 @@ cargo test --manifest-path rust-desktop/Cargo.toml -p vellum-plugins
 cargo test --manifest-path rust-desktop/Cargo.toml -p vellum-core
 cargo clippy --manifest-path rust-desktop/Cargo.toml --workspace --all-targets
 ```
+

@@ -21,3 +21,4 @@ Le workspace Rust (`rust-desktop/`) est découpé en 5 crates avec sens de dépe
   - `cargo clippy --manifest-path rust-desktop/Cargo.toml --workspace --all-targets`
 - Surveiller la taille de `rust-desktop/target/` (éviter l'accumulation inutile d'artefacts debug).
 - Documentation technique : [README.md](README.md), [docs/architecture-c4.md](docs/architecture-c4.md), [docs/security.md](docs/security.md).
+

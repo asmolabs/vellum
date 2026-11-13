@@ -44,3 +44,4 @@ Vérifier la taille du dossier de build :
 du -sh rust-desktop/target
 ```
 Si le dossier dépasse `4 Go`, nettoyer les anciens artefacts incrémentaux ou exécuter `cargo clean --manifest-path rust-desktop/Cargo.toml` avant un rebuild propre.
+
