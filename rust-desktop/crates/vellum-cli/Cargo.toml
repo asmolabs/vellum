@@ -1,0 +1,18 @@
+[package]
+name = "vellum-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "vellum-cli"
+path = "src/main.rs"
+
+[dependencies]
+vellum-domain = { workspace = true }
+vellum-core = { workspace = true }
+tokio = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true
+

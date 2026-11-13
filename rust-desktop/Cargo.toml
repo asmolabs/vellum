@@ -6,6 +6,7 @@ members = [
     "crates/vellum-plugins",
     "crates/vellum-core",
     "crates/vellum-ui",
+    "crates/vellum-cli",
 ]
 
 [workspace.package]
