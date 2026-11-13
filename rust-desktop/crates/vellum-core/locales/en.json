@@ -1,0 +1,28 @@
+{
+  "app.title": "Vellum — Digital Library",
+  "nav.library": "Library",
+  "nav.all_books": "All Books",
+  "nav.reading": "Reading",
+  "nav.finished": "Finished",
+  "nav.to_read": "To Read",
+  "nav.tags": "Tags",
+  "nav.series": "Series",
+  "nav.settings": "Settings",
+  "action.import": "Import",
+  "action.search": "Search",
+  "action.export_catalog": "Export Catalog",
+  "action.convert": "Convert",
+  "action.translate": "Translate",
+  "action.enrich": "Enrich Metadata",
+  "action.delete": "Delete",
+  "action.save": "Save",
+  "action.cancel": "Cancel",
+  "action.close": "Close",
+  "settings.language": "Interface Language",
+  "settings.language.fr": "Français",
+  "settings.language.en": "English",
+  "status.books_count": "{count} book(s)",
+  "status.saved": "Saved successfully",
+  "error.book_not_found": "Book not found: {id}"
+}
+

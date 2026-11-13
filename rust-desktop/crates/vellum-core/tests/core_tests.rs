@@ -1447,6 +1447,32 @@ async fn test_opds_server_auth_and_security_headers() {
     );
 }
 
+#[tokio::test]
+async fn test_i18n_persistence_and_api_endpoint() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    book_service
+        .set_ui_locale(vellum_core::Locale::En)
+        .expect("persist en locale");
+    assert_eq!(book_service.get_ui_locale(), vellum_core::Locale::En);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let app = vellum_core::opds_server::OpdsServer::router(book_service);
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let res = reqwest::get(format!("http://127.0.0.1:{port}/api/i18n"))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let json: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(json["locale"], "en");
+    assert_eq!(json["messages"]["nav.library"], "Library");
+}
+
 
 
 

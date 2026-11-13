@@ -214,6 +214,19 @@ impl BookService {
         self.book_repo.count()
     }
 
+    /// Retourne la locale UI persistée dans `ParamRepository`, ou la locale système par défaut.
+    pub fn get_ui_locale(&self) -> crate::i18n::Locale {
+        match self.param_repo.get_value("ui_locale") {
+            Ok(Some(code)) => crate::i18n::Locale::parse_code(&code),
+            _ => crate::i18n::Locale::detect_system(),
+        }
+    }
+
+    /// Persiste la locale UI choisie par l'utilisateur (`"fr"` ou `"en"`).
+    pub fn set_ui_locale(&self, locale: crate::i18n::Locale) -> VellumResult<()> {
+        self.param_repo.set_value("ui_locale", locale.as_code())
+    }
+
     pub fn get_tags_with_counts(&self) -> VellumResult<BTreeMap<String, usize>> {
         self.tag_repo.find_tags_with_book_counts()
     }

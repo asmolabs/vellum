@@ -94,6 +94,7 @@ impl OpdsServer {
             .route("/read/:id", get(web_reader_handler))
             // 2. REST API for Web & Mobile Clients
             .route("/api/status", get(api_status_handler))
+            .route("/api/i18n", get(api_i18n_handler))
             .route("/api/books", get(api_books_handler))
             .route("/api/books/:id", get(api_book_detail_handler))
             .route("/api/books/:id/cover", get(cover_handler))
@@ -557,4 +558,13 @@ async fn download_handler(
         }
     }
     StatusCode::NOT_FOUND.into_response()
+}
+
+async fn api_i18n_handler(State(service): State<Arc<BookService>>) -> impl IntoResponse {
+    let locale = service.get_ui_locale();
+    let payload = serde_json::json!({
+        "locale": locale.as_code(),
+        "messages": crate::i18n::catalog_for(locale),
+    });
+    axum::Json(payload)
 }
