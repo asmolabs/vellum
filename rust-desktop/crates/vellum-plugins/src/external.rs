@@ -12,6 +12,8 @@ use vellum_domain::{
     TestResult, VellumError, VellumPlugin, VellumResult,
 };
 
+use crate::wasm::{WasmPluginManifest, WasmPluginRunner};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalPluginManifest {
@@ -75,14 +77,22 @@ impl ExternalPluginLoader {
                 continue;
             }
             let manifest_path = dir.join("plugin.json");
-            if !manifest_path.exists() {
-                continue;
-            }
-            if let Ok(raw) = fs::read_to_string(&manifest_path) {
-                if let Ok(manifest) = serde_json::from_str::<ExternalPluginManifest>(&raw) {
-                    if let Some(plugin) = ExternalScriptPlugin::from_manifest(dir, manifest) {
-                        loaded.push(plugin);
+            if manifest_path.exists() {
+                if let Ok(raw) = fs::read_to_string(&manifest_path) {
+                    if let Ok(manifest) = serde_json::from_str::<ExternalPluginManifest>(&raw) {
+                        if let Some(plugin) = ExternalScriptPlugin::from_manifest(dir.clone(), manifest) {
+                            loaded.push(plugin);
+                        }
                     }
+                }
+            }
+
+            let wasm_manifest_path = dir.join("plugin.wasm.json");
+            if wasm_manifest_path.exists() {
+                if let Ok(manifest) = WasmPluginRunner::load_manifest(&wasm_manifest_path) {
+                    let wasm_path = dir.join(&manifest.wasm_file);
+                    let plugin = Arc::new(WasmExternalPlugin::new(wasm_path, manifest));
+                    loaded.push(LibraryPlugin::Enricher(plugin));
                 }
             }
         }
@@ -549,5 +559,153 @@ impl BookTransformationPlugin for ExternalScriptPlugin {
         ];
         self.execute_command(&args, &str_config)?;
         Ok(output_file)
+    }
+}
+
+/// Plugin externe sandboxé WebAssembly chargé depuis un manifeste `plugin.wasm.json`.
+pub struct WasmExternalPlugin {
+    wasm_path: PathBuf,
+    manifest: WasmPluginManifest,
+    descriptor: PluginDescriptor,
+}
+
+impl WasmExternalPlugin {
+    pub fn new(wasm_path: PathBuf, manifest: WasmPluginManifest) -> Self {
+        let descriptor = PluginDescriptor {
+            id: manifest.id.clone(),
+            name: manifest.name.clone(),
+            version: manifest.version.clone(),
+            description: manifest.description.clone(),
+            plugin_type: PluginType::Import,
+            supported_extensions: Vec::new(),
+            source_format: None,
+            target_format: None,
+            external: true,
+            command: Some(format!("wasm:{}", manifest.wasm_file)),
+            config_schema: Vec::new(),
+        };
+        Self {
+            wasm_path,
+            manifest,
+            descriptor,
+        }
+    }
+}
+
+impl VellumPlugin for WasmExternalPlugin {
+    fn descriptor(&self) -> &PluginDescriptor {
+        &self.descriptor
+    }
+
+    fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
+        let Ok(bytes) = fs::read(&self.wasm_path) else {
+            return TestResult {
+                success: false,
+                message: format!("Fichier WASM introuvable : {}", self.wasm_path.display()),
+            };
+        };
+        let runner = WasmPluginRunner::new(self.manifest.limits.clone());
+        match runner.validate_module(&bytes) {
+            Ok(()) => TestResult {
+                success: true,
+                message: format!(
+                    "Module WASM '{}' valide (sandbox wasmi prêt).",
+                    self.manifest.wasm_file
+                ),
+            },
+            Err(e) => TestResult {
+                success: false,
+                message: format!("Module WASM invalide : {e}"),
+            },
+        }
+    }
+
+    fn as_enricher_plugin(&self) -> Option<&dyn MetadataEnricherPlugin> {
+        Some(self)
+    }
+}
+
+impl MetadataEnricherPlugin for WasmExternalPlugin {
+    fn enrich_metadata(
+        &self,
+        _book_file: &Path,
+        current_metadata: HashMap<String, Value>,
+        _config: &HashMap<String, Value>,
+    ) -> HashMap<String, Value> {
+        let Ok(bytes) = fs::read(&self.wasm_path) else {
+            return current_metadata;
+        };
+        let Ok(input_json) = serde_json::to_string(&current_metadata) else {
+            return current_metadata;
+        };
+        let runner = WasmPluginRunner::new(self.manifest.limits.clone());
+        match runner.run_json_hook(&bytes, "alloc", &self.manifest.entrypoint, &input_json) {
+            Ok(res) => serde_json::from_str(&res.value).unwrap_or(current_metadata),
+            Err(_) => current_metadata,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_external_wasm_plugin_from_manifest() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let plugin_dir = tmp.path().join("my-wasm-enricher");
+        fs::create_dir_all(&plugin_dir).unwrap();
+
+        let wat = r#"
+            (module
+                (memory (export "memory") 1)
+                (func (export "alloc") (param $len i32) (result i32)
+                    i32.const 1024
+                )
+                (func (export "run") (param $ptr i32) (param $len i32) (result i64)
+                    local.get $ptr
+                    i64.extend_i32_u
+                    i64.const 32
+                    i64.shl
+                    local.get $len
+                    i64.extend_i32_u
+                    i64.or
+                )
+            )
+        "#;
+        fs::write(plugin_dir.join("plugin.wat"), wat).unwrap();
+        let manifest = r#"{
+            "id": "wasm-echo-enricher",
+            "name": "WASM Echo Enricher",
+            "version": "1.0.0",
+            "description": "Test WASM enricher",
+            "wasm_file": "plugin.wat",
+            "entrypoint": "run"
+        }"#;
+        fs::write(plugin_dir.join("plugin.wasm.json"), manifest).unwrap();
+
+        let loader = ExternalPluginLoader::new(tmp.path().to_path_buf());
+        let plugins = loader.load_external_plugins();
+        let wasm_plugin = plugins
+            .iter()
+            .find(|p| p.descriptor().id == "wasm-echo-enricher")
+            .expect("WASM plugin should be discovered");
+
+        let test_res = match wasm_plugin {
+            LibraryPlugin::Enricher(p) => p.test_configuration(&HashMap::new()),
+            _ => panic!("Expected Enricher variant"),
+        };
+        assert!(test_res.success, "{}", test_res.message);
+
+        let mut meta = HashMap::new();
+        meta.insert("title".to_string(), Value::String("Dune".to_string()));
+        meta.insert("author".to_string(), Value::String("Frank Herbert".to_string()));
+        if let LibraryPlugin::Enricher(p) = wasm_plugin {
+            let enriched = p
+                .as_enricher_plugin()
+                .unwrap()
+                .enrich_metadata(Path::new("dune.epub"), meta, &HashMap::new());
+            assert_eq!(enriched.get("title").and_then(|v| v.as_str()), Some("Dune"));
+        }
     }
 }

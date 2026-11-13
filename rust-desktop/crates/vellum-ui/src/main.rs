@@ -947,6 +947,8 @@ fn App() -> Element {
                 on_import: handle_import.clone(),
                 on_import_calibre: handle_import_calibre.clone(),
                 on_open_audit: move |_| audit_open.set(true),
+                on_open_content_search: move |_| content_search_open.set(true),
+                on_open_import_rules: move |_| import_rules_open.set(true),
                 on_open_news: move |_| news_recipes_open.set(true),
                 on_open_web_companion: handle_open_web_companion,
                 on_sync_device: handle_sync_device.clone(),

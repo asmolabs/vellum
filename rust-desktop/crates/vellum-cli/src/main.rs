@@ -3,7 +3,8 @@
 use std::path::{Path, PathBuf};
 
 use vellum_core::{
-    init_services, CatalogExporter, CatalogFormat, OpdsServer, PolishOptions, WatchFolderService,
+    init_services, BookService, CatalogExporter, CatalogFormat, OpdsServer, PolishOptions,
+    WatchFolderService,
 };
 
 #[tokio::main]
@@ -19,7 +20,38 @@ async fn main() {
     let services = init_services();
     let bs = services.book_service.clone();
 
-    match args[0].as_str() {
+    if args[0] == "serve" {
+        let port = args
+            .windows(2)
+            .find(|w| w[0] == "--port")
+            .and_then(|w| w[1].parse::<u16>().ok())
+            .unwrap_or(services.opds_port);
+        println!("Serveur OPDS / Web Companion démarré sur http://0.0.0.0:{port}");
+        if let Err(e) = OpdsServer::run_server((*bs).clone(), port).await {
+            exit_err(&format!("Erreur serveur : {e}"));
+        }
+        return;
+    }
+
+    match dispatch_sync_command(&args, &bs) {
+        Ok(out) => println!("{out}"),
+        Err(err) => {
+            if err.starts_with("Commande inconnue") {
+                eprintln!("{err}");
+                print_help();
+                std::process::exit(1);
+            }
+            exit_err(&err);
+        }
+    }
+}
+
+fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, String> {
+    let Some(cmd) = args.first().map(String::as_str) else {
+        return Err("Aucune commande fournie".to_string());
+    };
+
+    match cmd {
         "list" => {
             let mut search = None;
             let mut tag = None;
@@ -37,122 +69,110 @@ async fn main() {
                     _ => i += 1,
                 }
             }
-            match bs.get_books(search, tag) {
-                Ok(books) => {
-                    println!("{} livre(s) :", books.len());
-                    for b in books {
-                        let fmts: Vec<&str> = b.formats.iter().map(|f| f.format.as_str()).collect();
-                        println!("- [{}] {} — {} ({})", b.id, b.title, b.author, fmts.join(", "));
-                    }
-                }
-                Err(e) => exit_err(&format!("Erreur list : {e}")),
+            let books = bs
+                .get_books(search, tag)
+                .map_err(|e| format!("Erreur list : {e}"))?;
+            let mut lines = vec![format!("{} livre(s) :", books.len())];
+            for b in books {
+                let fmts: Vec<&str> = b.formats.iter().map(|f| f.format.as_str()).collect();
+                lines.push(format!("- [{}] {} — {} ({})", b.id, b.title, b.author, fmts.join(", ")));
             }
+            Ok(lines.join("\n"))
         }
         "import" => {
-            let Some(path) = args.get(1) else {
-                exit_err("Usage: vellum-cli import <fichier>");
-            };
-            match bs.import_book(Path::new(path)) {
-                Ok(book) => println!("Importé : [{}] {} — {}", book.id, book.title, book.author),
-                Err(e) => exit_err(&format!("Erreur import : {e}")),
-            }
+            let path = args
+                .get(1)
+                .ok_or_else(|| "Usage: vellum-cli import <fichier>".to_string())?;
+            let book = bs
+                .import_book(Path::new(path))
+                .map_err(|e| format!("Erreur import : {e}"))?;
+            Ok(format!("Importé : [{}] {} — {}", book.id, book.title, book.author))
         }
         "polish" => {
-            let Some(book_id) = args.get(1) else {
-                exit_err("Usage: vellum-cli polish <book_id>");
-            };
-            match bs.polish_book(book_id, PolishOptions::default()) {
-                Ok(r) => println!(
-                    "Polish terminé : metadata={}, cover={}, chapitres={}, toc={}, repaired={}",
-                    r.metadata_updated, r.cover_embedded, r.chapters_smartened, r.toc_rebuilt, r.repaired
-                ),
-                Err(e) => exit_err(&format!("Erreur polish : {e}")),
-            }
+            let book_id = args
+                .get(1)
+                .ok_or_else(|| "Usage: vellum-cli polish <book_id>".to_string())?;
+            let r = bs
+                .polish_book(book_id, PolishOptions::default())
+                .map_err(|e| format!("Erreur polish : {e}"))?;
+            Ok(format!(
+                "Polish terminé : metadata={}, cover={}, chapitres={}, toc={}, repaired={}",
+                r.metadata_updated, r.cover_embedded, r.chapters_smartened, r.toc_rebuilt, r.repaired
+            ))
         }
-        "audit" => match bs.audit_library() {
-            Ok(report) => {
-                println!(
-                    "Audit (score {}%) : {} livres, {} doublons potentiels, {} fiches incomplètes, {} fichiers manquants",
-                    report.overall_score,
-                    report.total_books,
-                    report.duplicate_pairs.len(),
-                    report.incomplete_issues.len(),
-                    report.missing_file_issues.len()
-                );
-            }
-            Err(e) => exit_err(&format!("Erreur audit : {e}")),
-        },
+        "audit" => {
+            let report = bs
+                .audit_library()
+                .map_err(|e| format!("Erreur audit : {e}"))?;
+            Ok(format!(
+                "Audit (score {}%) : {} livres, {} doublons potentiels, {} fiches incomplètes, {} fichiers manquants",
+                report.overall_score,
+                report.total_books,
+                report.duplicate_pairs.len(),
+                report.incomplete_issues.len(),
+                report.missing_file_issues.len()
+            ))
+        }
         "export" => {
             if args.len() < 3 {
-                exit_err("Usage: vellum-cli export <csv|json|bibtex> <fichier_sortie>");
+                return Err("Usage: vellum-cli export <csv|json|bibtex> <fichier_sortie>".to_string());
             }
             let fmt = match args[1].to_lowercase().as_str() {
                 "csv" => CatalogFormat::Csv,
                 "json" => CatalogFormat::Json,
                 "bib" | "bibtex" => CatalogFormat::Bibtex,
-                other => exit_err(&format!("Format inconnu : {other} (attendu: csv, json, bibtex)")),
+                other => {
+                    return Err(format!(
+                        "Format inconnu : {other} (attendu: csv, json, bibtex)"
+                    ));
+                }
             };
             let books = bs.get_books(None, None).unwrap_or_default();
-            if let Err(e) = CatalogExporter::export_to_file(&books, fmt, Path::new(&args[2])) {
-                exit_err(&format!("Erreur export : {e}"));
-            }
-            println!("Catalogue exporté ({} livres) -> {}", books.len(), args[2]);
+            CatalogExporter::export_to_file(&books, fmt, Path::new(&args[2]))
+                .map_err(|e| format!("Erreur export : {e}"))?;
+            Ok(format!("Catalogue exporté ({} livres) -> {}", books.len(), args[2]))
         }
         "watch" => {
-            let Some(dir) = args.get(1) else {
-                exit_err("Usage: vellum-cli watch <dossier> [--keep]");
-            };
+            let dir = args
+                .get(1)
+                .ok_or_else(|| "Usage: vellum-cli watch <dossier> [--keep]".to_string())?;
             let move_processed = !args.iter().any(|a| a == "--keep");
-            match WatchFolderService::scan_once(&bs, &PathBuf::from(dir), move_processed) {
-                Ok(r) => println!(
-                    "Watch Folder : {} scanné(s), {} importé(s), {} doublon(s), {} erreur(s)",
-                    r.scanned_files,
-                    r.imported_book_ids.len(),
-                    r.skipped_duplicates,
-                    r.errors.len()
-                ),
-                Err(e) => exit_err(&format!("Erreur watch : {e}")),
-            }
+            let r = WatchFolderService::scan_once(bs, &PathBuf::from(dir), move_processed)
+                .map_err(|e| format!("Erreur watch : {e}"))?;
+            Ok(format!(
+                "Watch Folder : {} scanné(s), {} importé(s), {} doublon(s), {} erreur(s)",
+                r.scanned_files,
+                r.imported_book_ids.len(),
+                r.skipped_duplicates,
+                r.errors.len()
+            ))
         }
         "index" => {
-            let Some(book_id) = args.get(1) else {
-                exit_err("Usage: vellum-cli index <book_id>");
-            };
-            match bs.index_book_content(book_id) {
-                Ok(n) => println!("Indexé {n} chapitre(s) pour {book_id}"),
-                Err(e) => exit_err(&format!("Erreur index : {e}")),
-            }
+            let book_id = args
+                .get(1)
+                .ok_or_else(|| "Usage: vellum-cli index <book_id>".to_string())?;
+            let n = bs
+                .index_book_content(book_id)
+                .map_err(|e| format!("Erreur index : {e}"))?;
+            Ok(format!("Indexé {n} chapitre(s) pour {book_id}"))
         }
         "search-content" => {
-            let Some(query) = args.get(1) else {
-                exit_err("Usage: vellum-cli search-content <requête>");
-            };
-            match bs.search_inside_books(query, 20) {
-                Ok(hits) => {
-                    println!("{} résultat(s) :", hits.len());
-                    for h in hits {
-                        println!("- [{}#{}] {} : {}", h.book_id, h.chapter_index, h.chapter_title, h.snippet);
-                    }
-                }
-                Err(e) => exit_err(&format!("Erreur search-content : {e}")),
+            let query = args
+                .get(1)
+                .ok_or_else(|| "Usage: vellum-cli search-content <requête>".to_string())?;
+            let hits = bs
+                .search_inside_books(query, 20)
+                .map_err(|e| format!("Erreur search-content : {e}"))?;
+            let mut lines = vec![format!("{} résultat(s) :", hits.len())];
+            for h in hits {
+                lines.push(format!(
+                    "- [{}#{}] {} : {}",
+                    h.book_id, h.chapter_index, h.chapter_title, h.snippet
+                ));
             }
+            Ok(lines.join("\n"))
         }
-        "serve" => {
-            let port = args
-                .windows(2)
-                .find(|w| w[0] == "--port")
-                .and_then(|w| w[1].parse::<u16>().ok())
-                .unwrap_or(services.opds_port);
-            println!("Serveur OPDS / Web Companion démarré sur http://0.0.0.0:{port}");
-            if let Err(e) = OpdsServer::run_server((*bs).clone(), port).await {
-                exit_err(&format!("Erreur serveur : {e}"));
-            }
-        }
-        other => {
-            eprintln!("Commande inconnue : {other}");
-            print_help();
-            std::process::exit(1);
-        }
+        other => Err(format!("Commande inconnue : {other}")),
     }
 }
 
@@ -176,4 +196,110 @@ fn print_help() {
            search-content <requête>                Rechercher dans le texte des livres\n\
            serve [--port <p>]                      Démarrer le serveur OPDS / Web Companion"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vellum_core::conversion_service::ConversionService;
+    use vellum_core::metadata_service::MetadataService;
+    use vellum_core::plugin_service::PluginService;
+    use vellum_storage::{BookRepository, Database, ParamRepository, TagRepository};
+
+    fn setup_test_book_service() -> (tempfile::TempDir, BookService) {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let lib_dir = tmp.path().join("library");
+        std::fs::create_dir_all(&lib_dir).unwrap();
+        let db = Database::open_in_memory().expect("in memory db");
+        let book_repo = BookRepository::new(db.clone());
+        let param_repo = ParamRepository::new(db.clone());
+        let tag_repo = TagRepository::new(db);
+        let plugin_service = PluginService::new(param_repo.clone(), Some(tmp.path().join("plugins")));
+        let metadata_service = MetadataService::new(plugin_service.clone());
+        let conversion_service = ConversionService::new(plugin_service.clone());
+        let bs = BookService::new(
+            book_repo,
+            param_repo,
+            tag_repo,
+            metadata_service,
+            plugin_service,
+            conversion_service,
+            lib_dir,
+        );
+        (tmp, bs)
+    }
+
+    #[test]
+    fn test_cli_import_list_audit_and_export() {
+        let (tmp, bs) = setup_test_book_service();
+        let txt_path = tmp.path().join("Le Petit Prince.txt");
+        std::fs::write(&txt_path, "Dessine-moi un mouton sur l'astéroïde B612.").unwrap();
+
+        let imp_out = dispatch_sync_command(
+            &["import".to_string(), txt_path.to_string_lossy().to_string()],
+            &bs,
+        )
+        .expect("import");
+        assert!(imp_out.contains("Importé :"));
+
+        let list_out = dispatch_sync_command(&["list".to_string()], &bs).expect("list");
+        assert!(list_out.starts_with("1 livre(s) :"));
+
+        let audit_out = dispatch_sync_command(&["audit".to_string()], &bs).expect("audit");
+        assert!(audit_out.contains("Audit (score"));
+
+        let csv_out = tmp.path().join("catalog.csv");
+        let exp_out = dispatch_sync_command(
+            &[
+                "export".to_string(),
+                "csv".to_string(),
+                csv_out.to_string_lossy().to_string(),
+            ],
+            &bs,
+        )
+        .expect("export");
+        assert!(exp_out.contains("Catalogue exporté (1 livres)"));
+        assert!(csv_out.exists());
+    }
+
+    #[test]
+    fn test_cli_index_and_search_content() {
+        let (tmp, bs) = setup_test_book_service();
+        let txt_path = tmp.path().join("Dune.txt");
+        std::fs::write(
+            &txt_path,
+            "L'épice gériatrique prolonge la vie sur la planète Arrakis.",
+        )
+        .unwrap();
+
+        dispatch_sync_command(
+            &["import".to_string(), txt_path.to_string_lossy().to_string()],
+            &bs,
+        )
+        .expect("import");
+        let books = bs.get_books(None, None).unwrap();
+        let book_id = books[0].id.clone();
+
+        let idx_out =
+            dispatch_sync_command(&["index".to_string(), book_id], &bs).expect("index");
+        assert!(idx_out.contains("Indexé 1 chapitre(s)"));
+
+        let search_out = dispatch_sync_command(
+            &["search-content".to_string(), "Arrakis".to_string()],
+            &bs,
+        )
+        .expect("search-content");
+        assert!(search_out.contains("1 résultat(s) :"));
+        assert!(search_out.contains("Arrakis"));
+    }
+
+    #[test]
+    fn test_cli_unknown_command_and_missing_args() {
+        let (_tmp, bs) = setup_test_book_service();
+        let err1 = dispatch_sync_command(&["foobar".to_string()], &bs).unwrap_err();
+        assert!(err1.contains("Commande inconnue"));
+
+        let err2 = dispatch_sync_command(&["import".to_string()], &bs).unwrap_err();
+        assert!(err2.contains("Usage: vellum-cli import"));
+    }
 }

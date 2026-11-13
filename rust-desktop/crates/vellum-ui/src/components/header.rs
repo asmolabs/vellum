@@ -12,6 +12,8 @@ pub fn Header(
     on_import: EventHandler<()>,
     on_import_calibre: EventHandler<()>,
     on_open_audit: EventHandler<()>,
+    on_open_content_search: EventHandler<()>,
+    on_open_import_rules: EventHandler<()>,
     on_open_news: EventHandler<()>,
     on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
@@ -108,6 +110,22 @@ pub fn Header(
                     onclick: move |_| on_open_audit.call(()),
                     span { "🛡️" }
                     span { "Santé" }
+                }
+                button {
+                    class: "btn btn-secondary",
+                    style: "border-color: rgba(251, 191, 36, 0.4); color: #fbbf24; font-size: 12px; gap: 6px; padding: 6px 12px;",
+                    title: "Recherche plein texte dans le contenu des livres (FTS5)",
+                    onclick: move |_| on_open_content_search.call(()),
+                    span { "🔎" }
+                    span { "Contenu" }
+                }
+                button {
+                    class: "btn btn-secondary",
+                    style: "border-color: rgba(244, 114, 182, 0.4); color: #f472b6; font-size: 12px; gap: 6px; padding: 6px 12px;",
+                    title: "Règles d'import automatiques (tags, séries, polish)",
+                    onclick: move |_| on_open_import_rules.call(()),
+                    span { "⚡" }
+                    span { "Règles" }
                 }
                 button {
                     class: "btn btn-secondary",
