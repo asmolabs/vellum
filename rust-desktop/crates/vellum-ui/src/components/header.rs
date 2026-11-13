@@ -39,7 +39,7 @@ pub fn Header(
                 }
                 button {
                     class: "btn btn-icon",
-                    style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-subtle); margin-right: 6px; cursor: pointer;",
+                    style: "position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: auto; height: 24px; font-size: 11px; padding: 0 7px; border-radius: 5px; background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-subtle); cursor: pointer;",
                     title: "Ouvrir la palette de commandes (⌘K)",
                     onclick: move |_| on_open_palette.call(()),
                     "⌘K"

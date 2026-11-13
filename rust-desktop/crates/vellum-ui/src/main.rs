@@ -9,6 +9,7 @@
 use std::path::PathBuf;
 
 use dioxus::desktop::{Config, WindowBuilder};
+use dioxus::html::HasFileData;
 use dioxus::prelude::*;
 
 mod components;
@@ -91,6 +92,7 @@ fn App() -> Element {
     let mut content_search_open = use_signal(|| false);
     let mut bulk_regex_open = use_signal(|| false);
     let mut import_rules_open = use_signal(|| false);
+    let mut is_dragging_files = use_signal(|| false);
 
     let news_service = services.news_service.clone();
     let mail_service = services.mail_service.clone();
@@ -936,7 +938,61 @@ fn App() -> Element {
     rsx! {
         style { "{APP_CSS}" }
 
-        div { class: "app-container",
+        div {
+            class: "app-container",
+            ondragenter: move |evt: DragEvent| {
+                evt.prevent_default();
+                is_dragging_files.set(true);
+            },
+            ondragover: move |evt: DragEvent| {
+                evt.prevent_default();
+            },
+            ondragleave: move |_| {
+                is_dragging_files.set(false);
+            },
+            ondrop: {
+                let bs = book_service.clone();
+                let refresh = refresh_library.clone();
+                move |evt: DragEvent| {
+                    evt.prevent_default();
+                    is_dragging_files.set(false);
+                    if let Some(file_engine) = evt.files() {
+                        let paths: Vec<PathBuf> = file_engine
+                            .files()
+                            .into_iter()
+                            .map(PathBuf::from)
+                            .collect();
+                        if !paths.is_empty() {
+                            let bs_task = bs.clone();
+                            let mut refresh_task = refresh.clone();
+                            spawn(async move {
+                                let _ = tokio::task::spawn_blocking(move || {
+                                    for path in paths {
+                                        if let Err(e) = bs_task.import_book(&path) {
+                                            tracing::error!(
+                                                "Drag & drop import failed for {}: {}",
+                                                path.display(),
+                                                e
+                                            );
+                                        }
+                                    }
+                                })
+                                .await;
+                                refresh_task();
+                            });
+                        }
+                    }
+                }
+            },
+            if *is_dragging_files.read() {
+                div { class: "drop-zone-overlay",
+                    div { class: "drop-zone-box",
+                        div { style: "font-size: 36px; margin-bottom: 10px;", "📥" }
+                        h3 { style: "margin: 0 0 6px 0; font-size: 18px;", "Déposez vos livres ici" }
+                        p { style: "margin: 0; font-size: 13px; color: var(--text-secondary);", "EPUB, PDF, CBZ, CBR, MOBI, AZW3, TXT, MP3, M4B" }
+                    }
+                }
+            }
             // Header
             Header {
                 locale: *ui_locale.read(),
