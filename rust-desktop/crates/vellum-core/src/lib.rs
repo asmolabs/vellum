@@ -20,12 +20,14 @@ pub mod custom_column_service;
 pub mod device_service;
 pub mod epub_editor;
 pub mod i18n;
+pub mod import_rules;
 pub mod library_audit;
 pub mod litestream_service;
 pub mod mail_service;
 pub mod metadata_service;
 pub mod naming_template;
 pub mod news_service;
+pub mod notes_exporter;
 pub mod opds_server;
 pub mod plugin_service;
 pub mod reader_provider;
@@ -38,7 +40,8 @@ pub mod web_companion_assets;
 
 pub use app_services::{define_passage_with_ai, init_services, scan_and_index_library, AppServices};
 pub use book_service::{
-    BookService, DuplicateBookInfo, TranslateBookRequest, UpdateMetadataRequest,
+    BookService, BulkRegexChange, BulkRegexReport, BulkRegexRequest, DuplicateBookInfo,
+    RegexTargetField, TranslateBookRequest, UpdateMetadataRequest,
 };
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
 pub use catalog_exporter::{CatalogExporter, CatalogFormat};
@@ -47,12 +50,14 @@ pub use custom_column_service::CustomColumnService;
 pub use device_service::{ConnectedDevice, DeviceService};
 pub use epub_editor::{EpubEditor, PolishOptions, PolishReport};
 pub use i18n::{catalog_for, translate, translate_fmt, Locale};
+pub use import_rules::{apply_import_rules, ImportRule, ImportRuleOutcome, ImportRuleTarget};
 pub use library_audit::{audit_library, compute_similarity, normalize_string};
 pub use litestream_service::LitestreamService;
 pub use mail_service::MailService;
 pub use metadata_service::MetadataService;
 pub use naming_template::{NamingTemplate, DEFAULT_NAMING_TEMPLATE};
 pub use news_service::NewsService;
+pub use notes_exporter::NotesExporter;
 pub use opds_server::OpdsServer;
 pub use plugin_service::PluginService;
 pub use reader_provider::{BookContentProvider, ReaderContent, ReaderSection};

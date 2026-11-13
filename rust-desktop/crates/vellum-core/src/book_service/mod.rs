@@ -1,9 +1,12 @@
 //! Service principal de gestion de la bibliothèque (import, métadonnées, conversion, audit).
 
+mod bulk_regex;
 mod conversion;
 mod epub_and_audit;
 mod lifecycle;
 mod metadata;
+
+pub use bulk_regex::{BulkRegexChange, BulkRegexReport, BulkRegexRequest, RegexTargetField};
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -258,7 +261,44 @@ impl BookService {
         Ok(None)
     }
 
+    /// Charge les règles automatiques d'import persistées dans SQLite.
+    pub fn get_import_rules(&self) -> Vec<crate::import_rules::ImportRule> {
+        self.param_repo
+            .get_value("import_rules")
+            .ok()
+            .flatten()
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default()
+    }
 
+    /// Enregistre les règles automatiques d'import dans SQLite.
+    pub fn save_import_rules(&self, rules: &[crate::import_rules::ImportRule]) -> VellumResult<()> {
+        let json = serde_json::to_string(rules)?;
+        self.param_repo.set_value("import_rules", &json)
+    }
+
+    /// Exporte les notes, surlignages et signets d'un livre au format Markdown.
+    pub fn export_book_notes_markdown(
+        &self,
+        book_id: &str,
+        dest: Option<&Path>,
+    ) -> VellumResult<String> {
+        let book = self
+            .book_repo
+            .find_by_id(book_id)?
+            .ok_or_else(|| {
+                vellum_domain::VellumError::NotFound(format!("Livre introuvable: {book_id}"))
+            })?;
+        let vellum_dir = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".vellum");
+        let user_data = crate::BookUserData::load_from_dir(&vellum_dir, book_id);
+        let md = crate::NotesExporter::to_markdown(&book, &user_data);
+        if let Some(path) = dest {
+            crate::NotesExporter::export_to_file(&book, &user_data, path)?;
+        }
+        Ok(md)
+    }
 }
 
 #[cfg(test)]

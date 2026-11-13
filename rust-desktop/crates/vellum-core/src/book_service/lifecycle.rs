@@ -200,7 +200,26 @@ impl BookService {
         );
         book.add_format(format);
 
+        let rules = self.get_import_rules();
+        let rule_outcome = if !rules.is_empty() {
+            let fname = book
+                .formats
+                .first()
+                .map(|f| f.filename.clone())
+                .unwrap_or_default();
+            let out = crate::import_rules::apply_import_rules(&mut book, &fname, &rules);
+            for t in &book.tags {
+                let _ = self.tag_repo.save(t);
+            }
+            out
+        } else {
+            Default::default()
+        };
+
         let saved = self.book_repo.save(&book)?;
+        if rule_outcome.should_polish {
+            let _ = self.polish_book(&saved.id, crate::PolishOptions::default());
+        }
 
         if let Some(ref sr) = self.sync_repo {
             let event = vellum_domain::SyncEvent::new(

@@ -88,6 +88,7 @@ pub fn init_services() -> AppServices {
     ));
 
     let periodic_sync = sync_service.clone();
+    let periodic_watch_bs = book_service.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
@@ -101,6 +102,28 @@ pub fn init_services() -> AppServices {
                             "Synchro périodique Google Drive : {} événements appliqués, {} livres reçus",
                             report.pulled_events, report.downloaded_books
                         );
+                    }
+                }
+            }
+            if let Ok(Some(watch_dir)) = periodic_watch_bs.param_repo().get_value("watch_folder_path") {
+                let trimmed = watch_dir.trim().to_string();
+                if !trimmed.is_empty() && std::path::Path::new(&trimmed).exists() {
+                    let bs_clone = periodic_watch_bs.clone();
+                    let res = tokio::task::spawn_blocking(move || {
+                        crate::WatchFolderService::scan_once(
+                            &bs_clone,
+                            std::path::Path::new(&trimmed),
+                            true,
+                        )
+                    })
+                    .await;
+                    if let Ok(Ok(report)) = res {
+                        if !report.imported_book_ids.is_empty() {
+                            info!(
+                                "Watch Folder périodique : {} nouveau(x) livre(s) importé(s)",
+                                report.imported_book_ids.len()
+                            );
+                        }
                     }
                 }
             }

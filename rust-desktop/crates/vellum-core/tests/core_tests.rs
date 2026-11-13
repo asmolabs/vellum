@@ -1735,6 +1735,93 @@ async fn test_api_export_catalog_csv_json_bibtex() {
     assert!(bib_res.text().await.unwrap().contains("@book{"));
 }
 
+#[test]
+fn test_notes_export_markdown_and_bulk_regex_and_import_rules() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    // 1. NotesExporter Markdown
+    let mut book = vellum_domain::Book::new("Dune", "Herbert, Frank");
+    book.add_tag(vellum_domain::Tag::new("SF"));
+    let saved = book_service.book_repo().save(&book).unwrap();
+
+    let mut user_data = vellum_core::BookUserData::default();
+    user_data.highlights.push(vellum_core::Highlight::new(
+        &saved.id,
+        0,
+        "Chapitre 1",
+        "yellow",
+        "La peur tue l'esprit.",
+        Some("Citation clé".to_string()),
+    ));
+    user_data.bookmarks.push(vellum_core::Bookmark::new(
+        &saved.id,
+        0,
+        "Chapitre 1",
+        2,
+        12.5,
+        "Arrakis...",
+    ));
+
+    let md_path = temp.path().join("notes.md");
+    vellum_core::NotesExporter::export_to_file(&saved, &user_data, &md_path).unwrap();
+    let md = std::fs::read_to_string(&md_path).unwrap();
+    assert!(md.contains("title: \"Dune\""));
+    assert!(md.contains("La peur tue l'esprit."));
+    assert!(md.contains("Citation clé"));
+    assert!(md.contains("## Signets"));
+
+    // 2. Bulk Regex Replace (dry_run then apply: "Herbert, Frank" -> "Frank Herbert")
+    let preview = book_service
+        .bulk_regex_replace(vellum_core::BulkRegexRequest {
+            book_ids: vec![saved.id.clone()],
+            field: vellum_core::RegexTargetField::Author,
+            pattern: r"^([^,]+),\s*(.+)$".to_string(),
+            replacement: "$2 $1".to_string(),
+            dry_run: true,
+        })
+        .unwrap();
+    assert_eq!(preview.matched_count, 1);
+    assert_eq!(preview.updated_count, 0);
+    assert_eq!(preview.changes[0].after, "Frank Herbert");
+
+    let applied = book_service
+        .bulk_regex_replace(vellum_core::BulkRegexRequest {
+            book_ids: vec![saved.id.clone()],
+            field: vellum_core::RegexTargetField::Author,
+            pattern: r"^([^,]+),\s*(.+)$".to_string(),
+            replacement: "$2 $1".to_string(),
+            dry_run: false,
+        })
+        .unwrap();
+    assert_eq!(applied.updated_count, 1);
+    assert_eq!(
+        book_service.get_book_by_id(&saved.id).unwrap().unwrap().author,
+        "Frank Herbert"
+    );
+
+    // 3. Import Rules persisted & evaluated
+    let mut rule = vellum_core::ImportRule::new(
+        "Auto SF",
+        vellum_core::ImportRuleTarget::Filename,
+        r"(?i)foundation",
+    );
+    rule.add_tags = vec!["Classique SF".to_string()];
+    rule.set_series = Some("Cycle de Fondation".to_string());
+    book_service.save_import_rules(&[rule]).unwrap();
+    assert_eq!(book_service.get_import_rules().len(), 1);
+
+    let mut b2 = vellum_domain::Book::new("Fondation", "Isaac Asimov");
+    let outcome = vellum_core::apply_import_rules(
+        &mut b2,
+        "Asimov - Foundation (1951).epub",
+        &book_service.get_import_rules(),
+    );
+    assert_eq!(outcome.matched_rule_names, vec!["Auto SF".to_string()]);
+    assert!(b2.tags.iter().any(|t| t.name == "Classique SF"));
+    assert_eq!(b2.series.as_deref(), Some("Cycle de Fondation"));
+}
+
 
 
 
