@@ -128,6 +128,14 @@ impl Database {
                 filename TEXT PRIMARY KEY NOT NULL,
                 client_id TEXT NOT NULL,
                 applied_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS virtual_libraries (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL UNIQUE,
+                query TEXT NOT NULL,
+                color TEXT,
+                created_at TEXT NOT NULL
             );",
         )
         .map_err(|e| VellumError::Database(e.to_string()))?;

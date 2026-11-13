@@ -155,3 +155,25 @@ pub struct ReadingStats {
     pub recently_read: Vec<Book>,
     pub activity_by_day: HashMap<String, usize>,
 }
+
+/// Bibliothèque virtuelle (vue enregistrée basée sur une requête de recherche Calibre-like).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VirtualLibrary {
+    pub id: String,
+    pub name: String,
+    pub query: String,
+    pub color: Option<String>,
+    pub created_at: String,
+}
+
+impl VirtualLibrary {
+    pub fn new(name: impl Into<String>, query: impl Into<String>, color: Option<String>) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            name: name.into(),
+            query: query.into(),
+            color,
+            created_at: Utc::now().to_rfc3339(),
+        }
+    }
+}

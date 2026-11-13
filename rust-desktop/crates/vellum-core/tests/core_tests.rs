@@ -1523,6 +1523,47 @@ fn test_watch_folder_auto_add_and_deduplication() {
     assert_eq!(r2.skipped_duplicates, 1);
 }
 
+#[test]
+fn test_virtual_library_crud_and_query_filtering() {
+    let db = vellum_storage::Database::open_in_memory().unwrap();
+    let repo = vellum_storage::VirtualLibraryRepository::new(db);
+    let service = vellum_core::VirtualLibraryService::new(repo);
+
+    // Validation rejects empty name or query
+    assert!(service.create("  ", "tag:sf", None).is_err());
+    assert!(service.create("SF", "   ", None).is_err());
+
+    let vl = service
+        .create("SF à lire", "tag:sf -status:finished", Some("#6366f1".into()))
+        .unwrap();
+    assert_eq!(vl.name, "SF à lire");
+    assert_eq!(service.list().unwrap().len(), 1);
+
+    let mut b1 = vellum_domain::Book::new("Dune", "Frank Herbert");
+    b1.add_tag(vellum_domain::Tag::new("SF"));
+    b1.is_finished = false;
+
+    let mut b2 = vellum_domain::Book::new("Fondation", "Isaac Asimov");
+    b2.add_tag(vellum_domain::Tag::new("SF"));
+    b2.is_finished = true;
+
+    let mut b3 = vellum_domain::Book::new("Le Petit Prince", "Antoine de Saint-Exupéry");
+    b3.add_tag(vellum_domain::Tag::new("Classique"));
+
+    let filtered = service.filter_books(&[b1, b2, b3], &vl.id).unwrap();
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].title, "Dune");
+
+    let updated = service
+        .update(&vl.id, "SF complète", "tag:sf", Some("#10b981".into()))
+        .unwrap();
+    assert_eq!(updated.name, "SF complète");
+    assert_eq!(service.get(&vl.id).unwrap().unwrap().query, "tag:sf");
+
+    assert!(service.delete(&vl.id).unwrap());
+    assert!(service.list().unwrap().is_empty());
+}
+
 
 
 

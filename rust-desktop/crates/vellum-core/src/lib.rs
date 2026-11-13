@@ -31,6 +31,7 @@ pub mod reader_provider;
 pub mod reader_store;
 pub mod search_query;
 pub mod sync_service;
+pub mod virtual_library_service;
 pub mod watch_folder;
 pub mod web_companion_assets;
 
@@ -56,5 +57,6 @@ pub use reader_provider::{BookContentProvider, ReaderContent, ReaderSection};
 pub use reader_store::*;
 pub use search_query::SearchQuery;
 pub use sync_service::{CloudSyncBackend, FolderSyncBackend, SyncService};
+pub use virtual_library_service::VirtualLibraryService;
 pub use watch_folder::{WatchFolderReport, WatchFolderService};
 

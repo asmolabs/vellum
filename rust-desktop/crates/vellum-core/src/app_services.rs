@@ -5,11 +5,14 @@ use std::sync::Arc;
 
 use tracing::info;
 use vellum_domain::{AppConfig, Book, CloudSyncConfig, SmtpConfig};
-use vellum_storage::{BookRepository, Database, ParamRepository, SyncRepository, TagRepository};
+use vellum_storage::{
+    BookRepository, Database, ParamRepository, SyncRepository, TagRepository,
+    VirtualLibraryRepository,
+};
 
 use crate::{
     BookService, ConversionService, DeviceService, LitestreamService, MailService, MetadataService,
-    NewsService, OpdsServer, PluginService, SyncService,
+    NewsService, OpdsServer, PluginService, SyncService, VirtualLibraryService,
 };
 
 /// Conteneur d'injection de dépendances regroupant les services métier de l'application.
@@ -21,6 +24,7 @@ pub struct AppServices {
     pub litestream_service: Arc<LitestreamService>,
     pub mail_service: Arc<MailService>,
     pub news_service: Arc<NewsService>,
+    pub virtual_library_service: Arc<VirtualLibraryService>,
     pub smtp_config: SmtpConfig,
     pub opds_port: u16,
 }
@@ -39,6 +43,7 @@ pub fn init_services() -> AppServices {
     let param_repo = ParamRepository::new(db.clone());
     let tag_repo = TagRepository::new(db.clone());
     let sync_repo = SyncRepository::new(db.clone());
+    let vl_repo = VirtualLibraryRepository::new(db.clone());
 
     let mut cloud_sync_cfg = app_cfg.cloud_sync.clone();
     if let Ok(Some(saved_json)) = param_repo.get_value("cloud_sync_config") {
@@ -123,6 +128,7 @@ pub fn init_services() -> AppServices {
         param_repo,
         Some(mail_service.clone()),
     ));
+    let virtual_library_service = Arc::new(VirtualLibraryService::new(vl_repo));
 
     AppServices {
         book_service,
@@ -131,6 +137,7 @@ pub fn init_services() -> AppServices {
         litestream_service,
         mail_service,
         news_service,
+        virtual_library_service,
         smtp_config: smtp_cfg,
         opds_port,
     }

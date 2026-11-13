@@ -14,9 +14,11 @@ pub mod db;
 pub mod param_repo;
 pub mod sync_repo;
 pub mod tag_repo;
+pub mod virtual_library_repo;
 
 pub use book_repo::BookRepository;
 pub use db::Database;
 pub use param_repo::ParamRepository;
 pub use sync_repo::SyncRepository;
 pub use tag_repo::TagRepository;
+pub use virtual_library_repo::VirtualLibraryRepository;
