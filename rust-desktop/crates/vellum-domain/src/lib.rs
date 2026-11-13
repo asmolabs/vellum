@@ -1,3 +1,15 @@
+//! # `vellum-domain`
+//!
+//! Couche Domaine pure de Vellum (Clean Architecture).
+//!
+//! Ce crate ne contient aucune dépendance d'infrastructure (pas de SQLite, HTTP, UI ou ZIP).
+//! Il définit :
+//! - Les entités métier ([`Book`], [`BookFormat`], [`Tag`], [`Param`], [`ReadingStats`])
+//! - Les types de diagnostic et d'édition EPUB ([`EpubDiagnostics`], [`EpubTocEntry`])
+//! - Les modèles de santé de bibliothèque et de flux d'actualités ([`LibraryHealthReport`], [`NewsRecipe`])
+//! - Les contrats de plugins ([`BookFormatPlugin`], [`BookConverterPlugin`], [`DeviceSyncPlugin`], [`MetadataEnricherPlugin`])
+//! - Les configurations ([`AppConfig`], [`SmtpConfig`], [`LitestreamConfig`], [`CloudSyncConfig`]) et erreurs ([`VellumError`])
+
 pub mod config;
 pub mod entity;
 pub mod epub;

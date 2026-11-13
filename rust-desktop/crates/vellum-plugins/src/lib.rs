@@ -1,3 +1,15 @@
+//! # `vellum-plugins`
+//!
+//! Adaptateurs et plugins intégrés ou externes de Vellum.
+//!
+//! Regroupe :
+//! - **Formats** (`format`) : extraction de métadonnées et couvertures (EPUB, PDF, CBZ/CBR, MOBI/AZW3, Audiobooks)
+//! - **Convertisseurs** (`converter`) : conversions directes et via pivot EPUB (TXT, MOBI, CBZ, PDF)
+//! - **Enrichissement** (`enricher`) : récupération de métadonnées distantes (Google Books, OpenLibrary)
+//! - **Liseuses** (`ereader`) : synchronisation Kobo (`KoboReader.sqlite` en lecture seule) et Kindle (`My Clippings.txt`)
+//! - **Traducteur** (`translator`) : pipeline de traduction IA bilingue avec cache et glossaire
+//! - **Plugins externes** (`external`) : chargeur de plugins JSON/CLI tiers
+
 pub mod cleaner;
 pub mod converter;
 pub mod enricher;

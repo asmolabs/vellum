@@ -1,3 +1,16 @@
+//! # `vellum-core`
+//!
+//! Couche Application / Cas d'usage de Vellum.
+//!
+//! Orchestre les entités de `vellum-domain`, la persistance de `vellum-storage` et les adaptateurs
+//! de `vellum-plugins` pour fournir les services métier :
+//! - [`BookService`] : import, organisation par templates, recherche Calibre-like, fusion et suppression
+//! - [`ReaderContent`] / [`BookContentProvider`] : lecture EPUB/CBZ/PDF/TXT avec sanitisation HTML `ammonia`
+//! - [`OpdsServer`] : serveur HTTP Axum pour catalogues OPDS 1.2 et Web Companion mobile
+//! - [`EpubEditor`] : inspection, réparation et édition de table des matières EPUB
+//! - [`NewsService`] : téléchargement RSS/Atom, sanitisation `ammonia` et génération d'EPUB de presse
+//! - [`SyncService`], [`DeviceService`], [`MailService`], [`ConversionService`], [`LitestreamService`]
+
 pub mod book_service;
 pub mod calibre_importer;
 pub mod conversion_service;

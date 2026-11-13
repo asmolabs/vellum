@@ -1,3 +1,11 @@
+//! # `vellum-ui`
+//!
+//! Interface desktop native de Vellum basée sur Dioxus.
+//!
+//! Initialise les services applicatifs (`vellum-core`), démarre le serveur OPDS/Web Companion
+//! en tâche de fond et rend l'interface réactive (bibliothèque grille/liste/Kanban, lecteur intégré,
+//! éditeur EPUB, palette de commandes, statistiques et modales de configuration).
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
