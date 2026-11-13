@@ -54,6 +54,8 @@ fn App() -> Element {
     let litestream = services.litestream_service.clone();
     let opds_port = services.opds_port;
     let device_service = services.device_service.clone();
+    let virtual_library_service = services.virtual_library_service.clone();
+    let custom_column_service = services.custom_column_service.clone();
     let mut connected_devices = use_signal(|| device_service.detect_connected_devices());
 
     let mut sync_config = use_signal(|| sync_service.config());
@@ -62,6 +64,9 @@ fn App() -> Element {
     let mut ui_locale = use_signal(|| book_service.get_ui_locale());
 
     let mut books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
+    let mut virtual_libraries = use_signal(|| virtual_library_service.list().unwrap_or_default());
+    let mut active_virtual_library_id = use_signal(|| None::<String>);
+    let custom_columns = use_signal(|| custom_column_service.list_columns().unwrap_or_default());
 
     let current_filter = use_signal(|| FilterStatus::All);
     let mut current_sort = use_signal(|| SortOption::RecentAdded);
@@ -143,10 +148,20 @@ fn App() -> Element {
         let series_filter = selected_series.read().clone();
         let raw_query = search_query.read();
         let parsed_query = SearchQuery::parse(&raw_query);
+        let active_vl_query = active_virtual_library_id
+            .read()
+            .as_ref()
+            .and_then(|id| virtual_libraries.read().iter().find(|vl| &vl.id == id).cloned())
+            .map(|vl| SearchQuery::parse(&vl.query));
 
         let mut list: Vec<Book> = all
             .iter()
             .filter(|b| {
+                if let Some(ref vl_q) = active_vl_query {
+                    if !vl_q.is_empty() && !vl_q.matches(b) {
+                        return false;
+                    }
+                }
                 // Status Filter
                 let matches_status = match filter {
                     FilterStatus::All => true,
@@ -939,6 +954,27 @@ fn App() -> Element {
                     selected_series: selected_series,
                     tags_counts: tags_counts,
                     series_counts: series_counts,
+                    virtual_libraries: virtual_libraries.read().clone(),
+                    active_virtual_library_id: active_virtual_library_id,
+                    on_create_virtual_library: {
+                        let vls = virtual_library_service.clone();
+                        move |(name, query): (String, String)| {
+                            if vls.create(&name, &query, None).is_ok() {
+                                virtual_libraries.set(vls.list().unwrap_or_default());
+                            }
+                        }
+                    },
+                    on_delete_virtual_library: {
+                        let vls = virtual_library_service.clone();
+                        move |id: String| {
+                            if active_virtual_library_id.read().as_ref() == Some(&id) {
+                                active_virtual_library_id.set(None);
+                            }
+                            if vls.delete(&id).is_ok() {
+                                virtual_libraries.set(vls.list().unwrap_or_default());
+                            }
+                        }
+                    },
                     stats: reading_stats.clone(),
                     on_open_stats: move |_| stats_open.set(true),
                 }
@@ -1108,6 +1144,9 @@ fn App() -> Element {
             if let Some(book) = selected_book.read().as_ref() {
                 {
                     let convertible = book_service.get_convertible_formats_for_book(book);
+                    let custom_vals = custom_column_service
+                        .get_book_values(&book.id)
+                        .unwrap_or_default();
                     rsx! {
                         DetailDrawer {
                             book: book.clone(),
@@ -1127,6 +1166,35 @@ fn App() -> Element {
                             on_send_to_kindle: handle_send_to_kindle.clone(),
                             on_export_file: handle_export_file.clone(),
                             on_open_epub_editor: move |b| epub_editing_book.set(Some(b)),
+                            on_polish_epub: {
+                                let bs = book_service.clone();
+                                move |b_id: String| {
+                                    match bs.polish_book(&b_id, vellum_core::PolishOptions::default()) {
+                                        Ok(report) => {
+                                            sync_message.set(Some(format!(
+                                                "✨ Polish EPUB terminé (métadonnées: {}, couverture: {}, chapitres: {}, TOC: {})",
+                                                report.metadata_updated,
+                                                report.cover_embedded,
+                                                report.chapters_smartened,
+                                                report.toc_rebuilt
+                                            )));
+                                        }
+                                        Err(e) => {
+                                            sync_message.set(Some(format!("Erreur Polish EPUB : {e}")));
+                                        }
+                                    }
+                                }
+                            },
+                            custom_columns: custom_columns.read().clone(),
+                            custom_values: custom_vals,
+                            on_save_custom_value: {
+                                let ccs = custom_column_service.clone();
+                                move |(b_id, key, val): (String, String, String)| {
+                                    if let Err(e) = ccs.set_book_value(&b_id, &key, &val) {
+                                        sync_message.set(Some(format!("Erreur colonne '{key}': {e}")));
+                                    }
+                                }
+                            },
                         }
 
                     }

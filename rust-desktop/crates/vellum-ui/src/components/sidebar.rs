@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use crate::state::FilterStatus;
 use vellum_core::{translate, Locale};
-use vellum_domain::ReadingStats;
+use vellum_domain::{ReadingStats, VirtualLibrary};
 
 #[component]
 pub fn Sidebar(
@@ -11,9 +11,16 @@ pub fn Sidebar(
     selected_series: Signal<Option<String>>,
     tags_counts: Vec<(String, usize)>,
     series_counts: Vec<(String, usize)>,
+    virtual_libraries: Vec<VirtualLibrary>,
+    active_virtual_library_id: Signal<Option<String>>,
+    on_create_virtual_library: EventHandler<(String, String)>,
+    on_delete_virtual_library: EventHandler<String>,
     stats: Option<ReadingStats>,
     on_open_stats: EventHandler<()>,
 ) -> Element {
+    let mut show_new_vl = use_signal(|| false);
+    let mut new_vl_name = use_signal(String::new);
+    let mut new_vl_query = use_signal(String::new);
     let filters = [
         FilterStatus::All,
         FilterStatus::Reading,
@@ -53,6 +60,92 @@ pub fn Sidebar(
                                 },
                                 span { "{filter_label}" }
                                 span { class: "nav-badge", "{count_label}" }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Bibliothèques virtuelles
+            div {
+                div {
+                    class: "sidebar-section-title",
+                    style: "display: flex; justify-content: space-between; align-items: center;",
+                    span { "Bibliothèques virtuelles" }
+                    button {
+                        style: "background: none; border: none; color: #818cf8; cursor: pointer; font-size: 14px; font-weight: 700; padding: 0 4px;",
+                        title: "Créer une bibliothèque virtuelle",
+                        onclick: move |_| {
+                            let next = !*show_new_vl.read();
+                            show_new_vl.set(next);
+                        },
+                        "+"
+                    }
+                }
+                if *show_new_vl.read() {
+                    div {
+                        style: "display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; margin-bottom: 8px; background: rgba(255,255,255,0.04); border-radius: 6px;",
+                        input {
+                            r#type: "text",
+                            placeholder: "Nom (ex: SF à lire)",
+                            style: "font-size: 11px; padding: 4px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);",
+                            value: "{new_vl_name}",
+                            oninput: move |e| new_vl_name.set(e.value()),
+                        }
+                        input {
+                            r#type: "text",
+                            placeholder: "Requête (ex: tag:sf -status:finished)",
+                            style: "font-size: 11px; padding: 4px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);",
+                            value: "{new_vl_query}",
+                            oninput: move |e| new_vl_query.set(e.value()),
+                        }
+                        button {
+                            style: "font-size: 11px; padding: 4px; border-radius: 4px; background: rgba(99, 102, 241, 0.25); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); cursor: pointer;",
+                            onclick: move |_| {
+                                let name = new_vl_name.read().trim().to_string();
+                                let query = new_vl_query.read().trim().to_string();
+                                if !name.is_empty() && !query.is_empty() {
+                                    on_create_virtual_library.call((name, query));
+                                    new_vl_name.set(String::new());
+                                    new_vl_query.set(String::new());
+                                    show_new_vl.set(false);
+                                }
+                            },
+                            "Enregistrer"
+                        }
+                    }
+                }
+                if !virtual_libraries.is_empty() {
+                    div { class: "tags-cloud",
+                        for vl in virtual_libraries.iter() {
+                            {
+                                let is_selected = active_virtual_library_id.read().as_ref() == Some(&vl.id);
+                                let vl_id = vl.id.clone();
+                                let vl_id_del = vl.id.clone();
+                                let vl_query = vl.query.clone();
+                                rsx! {
+                                    span {
+                                        class: if is_selected { "tag-pill active" } else { "tag-pill" },
+                                        style: "display: inline-flex; align-items: center; gap: 4px; border-color: rgba(99, 102, 241, 0.45); color: #a5b4fc;",
+                                        title: "{vl_query}",
+                                        onclick: move |_| {
+                                            if active_virtual_library_id.read().as_ref() == Some(&vl_id) {
+                                                active_virtual_library_id.set(None);
+                                            } else {
+                                                active_virtual_library_id.set(Some(vl_id.clone()));
+                                            }
+                                        },
+                                        "🗂️ {vl.name}"
+                                        button {
+                                            style: "background: none; border: none; color: inherit; cursor: pointer; font-size: 10px; opacity: 0.7; padding: 0 2px;",
+                                            onclick: move |evt| {
+                                                evt.stop_propagation();
+                                                on_delete_virtual_library.call(vl_id_del.clone());
+                                            },
+                                            "×"
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

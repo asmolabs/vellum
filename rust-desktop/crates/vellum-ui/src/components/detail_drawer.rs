@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
-use vellum_domain::Book;
+use vellum_domain::{Book, CustomColumnDefinition};
 
 #[component]
 pub fn DetailDrawer(
@@ -32,6 +33,10 @@ pub fn DetailDrawer(
     on_send_to_kindle: EventHandler<Book>,
     on_export_file: EventHandler<(String, Option<String>)>,
     on_open_epub_editor: EventHandler<Book>,
+    on_polish_epub: EventHandler<String>,
+    custom_columns: Vec<CustomColumnDefinition>,
+    custom_values: BTreeMap<String, String>,
+    on_save_custom_value: EventHandler<(String, String, String)>,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
 
@@ -441,6 +446,45 @@ pub fn DetailDrawer(
                                             move |_| on_open_epub_editor.call(book_clone.clone())
                                         },
                                         "🛠️ Inspecteur & TOC EPUB"
+                                    }
+                                    button {
+                                        class: "drawer-action-btn",
+                                        style: "width: 100%; justify-content: center; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); font-weight: 600;",
+                                        onclick: {
+                                            let b_id = book_id.clone();
+                                            move |_| on_polish_epub.call(b_id.clone())
+                                        },
+                                        "✨ Polish EPUB (Métadonnées & TOC)"
+                                    }
+                                }
+
+                                if !custom_columns.is_empty() {
+                                    div {
+                                        style: "margin-top: 8px; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 6px;",
+                                        div {
+                                            style: "font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em;",
+                                            "Colonnes personnalisées"
+                                        }
+                                        for col in custom_columns.iter() {
+                                            {
+                                                let b_id = book_id.clone();
+                                                let col_key = col.key.clone();
+                                                let col_label = col.label.clone();
+                                                let val = custom_values.get(&col.key).cloned().unwrap_or_default();
+                                                rsx! {
+                                                    div {
+                                                        style: "display: flex; align-items: center; justify-content: space-between; gap: 8px;",
+                                                        label { style: "font-size: 12px; color: var(--text-secondary);", "{col_label}" }
+                                                        input {
+                                                            r#type: "text",
+                                                            style: "width: 140px; font-size: 12px; padding: 3px 6px; border-radius: 4px; background: rgba(0,0,0,0.25); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);",
+                                                            value: "{val}",
+                                                            onchange: move |e| on_save_custom_value.call((b_id.clone(), col_key.clone(), e.value())),
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
