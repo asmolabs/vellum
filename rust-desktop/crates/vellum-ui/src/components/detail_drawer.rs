@@ -43,6 +43,7 @@ pub fn DetailDrawer(
 
     let mut edit_title = use_signal(|| book.title.clone());
     let mut edit_author = use_signal(|| book.author.clone());
+    let mut show_more_actions = use_signal(|| false);
     let mut edit_series = use_signal(|| book.series.clone().unwrap_or_default());
     let mut edit_series_index =
         use_signal(|| book.series_index.map(|i| i.to_string()).unwrap_or_default());
@@ -387,7 +388,7 @@ pub fn DetailDrawer(
                             div { style: "margin-top: auto; display: flex; flex-direction: column; gap: 8px;",
                                 button {
                                     class: "btn btn-primary",
-                                    style: "width: 100%;",
+                                    style: "width: 100%; justify-content: center;",
                                     onclick: {
                                         let book_clone = book.clone();
                                         move |_| on_read.call(book_clone.clone())
@@ -395,78 +396,97 @@ pub fn DetailDrawer(
                                     "📖 Lire l'ouvrage"
                                 }
 
-                                button {
-                                    class: "drawer-action-btn",
-                                    style: "width: 100%; justify-content: center; background: rgba(59, 130, 246, 0.12); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); font-weight: 600;",
-                                    onclick: {
-                                        let b_id = book_id.clone();
-                                        move |_| on_enrich_metadata.call(b_id.clone())
-                                    },
-                                    "✨ Enrichir avec Google Books"
-                                }
-
-                                button {
-                                    class: "drawer-action-btn",
-                                    style: "width: 100%; justify-content: center; background: rgba(99, 102, 241, 0.12); color: #818cf8; border-color: rgba(99, 102, 241, 0.3); font-weight: 600;",
-                                    onclick: {
-                                        let book_clone = book.clone();
-                                        move |_| on_open_translate.call(book_clone.clone())
-                                    },
-                                    "🌐 Traduire avec l'IA"
-                                }
-
-                                if can_send_kindle {
+                                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 8px;",
                                     button {
                                         class: "drawer-action-btn",
-                                        style: "width: 100%; justify-content: center; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); font-weight: 600;",
-                                        disabled: is_sending_kindle,
-                                        onclick: {
-                                            let book_clone = book.clone();
-                                            move |_| on_send_to_kindle.call(book_clone.clone())
-                                        },
-                                        span { if is_sending_kindle { "⏳" } else { "✉️" } }
-                                        if is_sending_kindle { " Envoi en cours vers Kindle..." } else { " Envoyer à ma Kindle (sans fil)" }
-                                    }
-                                }
-
-                                button {
-                                    class: "drawer-action-btn",
-                                    style: "width: 100%; justify-content: center; background: rgba(167, 139, 250, 0.12); color: #c4b5fd; border-color: rgba(167, 139, 250, 0.3); font-weight: 600;",
-                                    onclick: {
-                                        let b_id = book_id.clone();
-                                        move |_| on_export_file.call((b_id.clone(), None))
-                                    },
-                                    "💾 Exporter le fichier..."
-                                }
-
-                                button {
-                                    class: "drawer-action-btn",
-                                    style: "width: 100%; justify-content: center; background: rgba(52, 211, 153, 0.12); color: #34d399; border-color: rgba(52, 211, 153, 0.3); font-weight: 600;",
-                                    onclick: {
-                                        let b_id = book_id.clone();
-                                        move |_| on_export_notes_md.call(b_id.clone())
-                                    },
-                                    "📝 Exporter Notes (Markdown)"
-                                }
-
-                                if book.formats.iter().any(|f| f.format.eq_ignore_ascii_case("epub") || f.format.eq_ignore_ascii_case("kepub")) {
-                                    button {
-                                        class: "drawer-action-btn",
-                                        style: "width: 100%; justify-content: center; background: rgba(14, 165, 233, 0.12); color: #38bdf8; border-color: rgba(14, 165, 233, 0.3); font-weight: 600;",
-                                        onclick: {
-                                            let book_clone = book.clone();
-                                            move |_| on_open_epub_editor.call(book_clone.clone())
-                                        },
-                                        "🛠️ Inspecteur & TOC EPUB"
-                                    }
-                                    button {
-                                        class: "drawer-action-btn",
-                                        style: "width: 100%; justify-content: center; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); font-weight: 600;",
+                                        style: "justify-content: center; background: rgba(59, 130, 246, 0.12); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); font-weight: 600;",
                                         onclick: {
                                             let b_id = book_id.clone();
-                                            move |_| on_polish_epub.call(b_id.clone())
+                                            move |_| on_enrich_metadata.call(b_id.clone())
                                         },
-                                        "✨ Polish EPUB (Métadonnées & TOC)"
+                                        "✨ Enrichir"
+                                    }
+                                    button {
+                                        class: "drawer-action-btn",
+                                        style: "justify-content: center; background: rgba(167, 139, 250, 0.12); color: #c4b5fd; border-color: rgba(167, 139, 250, 0.3); font-weight: 600;",
+                                        onclick: {
+                                            let b_id = book_id.clone();
+                                            move |_| on_export_file.call((b_id.clone(), None))
+                                        },
+                                        "💾 Exporter"
+                                    }
+                                }
+
+                                button {
+                                    class: "drawer-action-btn",
+                                    style: "width: 100%; justify-content: space-between; font-size: 12px; color: var(--text-secondary);",
+                                    onclick: move |_| {
+                                        let cur = *show_more_actions.read();
+                                        show_more_actions.set(!cur);
+                                    },
+                                    span { "⚡ Plus d'actions (IA, Notes, EPUB, Liseuse)" }
+                                    span { if *show_more_actions.read() { "▴" } else { "▾" } }
+                                }
+
+                                if *show_more_actions.read() {
+                                    div {
+                                        style: "display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);",
+                                        button {
+                                            class: "drawer-action-btn",
+                                            style: "width: 100%; justify-content: center; background: rgba(99, 102, 241, 0.12); color: #818cf8; border-color: rgba(99, 102, 241, 0.3); font-weight: 600;",
+                                            onclick: {
+                                                let book_clone = book.clone();
+                                                move |_| on_open_translate.call(book_clone.clone())
+                                            },
+                                            "🌐 Traduire avec l'IA"
+                                        }
+
+                                        button {
+                                            class: "drawer-action-btn",
+                                            style: "width: 100%; justify-content: center; background: rgba(52, 211, 153, 0.12); color: #34d399; border-color: rgba(52, 211, 153, 0.3); font-weight: 600;",
+                                            onclick: {
+                                                let b_id = book_id.clone();
+                                                move |_| on_export_notes_md.call(b_id.clone())
+                                            },
+                                            "📝 Exporter Notes (Markdown)"
+                                        }
+
+                                        if can_send_kindle {
+                                            button {
+                                                class: "drawer-action-btn",
+                                                style: "width: 100%; justify-content: center; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); font-weight: 600;",
+                                                disabled: is_sending_kindle,
+                                                onclick: {
+                                                    let book_clone = book.clone();
+                                                    move |_| on_send_to_kindle.call(book_clone.clone())
+                                                },
+                                                span { if is_sending_kindle { "⏳" } else { "✉️" } }
+                                                if is_sending_kindle { " Envoi vers Kindle..." } else { " Envoyer à ma Kindle" }
+                                            }
+                                        }
+
+                                        if book.formats.iter().any(|f| f.format.eq_ignore_ascii_case("epub") || f.format.eq_ignore_ascii_case("kepub")) {
+                                            div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 6px;",
+                                                button {
+                                                    class: "drawer-action-btn",
+                                                    style: "justify-content: center; font-size: 11.5px; background: rgba(14, 165, 233, 0.12); color: #38bdf8; border-color: rgba(14, 165, 233, 0.3); font-weight: 600;",
+                                                    onclick: {
+                                                        let book_clone = book.clone();
+                                                        move |_| on_open_epub_editor.call(book_clone.clone())
+                                                    },
+                                                    "🛠️ TOC EPUB"
+                                                }
+                                                button {
+                                                    class: "drawer-action-btn",
+                                                    style: "justify-content: center; font-size: 11.5px; background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); font-weight: 600;",
+                                                    onclick: {
+                                                        let b_id = book_id.clone();
+                                                        move |_| on_polish_epub.call(b_id.clone())
+                                                    },
+                                                    "✨ Polish EPUB"
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
@@ -523,7 +543,7 @@ pub fn DetailDrawer(
                                             }
                                         }
                                     }
-                                } else {
+                                } else if *show_more_actions.read() {
                                     div { style: "display: flex; gap: 6px;",
                                         button {
                                             class: "drawer-action-btn",
