@@ -319,23 +319,21 @@ impl SyncService {
                     // Upload des fichiers de formats
                     for fmt in formats {
                         let local_file = self.library_path.join(&fmt.filepath);
-                        if local_file.exists() {
-                            if !backend.file_exists(&fmt.filepath)? {
+                        if local_file.exists()
+                            && !backend.file_exists(&fmt.filepath)? {
                                 backend.upload_file(&local_file, &fmt.filepath)?;
                                 report.uploaded_books += 1;
                                 info!("Sync: Upload du livre '{}' ({})", fmt.filename, fmt.format);
                             }
-                        }
                     }
 
                     // Upload de la couverture si présente
                     if let Some(ref cover_rel) = book.cover_path {
                         let local_cover = self.library_path.join(cover_rel);
-                        if local_cover.exists() {
-                            if !backend.file_exists(cover_rel)? {
+                        if local_cover.exists()
+                            && !backend.file_exists(cover_rel)? {
                                 let _ = backend.upload_file(&local_cover, cover_rel);
                             }
-                        }
                     }
                 }
             }

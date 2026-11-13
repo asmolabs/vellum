@@ -297,7 +297,7 @@ pub fn SettingsModal(
                                     style: "font-size: 12px; padding: 6px 12px;",
                                     disabled: is_testing_smtp,
                                     onclick: {
-                                        let build = build_current_smtp.clone();
+                                        let build = build_current_smtp;
                                         move |_| on_test_smtp.call(build())
                                     },
                                     if is_testing_smtp { "⏳ Test en cours..." } else { "🔍 Tester la connexion" }
@@ -306,7 +306,7 @@ pub fn SettingsModal(
                                     class: "btn btn-primary",
                                     style: "font-size: 12px; padding: 6px 14px;",
                                     onclick: {
-                                        let build = build_current_smtp.clone();
+                                        let build = build_current_smtp;
                                         move |_| on_save_smtp.call(build())
                                     },
                                     "💾 Enregistrer SMTP"

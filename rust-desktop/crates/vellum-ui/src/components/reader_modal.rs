@@ -194,7 +194,7 @@ pub fn ReaderModal(
         let key = key_str.as_str();
 
         // If typing in an input field or note textarea, avoid capturing navigation keys
-        if active_drawer.read().is_some() || note_mode.read().clone() || ai_modal_open.read().clone() {
+        if active_drawer.read().is_some() || *note_mode.read() || *ai_modal_open.read() {
             if key == "Escape" {
                 if *ai_modal_open.read() {
                     ai_modal_open.set(false);
@@ -213,11 +213,7 @@ pub fn ReaderModal(
                 step_page(session, on_progress_update, fwd);
             }
             "ArrowRight" | "PageDown" | " " | "Enter" => {
-                let fwd = if is_comic && prefs.comic_rtl && key == "ArrowRight" {
-                    false
-                } else {
-                    true
-                };
+                let fwd = !(is_comic && prefs.comic_rtl && key == "ArrowRight");
                 step_page(session, on_progress_update, fwd);
             }
             "Backspace" => {
@@ -1648,7 +1644,7 @@ pub fn ReaderModal(
                                                 .set_file_name(&file_default)
                                                 .save_file()
                                             {
-                                                if let Ok(_) = std::fs::write(&dest, md) {
+                                                if std::fs::write(&dest, md).is_ok() {
                                                     toast_msg.set(Some("Notes exportées avec succès !".to_string()));
                                                 }
                                             }

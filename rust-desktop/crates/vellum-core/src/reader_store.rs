@@ -6,30 +6,24 @@ use uuid::Uuid;
 use crate::reader_provider::BookContentProvider;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ComicReadingMode {
+    #[default]
     SinglePage,
     DoublePage,
     Webtoon,
 }
 
-impl Default for ComicReadingMode {
-    fn default() -> Self {
-        ComicReadingMode::SinglePage
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ComicFitMode {
+    #[default]
     FitHeight,
     FitWidth,
     Original,
 }
 
-impl Default for ComicFitMode {
-    fn default() -> Self {
-        ComicFitMode::FitHeight
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReaderPreferences {
@@ -241,7 +235,7 @@ impl BookUserData {
 
     pub fn add_highlight(&mut self, highlight: Highlight) {
         self.highlights.push(highlight);
-        self.highlights.sort_by(|a, b| a.chapter_index.cmp(&b.chapter_index));
+        self.highlights.sort_by_key(|a| a.chapter_index);
     }
 
     pub fn update_highlight_note(&mut self, id: &str, note: Option<String>) {

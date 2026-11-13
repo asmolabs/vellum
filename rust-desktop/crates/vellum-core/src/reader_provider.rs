@@ -155,22 +155,22 @@ pub fn wrap_with_reader_theme(
 }
 
 pub fn sanitize_reader_html(html: &str) -> String {
-    let re_script = Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap();
-    let re_style = Regex::new(r"(?is)<style[^>]*>.*?</style>").unwrap();
-    let no_script = re_script.replace_all(html, "");
-    let no_style = re_style.replace_all(&no_script, "");
-
     let re_body = Regex::new(r"(?is)<body[^>]*>(.*?)</body>").unwrap();
-    let body_only = if let Some(caps) = re_body.captures(&no_style) {
-        caps[1].to_string()
-    } else {
-        no_style.to_string()
-    };
+    let body_only = re_body
+        .captures(html)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or(html);
 
-    let re_head = Regex::new(r"(?is)<head[^>]*>.*?</head>").unwrap();
-    let no_head = re_head.replace_all(&body_only, "");
-
-    no_head.trim().to_string()
+    let mut cleaner = ammonia::Builder::default();
+    cleaner
+        .add_url_schemes(["data"])
+        .add_generic_attributes(["class", "id", "alt", "title"])
+        .add_tag_attributes("img", ["src", "alt", "width", "height", "loading"])
+        .clean(body_only)
+        .to_string()
+        .trim()
+        .to_string()
 }
 
 pub fn split_html_into_blocks(html: &str) -> Vec<String> {
@@ -241,13 +241,12 @@ pub fn paginate_html_into_pages(raw_html: &str, target_chars: usize) -> Vec<Stri
         let heading_break = is_heading && current_chars >= 350;
         let size_break = (current_chars + weight > target_chars) && current_chars > 0;
 
-        if heading_break || size_break {
-            if !current_page.is_empty() {
+        if (heading_break || size_break)
+            && !current_page.is_empty() {
                 pages.push(current_page.join("\n"));
                 current_page.clear();
                 current_chars = 0;
             }
-        }
 
         current_page.push(block);
         current_chars += weight;
@@ -399,11 +398,7 @@ fn extract_chapter_title(html: &str, fallback_index: usize) -> String {
         Some(c[1].to_string())
     } else if let Some(c) = re_h2.captures(html) {
         Some(c[1].to_string())
-    } else if let Some(c) = re_title.captures(html) {
-        Some(c[1].to_string())
-    } else {
-        None
-    };
+    } else { re_title.captures(html).map(|c| c[1].to_string()) };
 
     if let Some(text) = raw {
         let clean = re_tags.replace_all(&text, " ").trim().to_string();
@@ -556,7 +551,7 @@ impl EpubContentProvider {
                             }
                         }
                     }
-                    names.sort_by(|a, b| natural_sort_key(a).cmp(&natural_sort_key(b)));
+                    names.sort_by_key(|a| natural_sort_key(a));
                     ordered_chapter_names = names;
                 }
 
@@ -695,7 +690,7 @@ impl CbzContentProvider {
                         }
                     }
                 }
-                img_names.sort_by(|a, b| natural_sort_key(a).cmp(&natural_sort_key(b)));
+                img_names.sort_by_key(|a| natural_sort_key(a));
 
                 for name in img_names {
                     if let Ok(mut img_file) = archive.by_name(&name) {
@@ -1097,7 +1092,7 @@ impl PdfContentProvider {
         let total = match lopdf::Document::load(path) {
             Ok(doc) => {
                 let pages = doc.get_pages();
-                for (page_num, _) in &pages {
+                for page_num in pages.keys() {
                     let text = doc.extract_text(&[*page_num]).unwrap_or_default();
                     let formatted = text
                         .lines()
@@ -1181,5 +1176,38 @@ pub fn create_content_provider(path: &Path) -> Box<dyn BookContentProvider> {
         "txt" | "md" => Box::new(TextContentProvider::new(path)),
         "pdf" => Box::new(PdfContentProvider::new(path)),
         _ => Box::new(EmptyContentProvider),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_reader_html_blocks_xss_and_preserves_data_images() {
+        let malicious = r#"
+            <html><head><title>Evil</title><style>body{display:none}</style></head>
+            <body>
+                <h1>Chapitre 1</h1>
+                <p onclick="alert(1)">Texte normal <a href="javascript:alert(2)">lien</a></p>
+                <img src="x" onerror="fetch('https://evil.test')" />
+                <img src="data:image/png;base64,iVBORw0KGgo=" alt="Cover" />
+                <svg onload="alert(3)"></svg>
+                <iframe src="https://evil.test"></iframe>
+                <script>window.pwn = true;</script>
+            </body></html>
+        "#;
+
+        let clean = sanitize_reader_html(malicious);
+        assert!(clean.contains("<h1>Chapitre 1</h1>"));
+        assert!(clean.contains("Texte normal"));
+        assert!(clean.contains("data:image/png;base64,iVBORw0KGgo="));
+        assert!(!clean.contains("onerror"));
+        assert!(!clean.contains("onclick"));
+        assert!(!clean.contains("onload"));
+        assert!(!clean.contains("javascript:"));
+        assert!(!clean.contains("<script"));
+        assert!(!clean.contains("<iframe"));
+        assert!(!clean.contains("<svg"));
     }
 }

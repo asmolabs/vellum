@@ -316,7 +316,7 @@ fn App() -> Element {
     let mut settings_open = use_signal(|| false);
     let mut palette_open = use_signal(|| false);
     let mut bulk_edit_open = use_signal(|| false);
-    let mut selected_ids = use_signal(|| std::collections::HashSet::<String>::new());
+    let mut selected_ids = use_signal(std::collections::HashSet::<String>::new);
     let mut translating_book = use_signal(|| None::<Book>);
     let mut is_translating = use_signal(|| false);
     let mut epub_editing_book = use_signal(|| None::<Book>);
@@ -426,7 +426,7 @@ fn App() -> Element {
             .collect();
 
         match sort {
-            SortOption::TitleAsc => list.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase())),
+            SortOption::TitleAsc => list.sort_by_key(|a| a.title.to_lowercase()),
             SortOption::TitleDesc => list.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase())),
             SortOption::AuthorAsc => list.sort_by(|a, b| a.author.to_lowercase().cmp(&b.author.to_lowercase()).then_with(|| a.title.cmp(&b.title))),
             SortOption::RecentAdded => list.sort_by(|a, b| b.added_at.cmp(&a.added_at)),
@@ -1049,19 +1049,19 @@ fn App() -> Element {
     });
 
     let handle_palette_action = {
-        let mut cf = current_filter.clone();
-        let mut sb = selected_book.clone();
-        let mut st = selected_tag.clone();
-        let mut ss = selected_series.clone();
+        let mut cf = current_filter;
+        let mut sb = selected_book;
+        let mut st = selected_tag;
+        let mut ss = selected_series;
         let mut hr = handle_read.clone();
         let mut hi = handle_import.clone();
         let hic = handle_import_calibre.clone();
         let mut hsc = handle_sync_now.clone();
-        let mut so = settings_open.clone();
-        let mut nro = news_recipes_open.clone();
-        let mut ao = audit_open.clone();
-        let mut sto = stats_open.clone();
-        let mut vm = view_mode.clone();
+        let mut so = settings_open;
+        let mut nro = news_recipes_open;
+        let mut ao = audit_open;
+        let mut sto = stats_open;
+        let mut vm = view_mode;
         move |act: PaletteAction| {
             match act {
                 PaletteAction::SelectBook(b) => sb.set(Some(b)),
@@ -1094,7 +1094,7 @@ fn App() -> Element {
                 PaletteAction::OpenLibraryAudit => ao.set(true),
                 PaletteAction::OpenReadingStats => sto.set(true),
                 PaletteAction::OpenWebCompanion => {
-                    let _ = open::that(&format!("http://localhost:{opds_port}"));
+                    let _ = open::that(format!("http://localhost:{opds_port}"));
                 }
                 PaletteAction::SyncCloud => hsc(()),
                 PaletteAction::OpenSettings => so.set(true),
@@ -1105,7 +1105,7 @@ fn App() -> Element {
     let handle_open_web_companion = {
         let port = opds_port;
         move |_| {
-            let _ = open::that(&format!("http://localhost:{port}"));
+            let _ = open::that(format!("http://localhost:{port}"));
         }
     };
 
@@ -1134,7 +1134,7 @@ fn App() -> Element {
                 on_import_calibre: handle_import_calibre.clone(),
                 on_open_audit: move |_| audit_open.set(true),
                 on_open_news: move |_| news_recipes_open.set(true),
-                on_open_web_companion: handle_open_web_companion.clone(),
+                on_open_web_companion: handle_open_web_companion,
                 on_sync_device: handle_sync_device.clone(),
                 on_sync_cloud: handle_sync_now.clone(),
                 on_open_palette: move |_| palette_open.set(true),
@@ -1303,7 +1303,7 @@ fn App() -> Element {
                                             book: b.clone(),
                                             is_selected: is_selected,
                                             selection_mode: selection_mode,
-                                            on_toggle_select: handle_toggle_select.clone(),
+                                            on_toggle_select: handle_toggle_select,
                                             on_select: move |selected| selected_book.set(Some(selected)),
                                             on_read: handle_read.clone(),
                                         }

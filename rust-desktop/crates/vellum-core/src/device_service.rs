@@ -248,8 +248,8 @@ impl DeviceService {
 
         for state in &states {
             for b in &all_books {
-                if b.title.eq_ignore_ascii_case(&state.book_title) {
-                    if state.progress_percent > b.progress_percent {
+                if b.title.eq_ignore_ascii_case(&state.book_title)
+                    && state.progress_percent > b.progress_percent {
                         let _ = self.book_service.update_reading_progress(
                             &b.id,
                             (state.progress_percent * 10.0) as i32,
@@ -258,7 +258,6 @@ impl DeviceService {
                             state.is_finished,
                         );
                     }
-                }
             }
         }
 

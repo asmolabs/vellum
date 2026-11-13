@@ -40,6 +40,7 @@ zip = { version = "9.0", default-features = false, features = ["deflate"] }
 crc32fast = "1.4"
 roxmltree = "0.20"
 regex = "1.11"
+ammonia = "4.0"
 md-5 = "0.10"
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }

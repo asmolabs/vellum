@@ -195,7 +195,7 @@ pub fn ReadingStatsModal(
                                     for b in stats.recently_read.iter() {
                                         {
                                             let book_c = b.clone();
-                                            let on_r = on_read_book.clone();
+                                            let on_r = on_read_book;
                                             let prog = b.progress_percent as u32;
                                             rsx! {
                                                 div {

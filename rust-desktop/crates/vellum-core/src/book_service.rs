@@ -115,13 +115,19 @@ impl BookService {
         }
         let sanitized: String = trimmed
             .chars()
-            .map(|c| match c {
-                '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-                _ => c,
+            .map(|c| {
+                if c.is_control() {
+                    '_'
+                } else {
+                    match c {
+                        '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+                        _ => c,
+                    }
+                }
             })
             .collect();
-        let cleaned = sanitized.trim();
-        if cleaned.is_empty() {
+        let cleaned = sanitized.trim().trim_matches('.').trim();
+        if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
             "Sans nom".to_string()
         } else {
             cleaned.to_string()
@@ -1557,5 +1563,23 @@ impl BookService {
         let _ = self.delete_book(source_book_id, true);
 
         Ok(saved)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BookService;
+
+    #[test]
+    fn test_sanitize_filename_blocks_traversal_and_control_chars() {
+        assert_eq!(BookService::sanitize_filename(".."), "Sans nom");
+        assert_eq!(BookService::sanitize_filename("."), "Sans nom");
+        assert_eq!(BookService::sanitize_filename("..."), "Sans nom");
+        assert_eq!(BookService::sanitize_filename("  .hidden.  "), "hidden");
+        assert_eq!(
+            BookService::sanitize_filename("../../etc/passwd"),
+            "_.._etc_passwd"
+        );
+        assert_eq!(BookService::sanitize_filename("Dune\x00: Tome 1"), "Dune__ Tome 1");
     }
 }

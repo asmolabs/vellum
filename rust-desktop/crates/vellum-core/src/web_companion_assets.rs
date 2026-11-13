@@ -297,7 +297,7 @@ pub fn library_page_html() -> &'static str {
         document.getElementById('books-container').innerHTML = `
           <div class="empty-state">
             <span>⚠️</span>
-            Erreur de connexion au serveur Vellum : ${e.message}
+            Erreur de connexion au serveur Vellum : ${escapeHtml(e.message)}
           </div>
         `;
       }
@@ -701,7 +701,7 @@ pub fn reader_page_html() -> &'static str {
         await goToChapter(startCh);
       } catch (e) {
         document.getElementById('reader-content').innerHTML = `
-          <p style="color:red; text-align:center;">Erreur de chargement: ${e.message}</p>
+          <p style="color:red; text-align:center;">Erreur de chargement: ${escapeHtml(e.message)}</p>
         `;
       }
     }
@@ -758,7 +758,7 @@ pub fn reader_page_html() -> &'static str {
 
       } catch (e) {
         document.getElementById('reader-content').innerHTML = `
-          <p style="color:red; text-align:center;">Erreur : ${e.message}</p>
+          <p style="color:red; text-align:center;">Erreur : ${escapeHtml(e.message)}</p>
         `;
       }
     }

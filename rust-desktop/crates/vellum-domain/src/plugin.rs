@@ -7,8 +7,10 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum PluginType {
     Import,
+    #[default]
     Transformation,
     Format,
     Conversion,
@@ -28,11 +30,6 @@ impl PluginType {
 }
 
 
-impl Default for PluginType {
-    fn default() -> Self {
-        Self::Transformation
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -20,7 +20,7 @@ pub fn LibraryAuditModal(
     let is_processing = use_signal(|| false);
     let notification = use_signal(|| None::<(String, bool)>);
     let enriching_id = use_signal(|| None::<String>);
-    let ignored_pairs = use_signal(|| std::collections::HashSet::<(String, String)>::new());
+    let ignored_pairs = use_signal(std::collections::HashSet::<(String, String)>::new);
 
     let bs = book_service.clone();
 
@@ -30,7 +30,7 @@ pub fn LibraryAuditModal(
         let mut is_proc = is_processing;
         let mut rep = audit_report;
         let mut notif = notification;
-        let on_upd = on_updated.clone();
+        let on_upd = on_updated;
         move |(target_id, source_id): (String, String)| {
             is_proc.set(true);
             notif.set(None);
@@ -70,7 +70,7 @@ pub fn LibraryAuditModal(
         let mut rep = audit_report;
         let mut notif = notification;
         let mut enr_id = enriching_id;
-        let on_upd = on_updated.clone();
+        let on_upd = on_updated;
         move |book_id: String| {
             enr_id.set(Some(book_id.clone()));
             notif.set(None);

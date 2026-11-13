@@ -18,7 +18,7 @@ pub enum VellumError {
     Io(#[from] std::io::Error),
 
     #[error("Erreur ZIP : {0}")]
-    Zip(#[from] zip::result::ZipError),
+    Zip(String),
 
     #[error("Erreur de sérialisation JSON : {0}")]
     Json(#[from] serde_json::Error),

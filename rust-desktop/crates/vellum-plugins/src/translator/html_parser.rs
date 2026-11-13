@@ -321,7 +321,7 @@ pub fn build_bilingual_chapter(
             let tag_name = &p.tag;
             out.push_str(&format!(
                 "<{tag_name} class=\"vellum-bilingual-source\">{}</{tag_name}>\n",
-                &p.inner_html
+                p.inner_html
             ));
             // Target with class
             out.push_str(&format!(

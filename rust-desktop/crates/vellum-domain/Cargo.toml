@@ -12,7 +12,6 @@ uuid.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 dirs.workspace = true
-zip.workspace = true
 
 [lints]
 workspace = true

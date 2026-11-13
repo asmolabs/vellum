@@ -11,6 +11,10 @@ use vellum_domain::{
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
+fn map_zip<T>(res: zip::result::ZipResult<T>) -> VellumResult<T> {
+    res.map_err(|e| VellumError::Zip(e.to_string()))
+}
+
 /// EPUB Inspector, Linter & Table of Contents (TOC) Editor
 pub struct EpubEditor;
 
@@ -563,11 +567,11 @@ impl EpubEditor {
         let mut written_ncx = false;
 
         for i in 0..zip_in.len() {
-            let mut entry = zip_in.by_index(i)?;
+            let mut entry = map_zip(zip_in.by_index(i))?;
             let name = entry.name().map(|n| n.to_string()).unwrap_or_default();
 
             if entry.is_dir() {
-                zip_out.add_directory(&name, SimpleFileOptions::default())?;
+                map_zip(zip_out.add_directory(&name, SimpleFileOptions::default()))?;
                 continue;
             }
 
@@ -577,7 +581,7 @@ impl EpubEditor {
                 SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated)
             };
 
-            zip_out.start_file(&name, options)?;
+            map_zip(zip_out.start_file(&name, options))?;
 
             if name == ncx_full_path {
                 zip_out.write_all(ncx_xml.as_bytes())?;
@@ -592,14 +596,14 @@ impl EpubEditor {
         }
 
         if !written_ncx {
-            zip_out.start_file(
+            map_zip(zip_out.start_file(
                 &ncx_full_path,
                 SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated),
-            )?;
+            ))?;
             zip_out.write_all(ncx_xml.as_bytes())?;
         }
 
-        zip_out.finish()?;
+        map_zip(zip_out.finish())?;
         std::fs::copy(temp_file.path(), epub_path)?;
 
         Ok(())
@@ -620,7 +624,7 @@ impl EpubEditor {
 
         let mut opf_xml = String::new();
         {
-            let mut f = zip.by_name(&opf_path)?;
+            let mut f = map_zip(zip.by_name(&opf_path))?;
             f.read_to_string(&mut opf_xml)?;
         }
 
@@ -745,12 +749,12 @@ impl EpubEditor {
         let stored_opt = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
         let deflated_opt = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-        zip_out.start_file("mimetype", stored_opt)?;
+        map_zip(zip_out.start_file("mimetype", stored_opt))?;
         zip_out.write_all(b"application/epub+zip")?;
 
         // 2. Copy all legitimate files, skipping defunct DRM / junk files
         for i in 0..zip_in.len() {
-            let mut entry = zip_in.by_index(i)?;
+            let mut entry = map_zip(zip_in.by_index(i))?;
             let name = entry.name().map(|n| n.to_string()).unwrap_or_default();
 
             if name == "mimetype" {
@@ -767,17 +771,17 @@ impl EpubEditor {
             }
 
             if entry.is_dir() {
-                zip_out.add_directory(&name, SimpleFileOptions::default())?;
+                map_zip(zip_out.add_directory(&name, SimpleFileOptions::default()))?;
                 continue;
             }
 
-            zip_out.start_file(&name, deflated_opt)?;
+            map_zip(zip_out.start_file(&name, deflated_opt))?;
             let mut buf = Vec::new();
             entry.read_to_end(&mut buf)?;
             zip_out.write_all(&buf)?;
         }
 
-        zip_out.finish()?;
+        map_zip(zip_out.finish())?;
         std::fs::copy(temp_file.path(), epub_path)?;
 
         // If TOC was missing, generate one from headings

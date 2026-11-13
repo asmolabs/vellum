@@ -17,6 +17,10 @@ use crate::mail_service::MailService;
 
 pub const DEFAULT_NEWS_RECIPES_PARAM_KEY: &str = "news_recipes";
 
+fn map_zip<T>(res: zip::result::ZipResult<T>) -> VellumResult<T> {
+    res.map_err(|e| VellumError::Zip(e.to_string()))
+}
+
 #[derive(Clone)]
 pub struct NewsService {
     book_service: BookService,
@@ -309,11 +313,11 @@ impl NewsService {
         let deflated = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // 1. mimetype (first uncompressed entry)
-        zip.start_file("mimetype", stored)?;
+        map_zip(zip.start_file("mimetype", stored))?;
         zip.write_all(b"application/epub+zip")?;
 
         // 2. META-INF/container.xml
-        zip.start_file("META-INF/container.xml", deflated)?;
+        map_zip(zip.start_file("META-INF/container.xml", deflated))?;
         zip.write_all(
             br#"<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -362,7 +366,7 @@ impl NewsService {
             articles.len()
         );
 
-        zip.start_file("OEBPS/cover.xhtml", deflated)?;
+        map_zip(zip.start_file("OEBPS/cover.xhtml", deflated))?;
         zip.write_all(cover_html.as_bytes())?;
 
         // 4. Articles XHTML files
@@ -463,7 +467,7 @@ impl NewsService {
                 body_content
             );
 
-            zip.start_file(&format!("OEBPS/art_{i}.xhtml"), deflated)?;
+            map_zip(zip.start_file(format!("OEBPS/art_{i}.xhtml"), deflated))?;
             zip.write_all(art_html.as_bytes())?;
         }
 
@@ -503,12 +507,11 @@ impl NewsService {
         }
         ncx.push_str("  </navMap>\n</ncx>");
 
-        zip.start_file("OEBPS/toc.ncx", deflated)?;
+        map_zip(zip.start_file("OEBPS/toc.ncx", deflated))?;
         zip.write_all(ncx.as_bytes())?;
 
         // 6. EPUB 3 Navigation Document (OEBPS/nav.xhtml)
-        let mut nav = format!(
-            r#"<!DOCTYPE html>
+        let mut nav = r#"<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="fr">
 <head>
   <title>Sommaire</title>
@@ -518,8 +521,7 @@ impl NewsService {
     <h1>Sommaire</h1>
     <ol>
       <li><a href="cover.xhtml">Couverture</a></li>
-"#
-        );
+"#.to_string();
 
         for (i, art) in articles.iter().enumerate() {
             nav.push_str(&format!(
@@ -532,7 +534,7 @@ impl NewsService {
         }
         nav.push_str("    </ol>\n  </nav>\n</body>\n</html>");
 
-        zip.start_file("OEBPS/nav.xhtml", deflated)?;
+        map_zip(zip.start_file("OEBPS/nav.xhtml", deflated))?;
         zip.write_all(nav.as_bytes())?;
 
         // 7. Package OPF file (OEBPS/content.opf)
@@ -581,10 +583,10 @@ impl NewsService {
 
         opf.push_str("  </spine>\n</package>");
 
-        zip.start_file("OEBPS/content.opf", deflated)?;
+        map_zip(zip.start_file("OEBPS/content.opf", deflated))?;
         zip.write_all(opf.as_bytes())?;
 
-        zip.finish()?;
+        map_zip(zip.finish())?;
 
         if let Some(parent) = output_path.parent() {
             std::fs::create_dir_all(parent)?;

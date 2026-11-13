@@ -56,16 +56,13 @@ pub struct SyncDelta {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum CloudSyncMode {
+    #[default]
     GoogleDriveFolder,
     GoogleDriveApi,
 }
 
-impl Default for CloudSyncMode {
-    fn default() -> Self {
-        Self::GoogleDriveFolder
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloudSyncConfig {

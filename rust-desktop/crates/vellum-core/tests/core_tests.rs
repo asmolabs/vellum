@@ -1131,7 +1131,7 @@ async fn test_web_companion_server_and_api() {
 
     // 2. Test Web Reader Page (HTML)
     let res_reader = client
-        .get(&format!("{base_url}/read/{}", book.id))
+        .get(format!("{base_url}/read/{}", book.id))
         .send()
         .await
         .unwrap();
@@ -1141,7 +1141,7 @@ async fn test_web_companion_server_and_api() {
 
     // 3. Test API Status
     let res_status = client
-        .get(&format!("{base_url}/api/status"))
+        .get(format!("{base_url}/api/status"))
         .send()
         .await
         .unwrap();
@@ -1152,7 +1152,7 @@ async fn test_web_companion_server_and_api() {
 
     // 4. Test API Books List
     let res_books = client
-        .get(&format!("{base_url}/api/books"))
+        .get(format!("{base_url}/api/books"))
         .send()
         .await
         .unwrap();
@@ -1164,7 +1164,7 @@ async fn test_web_companion_server_and_api() {
 
     // 5. Test API Book Details
     let res_detail = client
-        .get(&format!("{base_url}/api/books/{}", book.id))
+        .get(format!("{base_url}/api/books/{}", book.id))
         .send()
         .await
         .unwrap();
@@ -1175,7 +1175,7 @@ async fn test_web_companion_server_and_api() {
 
     // 6. Test API Book TOC
     let res_toc = client
-        .get(&format!("{base_url}/api/books/{}/toc", book.id))
+        .get(format!("{base_url}/api/books/{}/toc", book.id))
         .send()
         .await
         .unwrap();
@@ -1187,7 +1187,7 @@ async fn test_web_companion_server_and_api() {
 
     // 7. Test API Book Chapter
     let res_ch = client
-        .get(&format!("{base_url}/api/books/{}/chapter/0", book.id))
+        .get(format!("{base_url}/api/books/{}/chapter/0", book.id))
         .send()
         .await
         .unwrap();
@@ -1199,7 +1199,7 @@ async fn test_web_companion_server_and_api() {
 
     // 8. Test API Reading Progress Update
     let res_prog = client
-        .post(&format!("{base_url}/api/books/{}/progress", book.id))
+        .post(format!("{base_url}/api/books/{}/progress", book.id))
         .json(&serde_json::json!({
             "chapter_index": 1,
             "percentage": 0.5
@@ -1214,13 +1214,13 @@ async fn test_web_companion_server_and_api() {
     assert_eq!(updated_book.progress_percent, 50.0);
 
     // 9. Test OPDS Feed XML
-    let res_opds = client.get(&format!("{base_url}/opds")).send().await.unwrap();
+    let res_opds = client.get(format!("{base_url}/opds")).send().await.unwrap();
     assert_eq!(res_opds.status(), 200);
     let opds_xml = res_opds.text().await.unwrap();
     assert!(opds_xml.contains("Vellum Desktop Ebook Library"));
 
     let res_opds_books = client
-        .get(&format!("{base_url}/opds/books"))
+        .get(format!("{base_url}/opds/books"))
         .send()
         .await
         .unwrap();
@@ -1392,6 +1392,61 @@ async fn test_library_health_audit_and_merge_books() {
     assert_eq!(audit2.total_formats, 2);
     assert!(audit2.overall_score >= audit1.overall_score);
 }
+
+#[tokio::test]
+async fn test_opds_server_auth_and_security_headers() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let app = vellum_core::opds_server::OpdsServer::router_with_token(
+        book_service,
+        Some("secret-token".to_string()),
+    );
+
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{port}/api/status");
+
+    // 1. Missing token -> 401 Unauthorized
+    let unauth = client.get(&url).send().await.unwrap();
+    assert_eq!(unauth.status(), 401);
+
+    // 2. Wrong token -> 401 Unauthorized
+    let wrong = client
+        .get(&url)
+        .bearer_auth("wrong-token")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(wrong.status(), 401);
+
+    // 3. Valid Bearer token -> 200 OK + security headers
+    let ok = client
+        .get(&url)
+        .bearer_auth("secret-token")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ok.status(), 200);
+    assert_eq!(
+        ok.headers()
+            .get("x-content-type-options")
+            .and_then(|v| v.to_str().ok()),
+        Some("nosniff")
+    );
+    assert_eq!(
+        ok.headers()
+            .get("x-frame-options")
+            .and_then(|v| v.to_str().ok()),
+        Some("SAMEORIGIN")
+    );
+}
+
 
 
 

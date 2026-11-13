@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
-use vellum_domain::VellumResult;
+use vellum_domain::{VellumError, VellumResult};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -103,13 +103,13 @@ pub fn translate_epub(
 
     // 1. Read all entries from source EPUB
     let src_file = File::open(input_file)?;
-    let mut archive = ZipArchive::new(src_file)?;
+    let mut archive = ZipArchive::new(src_file).map_err(|e| VellumError::Zip(e.to_string()))?;
 
     let mut entries: Vec<(String, Vec<u8>)> = Vec::new();
     let mut sample_paragraphs: Vec<String> = Vec::new();
 
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)?;
+        let mut entry = archive.by_index(i).map_err(|e| VellumError::Zip(e.to_string()))?;
         if entry.is_dir() {
             continue;
         }
@@ -158,7 +158,7 @@ pub fn translate_epub(
     // Write mimetype first if present
     if let Some((_, mime_bytes)) = entries.iter().find(|(n, _)| n == "mimetype") {
         let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-        writer.start_file("mimetype", stored)?;
+        writer.start_file("mimetype", stored).map_err(|e| VellumError::Zip(e.to_string()))?;
         writer.write_all(mime_bytes)?;
     }
 
@@ -170,7 +170,7 @@ pub fn translate_epub(
             continue;
         }
 
-        writer.start_file(&name, deflated)?;
+        writer.start_file(&name, deflated).map_err(|e| VellumError::Zip(e.to_string()))?;
 
         if name.to_lowercase().ends_with(".opf") {
             if let Ok(opf_str) = String::from_utf8(bytes.clone()) {
@@ -310,7 +310,7 @@ pub fn translate_epub(
         writer.write_all(new_html.as_bytes())?;
     }
 
-    writer.finish()?;
+    writer.finish().map_err(|e| VellumError::Zip(e.to_string()))?;
     Ok(stats)
 }
 

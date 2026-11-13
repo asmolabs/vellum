@@ -90,10 +90,9 @@ fn extract_date(line: &str) -> Option<DateTime<Utc>> {
     // Looks for "Added on ..." or "Ajouté le ..."
     let marker = if let Some(pos) = line.find("Added on ") {
         pos + "Added on ".len()
-    } else if let Some(pos) = line.find("Ajouté le ") {
-        pos + "Ajouté le ".len()
     } else {
-        return None;
+        let pos = line.find("Ajouté le ")?;
+        pos + "Ajouté le ".len()
     };
 
     let date_str = line[marker..].trim();

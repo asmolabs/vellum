@@ -60,9 +60,9 @@ pub fn KanbanBoard(
                 accent_color: "#38bdf8",
                 books: to_read_books,
                 current_col: KanbanTargetStatus::ToRead,
-                on_select: on_select.clone(),
-                on_read: on_read.clone(),
-                on_change_status: on_change_status.clone(),
+                on_select: on_select,
+                on_read: on_read,
+                on_change_status: on_change_status,
             }
 
             // 2. Colonne : En cours
@@ -72,9 +72,9 @@ pub fn KanbanBoard(
                 accent_color: "#f59e0b",
                 books: reading_books,
                 current_col: KanbanTargetStatus::Reading,
-                on_select: on_select.clone(),
-                on_read: on_read.clone(),
-                on_change_status: on_change_status.clone(),
+                on_select: on_select,
+                on_read: on_read,
+                on_change_status: on_change_status,
             }
 
             // 3. Colonne : Terminés
@@ -84,9 +84,9 @@ pub fn KanbanBoard(
                 accent_color: "#10b981",
                 books: finished_books,
                 current_col: KanbanTargetStatus::Finished,
-                on_select: on_select.clone(),
-                on_read: on_read.clone(),
-                on_change_status: on_change_status.clone(),
+                on_select: on_select,
+                on_read: on_read,
+                on_change_status: on_change_status,
             }
 
             // 4. Colonne : Coups de cœur
@@ -96,9 +96,9 @@ pub fn KanbanBoard(
                 accent_color: "#c084fc",
                 books: favorite_books,
                 current_col: KanbanTargetStatus::Favorite,
-                on_select: on_select.clone(),
-                on_read: on_read.clone(),
-                on_change_status: on_change_status.clone(),
+                on_select: on_select,
+                on_read: on_read,
+                on_change_status: on_change_status,
             }
         }
     }
@@ -149,9 +149,9 @@ fn KanbanColumn(
                             key: "{book.id}",
                             book: book,
                             current_col: current_col,
-                            on_select: on_select.clone(),
-                            on_read: on_read.clone(),
-                            on_change_status: on_change_status.clone(),
+                            on_select: on_select,
+                            on_read: on_read,
+                            on_change_status: on_change_status,
                         }
                     }
                 }

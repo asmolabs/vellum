@@ -1,15 +1,16 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::{Path as AxPath, Query, State};
-use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::extract::{Path as AxPath, Query, Request, State};
+use axum::http::header::{AUTHORIZATION, CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::book_service::BookService;
 use crate::reader_provider::create_content_provider;
@@ -76,7 +77,17 @@ impl OpdsServer {
     }
 
     pub fn router(book_service: BookService) -> Router {
+        Self::router_with_token(book_service, None)
+    }
+
+    pub fn router_with_token(book_service: BookService, auth_token: Option<String>) -> Router {
         let shared = Arc::new(book_service);
+        let expected_token = Arc::new(auth_token.filter(|t| !t.trim().is_empty()));
+        let cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+            .allow_headers([CONTENT_TYPE, AUTHORIZATION]);
+
         Router::new()
             // 1. Web Companion & Mobile Reader UI
             .route("/", get(web_library_handler))
@@ -95,12 +106,24 @@ impl OpdsServer {
             .route("/opds/books", get(books_catalog_handler))
             .route("/opds/covers/:id", get(cover_handler))
             .route("/opds/download/:id/:format", get(download_handler))
-            .layer(CorsLayer::permissive())
+            .layer(middleware::from_fn_with_state(expected_token, auth_and_security_headers))
+            .layer(cors)
             .with_state(shared)
     }
 
     pub async fn run_server(book_service: BookService, port: u16) -> VellumResult<()> {
-        let app = Self::router(book_service);
+        let token = std::env::var("VELLUM_OPDS_TOKEN")
+            .ok()
+            .filter(|t| !t.trim().is_empty());
+        Self::run_server_with_token(book_service, port, token).await
+    }
+
+    pub async fn run_server_with_token(
+        book_service: BookService,
+        port: u16,
+        auth_token: Option<String>,
+    ) -> VellumResult<()> {
+        let app = Self::router_with_token(book_service, auth_token);
         let addr = SocketAddr::from(([0, 0, 0, 0], port));
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app).await?;
@@ -110,6 +133,47 @@ impl OpdsServer {
     pub async fn start(&self, port: u16) -> VellumResult<()> {
         Self::run_server(self.book_service.clone(), port).await
     }
+}
+
+async fn auth_and_security_headers(
+    State(expected_token): State<Arc<Option<String>>>,
+    req: Request,
+    next: Next,
+) -> Response {
+    if let Some(ref token) = *expected_token {
+        let header_ok = req
+            .headers()
+            .get(AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.strip_prefix("Bearer "))
+            .is_some_and(|t| t == token);
+
+        let query_ok = req.uri().query().is_some_and(|q| {
+            q.split('&')
+                .any(|pair| pair.strip_prefix("token=").is_some_and(|t| t == token))
+        });
+
+        if !header_ok && !query_ok {
+            return (
+                StatusCode::UNAUTHORIZED,
+                [(axum::http::header::WWW_AUTHENTICATE, "Bearer realm=\"Vellum\"")],
+                "Unauthorized",
+            )
+                .into_response();
+        }
+    }
+
+    let mut resp = next.run(req).await;
+    let headers = resp.headers_mut();
+    headers.insert(
+        axum::http::header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        axum::http::header::X_FRAME_OPTIONS,
+        HeaderValue::from_static("SAMEORIGIN"),
+    );
+    resp
 }
 
 pub fn escape_xml(input: &str) -> String {
@@ -313,13 +377,13 @@ async fn api_book_progress_handler(
 ) -> Response {
     let percent = body.percentage.unwrap_or(0.0) * 100.0;
     let finished = percent >= 99.0;
-    if let Ok(_) = service.update_reading_progress(
+    if service.update_reading_progress(
         &book_id,
         body.chapter_index as i32,
         0,
         percent,
         finished,
-    ) {
+    ).is_ok() {
         return Json(serde_json::json!({ "status": "ok" })).into_response();
     }
     StatusCode::NOT_FOUND.into_response()
@@ -482,7 +546,8 @@ async fn download_handler(
                     if let Ok(val) = HeaderValue::from_str(mime) {
                         headers.insert(CONTENT_TYPE, val);
                     }
-                    let disp = format!("attachment; filename=\"{}\"", fmt.filename);
+                    let safe_name = BookService::sanitize_filename(&fmt.filename);
+                    let disp = format!("attachment; filename=\"{safe_name}\"");
                     if let Ok(val) = HeaderValue::from_str(&disp) {
                         headers.insert(CONTENT_DISPOSITION, val);
                     }
