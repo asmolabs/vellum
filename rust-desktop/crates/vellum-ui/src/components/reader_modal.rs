@@ -665,17 +665,7 @@ pub fn ReaderModal(
                                         let prompt_text = t.clone();
                                         spawn(async move {
                                             let res = tokio::task::spawn_blocking(move || {
-                                                let client = vellum_plugins::translator::llm_client::LlmClient::new(
-                                                    "Ollama (Local - Gratuit)",
-                                                    "http://localhost:11434/v1",
-                                                    "qwen2.5:14b",
-                                                    None,
-                                                    0.3,
-                                                );
-                                                client.chat(
-                                                    "Tu es un dictionnaire et assistant littéraire concis en français. Fournis la définition claire, le sens littéraire ou la traduction élégante du terme ou passage sélectionné, avec un exemple si opportun. Reste concis.",
-                                                    &prompt_text,
-                                                )
+                                                vellum_core::define_passage_with_ai(&prompt_text)
                                             }).await;
 
                                             ai_loading.set(false);

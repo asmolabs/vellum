@@ -11,6 +11,7 @@
 //! - [`NewsService`] : téléchargement RSS/Atom, sanitisation `ammonia` et génération d'EPUB de presse
 //! - [`SyncService`], [`DeviceService`], [`MailService`], [`ConversionService`], [`LitestreamService`]
 
+pub mod app_services;
 pub mod book_service;
 pub mod calibre_importer;
 pub mod conversion_service;
@@ -30,6 +31,7 @@ pub mod search_query;
 pub mod sync_service;
 pub mod web_companion_assets;
 
+pub use app_services::{define_passage_with_ai, init_services, scan_and_index_library, AppServices};
 pub use book_service::{BookService, DuplicateBookInfo};
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
 pub use conversion_service::ConversionService;

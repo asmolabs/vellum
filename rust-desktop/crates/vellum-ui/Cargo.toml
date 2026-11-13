@@ -14,8 +14,6 @@ path = "src/main.rs"
 
 [dependencies]
 vellum-domain = { path = "../vellum-domain" }
-vellum-storage = { path = "../vellum-storage" }
-vellum-plugins = { path = "../vellum-plugins" }
 vellum-core = { path = "../vellum-core" }
 
 dioxus.workspace = true
