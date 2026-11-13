@@ -656,18 +656,17 @@ fn sanitize_article_html(html: &str) -> String {
         .replace("&quot;", "\"")
         .replace("&amp;", "&");
 
-    // Strip unsafe tags (script, style, iframe, form, object, embed)
-    let mut cleaned = unescaped;
-    for tag in &["script", "style", "iframe", "form", "object", "embed"] {
-        let pattern = format!(r"(?is)<{tag}[^>]*>.*?</{tag}>");
-        if let Ok(re) = Regex::new(&pattern) {
-            cleaned = re.replace_all(&cleaned, "").to_string();
-        }
-    }
-
-    // Strip tracking pixel images (width="1" or height="1")
+    // Strip tracking pixel images (width="1" or height="1") before whitelist sanitization
     let re_pixel = Regex::new(r#"(?is)<img[^>]*(width=["']1["']|height=["']1["'])[^>]*>"#).unwrap();
-    re_pixel.replace_all(&cleaned, "").to_string()
+    let without_pixels = re_pixel.replace_all(&unescaped, "");
+
+    // Whitelist HTML sanitization via ammonia (blocks script, iframe, svg, on*, javascript:, etc.)
+    ammonia::Builder::default()
+        .add_url_schemes(["data"])
+        .add_generic_attributes(["class", "id", "alt", "title"])
+        .add_tag_attributes("img", ["src", "alt", "width", "height"])
+        .clean(&without_pixels)
+        .to_string()
 }
 
 fn sanitize_slug(s: &str) -> String {
@@ -786,5 +785,17 @@ mod tests {
         assert_eq!(toc.len(), 3);
         assert!(toc[1].label.contains("Deep Dive into Tokio"));
         assert!(toc[2].label.contains("SQLite 3.50 Innovations"));
+    }
+
+    #[test]
+    fn test_sanitize_article_html_blocks_xss() {
+        let dirty = r#"<p>Hello</p><script>alert(1)</script><img src="x" onerror="alert(2)"><img src="https://example.com/pixel.gif" width="1" height="1"><a href="javascript:alert(3)">click</a><svg onload="alert(4)"></svg>"#;
+        let clean = sanitize_article_html(dirty);
+        assert!(clean.contains("<p>Hello</p>"));
+        assert!(!clean.contains("script"));
+        assert!(!clean.contains("onerror"));
+        assert!(!clean.contains("javascript:"));
+        assert!(!clean.contains("onload"));
+        assert!(!clean.contains("pixel.gif"));
     }
 }
