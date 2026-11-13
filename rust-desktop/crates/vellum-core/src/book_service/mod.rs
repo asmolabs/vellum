@@ -23,6 +23,33 @@ pub struct DuplicateBookInfo {
     pub matching_fields: Vec<String>,
 }
 
+/// Requête DTO pour la mise à jour complète des métadonnées d'un livre.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateMetadataRequest<'a> {
+    pub book_id: &'a str,
+    pub title: &'a str,
+    pub author: &'a str,
+    pub publisher: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub isbn: Option<&'a str>,
+    pub publish_date: Option<&'a str>,
+    pub series: Option<&'a str>,
+    pub series_index: Option<f64>,
+    pub tag_names: Vec<String>,
+}
+
+/// Requête DTO pour la traduction d'un livre vers une langue cible.
+#[derive(Debug, Clone)]
+pub struct TranslateBookRequest<'a> {
+    pub book_id: &'a str,
+    pub target_lang: &'a str,
+    pub provider: &'a str,
+    pub model: &'a str,
+    pub base_url: Option<&'a str>,
+    pub api_key: Option<&'a str>,
+    pub bilingual_mode: bool,
+}
+
 #[derive(Clone)]
 pub struct BookService {
     pub(super) book_repo: BookRepository,

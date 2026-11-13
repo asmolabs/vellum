@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use vellum_domain::{Book, Tag, VellumError, VellumResult};
 
-use super::BookService;
+use super::{BookService, UpdateMetadataRequest};
 
 impl BookService {
     pub fn list_all_series(&self) -> VellumResult<Vec<(String, usize)>> {
@@ -78,59 +78,50 @@ impl BookService {
         description: Option<&str>,
         tag_names: Vec<String>,
     ) -> VellumResult<Book> {
-        self.update_book_metadata_full(
+        self.update_book_metadata_full(UpdateMetadataRequest {
             book_id,
             title,
             author,
             publisher,
             description,
-            None,
-            None,
-            None,
-            None,
             tag_names,
-        )
+            ..Default::default()
+        })
     }
 
-    pub fn update_book_metadata_full(
-        &self,
-        book_id: &str,
-        title: &str,
-        author: &str,
-        publisher: Option<&str>,
-        description: Option<&str>,
-        isbn: Option<&str>,
-        publish_date: Option<&str>,
-        series: Option<&str>,
-        series_index: Option<f64>,
-        tag_names: Vec<String>,
-    ) -> VellumResult<Book> {
+    pub fn update_book_metadata_full(&self, req: UpdateMetadataRequest<'_>) -> VellumResult<Book> {
         let mut book = self
             .book_repo
-            .find_by_id(book_id)?
-            .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {book_id}")))?;
+            .find_by_id(req.book_id)?
+            .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {}", req.book_id)))?;
 
-        if !title.trim().is_empty() {
-            book.title = title.trim().to_string();
+        if !req.title.trim().is_empty() {
+            book.title = req.title.trim().to_string();
         }
-        if !author.trim().is_empty() {
-            book.author = author.trim().to_string();
+        if !req.author.trim().is_empty() {
+            book.author = req.author.trim().to_string();
         }
-        book.publisher = publisher.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-        book.description = description.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-        if let Some(i) = isbn {
+        book.publisher = req
+            .publisher
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        book.description = req
+            .description
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        if let Some(i) = req.isbn {
             book.isbn = if i.trim().is_empty() { None } else { Some(i.trim().to_string()) };
         }
-        if let Some(pd) = publish_date {
+        if let Some(pd) = req.publish_date {
             book.publish_date = if pd.trim().is_empty() { None } else { Some(pd.trim().to_string()) };
         }
-        if let Some(s) = series {
+        if let Some(s) = req.series {
             book.series = if s.trim().is_empty() { None } else { Some(s.trim().to_string()) };
         }
-        book.series_index = series_index;
+        book.series_index = req.series_index;
 
         book.tags.clear();
-        for t_name in tag_names {
+        for t_name in req.tag_names {
             let clean = t_name.trim();
             if !clean.is_empty() {
                 let tag = Tag::new(clean);

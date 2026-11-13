@@ -461,18 +461,18 @@ fn App() -> Element {
             Option<f64>,
             Vec<String>,
         )| {
-            match bs.update_book_metadata_full(
-                &b_id,
-                &title,
-                &author,
-                publ.as_deref(),
-                desc.as_deref(),
-                isbn.as_deref(),
-                pdate.as_deref(),
-                series.as_deref(),
-                series_idx,
-                tags,
-            ) {
+            match bs.update_book_metadata_full(vellum_core::UpdateMetadataRequest {
+                book_id: &b_id,
+                title: &title,
+                author: &author,
+                publisher: publ.as_deref(),
+                description: desc.as_deref(),
+                isbn: isbn.as_deref(),
+                publish_date: pdate.as_deref(),
+                series: series.as_deref(),
+                series_index: series_idx,
+                tag_names: tags,
+            }) {
                 Ok(updated) => {
                     tracing::info!("Métadonnées mises à jour avec succès pour: {}", updated.title);
                     selected_book.set(Some(updated));
@@ -531,15 +531,15 @@ fn App() -> Element {
             let mut refresh_cloned = refresh.clone();
             dioxus::prelude::spawn(async move {
                 let res = tokio::task::spawn_blocking(move || {
-                    bs_cloned.translate_book(
-                        &req.book_id,
-                        &req.target_lang,
-                        &req.provider,
-                        &req.model,
-                        req.base_url.as_deref(),
-                        req.api_key.as_deref(),
-                        req.bilingual_mode,
-                    )
+                    bs_cloned.translate_book(vellum_core::TranslateBookRequest {
+                        book_id: &req.book_id,
+                        target_lang: &req.target_lang,
+                        provider: &req.provider,
+                        model: &req.model,
+                        base_url: req.base_url.as_deref(),
+                        api_key: req.api_key.as_deref(),
+                        bilingual_mode: req.bilingual_mode,
+                    })
                 })
                 .await;
 

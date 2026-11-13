@@ -32,7 +32,9 @@ pub mod sync_service;
 pub mod web_companion_assets;
 
 pub use app_services::{define_passage_with_ai, init_services, scan_and_index_library, AppServices};
-pub use book_service::{BookService, DuplicateBookInfo};
+pub use book_service::{
+    BookService, DuplicateBookInfo, TranslateBookRequest, UpdateMetadataRequest,
+};
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
 pub use conversion_service::ConversionService;
 pub use device_service::{ConnectedDevice, DeviceService};

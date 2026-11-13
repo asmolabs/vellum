@@ -373,18 +373,18 @@ async fn test_update_book_metadata_and_cover() {
 
     // 3. Update metadata with ISBN, Series & Publish date
     let with_isbn = book_service
-        .update_book_metadata_full(
-            &book.id,
-            "Le Nouveau Titre",
-            "Auteur Célèbre",
-            Some("Éditions Galaxie"),
-            Some("Un synopsis incroyable."),
-            Some("9780441013593"),
-            Some("1965"),
-            Some("Cycle de Dune"),
-            Some(1.0),
-            vec!["Space Opera".to_string()],
-        )
+        .update_book_metadata_full(vellum_core::UpdateMetadataRequest {
+            book_id: &book.id,
+            title: "Le Nouveau Titre",
+            author: "Auteur Célèbre",
+            publisher: Some("Éditions Galaxie"),
+            description: Some("Un synopsis incroyable."),
+            isbn: Some("9780441013593"),
+            publish_date: Some("1965"),
+            series: Some("Cycle de Dune"),
+            series_index: Some(1.0),
+            tag_names: vec!["Space Opera".to_string()],
+        })
         .unwrap();
     assert_eq!(with_isbn.isbn.as_deref(), Some("9780441013593"));
     assert_eq!(with_isbn.publish_date.as_deref(), Some("1965"));

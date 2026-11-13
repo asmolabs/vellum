@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use vellum_domain::{Book, BookFormat, VellumError, VellumResult};
 
-use super::BookService;
+use super::{BookService, TranslateBookRequest};
 
 impl BookService {
     pub fn get_convertible_formats_for_book(&self, book: &Book) -> Vec<String> {
@@ -128,20 +128,11 @@ impl BookService {
     }
 
 
-    pub fn translate_book(
-        &self,
-        book_id: &str,
-        target_lang: &str,
-        provider: &str,
-        model: &str,
-        base_url: Option<&str>,
-        api_key: Option<&str>,
-        bilingual_mode: bool,
-    ) -> VellumResult<Book> {
+    pub fn translate_book(&self, req: TranslateBookRequest<'_>) -> VellumResult<Book> {
         let book = self
             .book_repo
-            .find_by_id(book_id)?
-            .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {book_id}")))?;
+            .find_by_id(req.book_id)?
+            .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {}", req.book_id)))?;
 
         let mut _temp_guard = None;
         let epub_path = if let Some(fmt) = book
@@ -171,7 +162,7 @@ impl BookService {
         let clean_title = format!(
             "{} (Traduit {})",
             Self::sanitize_filename(&book.title),
-            target_lang
+            req.target_lang
         );
         let new_book_dir = self
             .library_path
@@ -183,16 +174,16 @@ impl BookService {
         let dest_abs = new_book_dir.join(&target_filename);
 
         let mut config: HashMap<String, String> = HashMap::new();
-        config.insert("targetLanguage".to_string(), target_lang.to_string());
-        config.insert("provider".to_string(), provider.to_string());
-        config.insert("model".to_string(), model.to_string());
-        if let Some(u) = base_url {
+        config.insert("targetLanguage".to_string(), req.target_lang.to_string());
+        config.insert("provider".to_string(), req.provider.to_string());
+        config.insert("model".to_string(), req.model.to_string());
+        if let Some(u) = req.base_url {
             config.insert("baseUrl".to_string(), u.to_string());
         }
-        if let Some(k) = api_key {
+        if let Some(k) = req.api_key {
             config.insert("apiKey".to_string(), k.to_string());
         }
-        config.insert("bilingualMode".to_string(), bilingual_mode.to_string());
+        config.insert("bilingualMode".to_string(), req.bilingual_mode.to_string());
 
         vellum_plugins::translator::pipeline::translate_epub(&epub_path, &dest_abs, &config)?;
 
@@ -219,7 +210,7 @@ impl BookService {
         for t in &book.tags {
             new_book.add_tag(t.clone());
         }
-        let tag_tr = vellum_domain::Tag::new(format!("Traduction {target_lang}"));
+        let tag_tr = vellum_domain::Tag::new(format!("Traduction {}", req.target_lang));
         let _ = self.tag_repo.save(&tag_tr);
         new_book.add_tag(tag_tr);
 
