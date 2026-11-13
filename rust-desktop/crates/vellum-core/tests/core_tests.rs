@@ -1701,6 +1701,40 @@ fn test_polish_book_metadata_cover_and_toc() {
     assert_eq!(toc[0].label, "Chapitre Un");
 }
 
+#[tokio::test]
+async fn test_api_export_catalog_csv_json_bibtex() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    let book = vellum_domain::Book::new("Les Misérables", "Victor Hugo");
+    book_service.book_repo().save(&book).unwrap();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let app = vellum_core::opds_server::OpdsServer::router(book_service);
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let csv_res = reqwest::get(format!("http://127.0.0.1:{port}/api/export?format=csv"))
+        .await
+        .unwrap();
+    assert_eq!(csv_res.status(), 200);
+    assert!(csv_res.text().await.unwrap().contains("Les Misérables"));
+
+    let json_res = reqwest::get(format!("http://127.0.0.1:{port}/api/export?format=json"))
+        .await
+        .unwrap();
+    assert_eq!(json_res.status(), 200);
+    assert!(json_res.text().await.unwrap().contains("Victor Hugo"));
+
+    let bib_res = reqwest::get(format!("http://127.0.0.1:{port}/api/export?format=bibtex"))
+        .await
+        .unwrap();
+    assert_eq!(bib_res.status(), 200);
+    assert!(bib_res.text().await.unwrap().contains("@book{"));
+}
+
 
 
 

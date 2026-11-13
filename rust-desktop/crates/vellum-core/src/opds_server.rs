@@ -13,9 +13,10 @@ use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::book_service::BookService;
+use crate::catalog_exporter::{CatalogExporter, CatalogFormat};
 use crate::reader_provider::create_content_provider;
 use crate::web_companion_assets::{library_page_html, reader_page_html};
-use vellum_domain::VellumResult;
+use vellum_domain::{Book, VellumResult};
 
 #[derive(Clone)]
 pub struct OpdsServer {
@@ -26,6 +27,11 @@ pub struct OpdsServer {
 pub struct CatalogQuery {
     pub search: Option<String>,
     pub tag: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportQuery {
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +101,7 @@ impl OpdsServer {
             // 2. REST API for Web & Mobile Clients
             .route("/api/status", get(api_status_handler))
             .route("/api/i18n", get(api_i18n_handler))
+            .route("/api/export", get(api_export_handler))
             .route("/api/books", get(api_books_handler))
             .route("/api/books/:id", get(api_book_detail_handler))
             .route("/api/books/:id/cover", get(cover_handler))
@@ -235,53 +242,8 @@ async fn api_status_handler(State(service): State<Arc<BookService>>) -> Response
     .into_response()
 }
 
-async fn api_books_handler(
-    State(service): State<Arc<BookService>>,
-    Query(query): Query<CatalogQuery>,
-) -> Response {
-    let books = service
-        .get_books(query.search.as_deref(), query.tag.as_deref())
-        .unwrap_or_default();
-
-    let dtos: Vec<BookDto> = books
-        .into_iter()
-        .map(|b| {
-            let formats = b
-                .formats
-                .iter()
-                .map(|f| FormatDto {
-                    format: f.format.clone(),
-                    filename: f.filename.clone(),
-                    filesize: f.filesize,
-                })
-                .collect();
-            let tags = b.tags.into_iter().map(|t| t.name).collect();
-            let has_cover = b.cover_path.is_some();
-            BookDto {
-                id: b.id,
-                title: b.title,
-                author: b.author,
-                series: b.series,
-                series_index: b.series_index,
-                publisher: b.publisher,
-                publish_date: b.publish_date,
-                description: b.description,
-                tags,
-                formats,
-                has_cover,
-                added_at: b.added_at,
-            }
-        })
-        .collect();
-
-    Json(dtos).into_response()
-}
-
-async fn api_book_detail_handler(
-    State(service): State<Arc<BookService>>,
-    AxPath(book_id): AxPath<String>,
-) -> Response {
-    if let Ok(Some(b)) = service.get_book_by_id(&book_id) {
+impl BookDto {
+    fn from_book(b: Book) -> Self {
         let formats = b
             .formats
             .iter()
@@ -293,7 +255,7 @@ async fn api_book_detail_handler(
             .collect();
         let tags = b.tags.into_iter().map(|t| t.name).collect();
         let has_cover = b.cover_path.is_some();
-        let dto = BookDto {
+        Self {
             id: b.id,
             title: b.title,
             author: b.author,
@@ -306,8 +268,68 @@ async fn api_book_detail_handler(
             formats,
             has_cover,
             added_at: b.added_at,
-        };
-        Json(dto).into_response()
+        }
+    }
+}
+
+async fn api_export_handler(
+    State(service): State<Arc<BookService>>,
+    Query(query): Query<ExportQuery>,
+) -> Response {
+    let books = service.get_books(None, None).unwrap_or_default();
+    let raw_fmt = query.format.as_deref().unwrap_or("csv").to_lowercase();
+    let (fmt, content_type, filename) = match raw_fmt.as_str() {
+        "json" => (
+            CatalogFormat::Json,
+            "application/json; charset=utf-8",
+            "vellum-catalogue.json",
+        ),
+        "bib" | "bibtex" => (
+            CatalogFormat::Bibtex,
+            "application/x-bibtex; charset=utf-8",
+            "vellum-catalogue.bib",
+        ),
+        _ => (
+            CatalogFormat::Csv,
+            "text/csv; charset=utf-8",
+            "vellum-catalogue.csv",
+        ),
+    };
+
+    match CatalogExporter::export_to_string(&books, fmt) {
+        Ok(body) => (
+            [
+                (CONTENT_TYPE, content_type),
+                (
+                    CONTENT_DISPOSITION,
+                    &format!("attachment; filename=\"{filename}\""),
+                ),
+            ],
+            body,
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn api_books_handler(
+    State(service): State<Arc<BookService>>,
+    Query(query): Query<CatalogQuery>,
+) -> Response {
+    let books = service
+        .get_books(query.search.as_deref(), query.tag.as_deref())
+        .unwrap_or_default();
+
+    let dtos: Vec<BookDto> = books.into_iter().map(BookDto::from_book).collect();
+    Json(dtos).into_response()
+}
+
+async fn api_book_detail_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath(book_id): AxPath<String>,
+) -> Response {
+    if let Ok(Some(b)) = service.get_book_by_id(&book_id) {
+        Json(BookDto::from_book(b)).into_response()
     } else {
         StatusCode::NOT_FOUND.into_response()
     }
