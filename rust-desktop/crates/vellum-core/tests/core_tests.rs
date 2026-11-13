@@ -1623,6 +1623,84 @@ fn test_custom_columns_definition_validation_and_values() {
     assert_eq!(service.list_columns().unwrap().len(), 1);
 }
 
+#[test]
+fn test_polish_book_metadata_cover_and_toc() {
+    use std::io::{Read, Write};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let epub_path = tmp.path().join("raw.epub");
+    let cover_path = tmp.path().join("cover.jpg");
+    std::fs::write(&cover_path, b"\xFF\xD8\xFF\xE0FAKEJPEG").unwrap();
+
+    {
+        let f = std::fs::File::create(&epub_path).unwrap();
+        let mut zip = zip::ZipWriter::new(f);
+        let stored =
+            zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        zip.start_file("mimetype", stored).unwrap();
+        zip.write_all(b"application/epub+zip").unwrap();
+        zip.start_file("META-INF/container.xml", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#,
+        ).unwrap();
+        zip.start_file("OEBPS/content.opf", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Old Title</dc:title><dc:creator>Old Author</dc:creator></metadata><manifest><item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="c1"/></spine></package>"#,
+        ).unwrap();
+        zip.start_file("OEBPS/ch1.xhtml", deflated).unwrap();
+        zip.write_all(
+            br#"<html><body><h1>Chapitre Un</h1><p>Attendez... Vraiment -- oui !</p></body></html>"#,
+        )
+        .unwrap();
+        zip.finish().unwrap();
+    }
+
+    let mut book = vellum_domain::Book::new("Titre Poli", "Auteur Poli");
+    book.publisher = Some("Éditions Vellum".to_string());
+
+    let report = vellum_core::EpubEditor::polish(
+        &epub_path,
+        &book,
+        Some(&cover_path),
+        vellum_core::PolishOptions::default(),
+    )
+    .unwrap();
+
+    assert!(report.metadata_updated);
+    assert!(report.cover_embedded);
+    assert_eq!(report.chapters_smartened, 1);
+    assert!(report.toc_rebuilt);
+    assert!(report.repaired);
+
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(&epub_path).unwrap()).unwrap();
+    let mut opf = String::new();
+    archive
+        .by_name("OEBPS/content.opf")
+        .unwrap()
+        .read_to_string(&mut opf)
+        .unwrap();
+    assert!(opf.contains("<dc:title>Titre Poli</dc:title>"));
+    assert!(opf.contains("<dc:creator>Auteur Poli</dc:creator>"));
+    assert!(opf.contains("<dc:publisher>Éditions Vellum</dc:publisher>"));
+    assert!(opf.contains("vellum-cover-img"));
+
+    let mut ch1 = String::new();
+    archive
+        .by_name("OEBPS/ch1.xhtml")
+        .unwrap()
+        .read_to_string(&mut ch1)
+        .unwrap();
+    assert!(ch1.contains("Attendez… Vraiment – oui !"));
+    assert!(archive.by_name("OEBPS/images/vellum-cover.jpg").is_ok());
+
+    let toc = vellum_core::EpubEditor::extract_toc(&epub_path).unwrap();
+    assert_eq!(toc.len(), 1);
+    assert_eq!(toc[0].label, "Chapitre Un");
+}
+
 
 
 

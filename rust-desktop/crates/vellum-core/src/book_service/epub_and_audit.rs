@@ -4,7 +4,7 @@ use vellum_domain::{
     Book, EpubDiagnostics, EpubTocEntry, LibraryHealthReport, VellumError, VellumResult,
 };
 
-use crate::epub_editor::EpubEditor;
+use crate::epub_editor::{EpubEditor, PolishOptions, PolishReport};
 use super::BookService;
 
 impl BookService {
@@ -66,6 +66,20 @@ impl BookService {
     pub fn repair_book_epub(&self, book_id: &str) -> VellumResult<EpubDiagnostics> {
         let (_book, epub_path) = self.resolve_epub_path(book_id)?;
         EpubEditor::clean_and_repair(&epub_path)
+    }
+
+    /// Exécute « Polish Book » sur l'EPUB du livre (métadonnées, couverture, typographie, TOC, réparation).
+    pub fn polish_book(&self, book_id: &str, options: PolishOptions) -> VellumResult<PolishReport> {
+        let (book, epub_path) = self.resolve_epub_path(book_id)?;
+        let cover_abs = book.cover_path.as_ref().map(|rel| {
+            let p = Path::new(rel);
+            if p.is_absolute() {
+                p.to_path_buf()
+            } else {
+                self.library_path.join(p)
+            }
+        });
+        EpubEditor::polish(&epub_path, &book, cover_abs.as_deref(), options)
     }
 
     /// Réalise un audit complet de santé de la bibliothèque (doublons, fiches incomplètes, fichiers manquants).

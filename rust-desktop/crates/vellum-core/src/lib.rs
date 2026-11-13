@@ -45,7 +45,7 @@ pub use catalog_exporter::{CatalogExporter, CatalogFormat};
 pub use conversion_service::ConversionService;
 pub use custom_column_service::CustomColumnService;
 pub use device_service::{ConnectedDevice, DeviceService};
-pub use epub_editor::EpubEditor;
+pub use epub_editor::{EpubEditor, PolishOptions, PolishReport};
 pub use i18n::{catalog_for, translate, translate_fmt, Locale};
 pub use library_audit::{audit_library, compute_similarity, normalize_string};
 pub use litestream_service::LitestreamService;

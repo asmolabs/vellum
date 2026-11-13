@@ -2,7 +2,10 @@
 
 mod inspector;
 mod ncx_nav;
+mod polish;
 mod toc;
+
+pub use polish::{PolishOptions, PolishReport};
 
 use std::fs::File;
 use std::io::Read;
