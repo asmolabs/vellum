@@ -1473,6 +1473,56 @@ async fn test_i18n_persistence_and_api_endpoint() {
     assert_eq!(json["messages"]["nav.library"], "Library");
 }
 
+#[test]
+fn test_watch_folder_auto_add_and_deduplication() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    let watch_dir = temp.path().join("watch");
+    std::fs::create_dir_all(&watch_dir).unwrap();
+    let sample_epub = watch_dir.join("WatchTest.epub");
+
+    let write_sample_epub = |dest: &std::path::Path| {
+        let f = File::create(dest).unwrap();
+        let mut zip = ZipWriter::new(f);
+        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file("mimetype", stored).unwrap();
+        zip.write_all(b"application/epub+zip").unwrap();
+        zip.start_file("META-INF/container.xml", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#,
+        ).unwrap();
+        zip.start_file("content.opf", deflated).unwrap();
+        zip.write_all(
+            br#"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Zzxq Watch Book</dc:title><dc:creator>Zzxq Author</dc:creator></metadata><manifest><item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="c1"/></spine></package>"#,
+        ).unwrap();
+        zip.start_file("ch1.xhtml", deflated).unwrap();
+        zip.write_all(b"<html><body><p>Hello</p></body></html>").unwrap();
+        zip.finish().unwrap();
+    };
+
+    write_sample_epub(&sample_epub);
+    // Ignored non-ebook file
+    std::fs::write(watch_dir.join("readme.png"), b"not-an-ebook").unwrap();
+
+    // 1. First scan imports WatchTest.epub and moves it to processed/
+    let r1 = vellum_core::WatchFolderService::scan_once(&book_service, &watch_dir, true).unwrap();
+    assert_eq!(r1.scanned_files, 1);
+    assert_eq!(r1.imported_book_ids.len(), 1);
+    assert_eq!(r1.skipped_duplicates, 0);
+    assert!(!sample_epub.exists());
+    assert!(watch_dir.join("processed").join("WatchTest.epub").exists());
+
+    // 2. Re-drop the same book -> skipped as duplicate
+    write_sample_epub(&sample_epub);
+    let r2 = vellum_core::WatchFolderService::scan_once(&book_service, &watch_dir, true).unwrap();
+    assert_eq!(r2.scanned_files, 1);
+    assert_eq!(r2.imported_book_ids.len(), 0);
+    assert_eq!(r2.skipped_duplicates, 1);
+}
+
 
 
 
