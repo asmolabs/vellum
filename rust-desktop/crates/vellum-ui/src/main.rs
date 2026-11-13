@@ -16,9 +16,10 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header, KanbanBoard,
-    KanbanTargetStatus, LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal,
-    ReadingStatsModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
+    BookCard, BulkEditModal, BulkRegexModal, CommandPalette, ContentSearchModal, DetailDrawer,
+    EpubEditorModal, Header, ImportRulesModal, KanbanBoard, KanbanTargetStatus, LibraryAuditModal,
+    NewsRecipesModal, PaletteAction, ReaderModal, ReadingStatsModal, SettingsModal, Sidebar,
+    TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -87,6 +88,9 @@ fn App() -> Element {
     let mut news_recipes_open = use_signal(|| false);
     let mut audit_open = use_signal(|| false);
     let mut stats_open = use_signal(|| false);
+    let mut content_search_open = use_signal(|| false);
+    let mut bulk_regex_open = use_signal(|| false);
+    let mut import_rules_open = use_signal(|| false);
 
     let news_service = services.news_service.clone();
     let mail_service = services.mail_service.clone();
@@ -864,6 +868,9 @@ fn App() -> Element {
         let mut nro = news_recipes_open;
         let mut ao = audit_open;
         let mut sto = stats_open;
+        let mut cso = content_search_open;
+        let mut bro = bulk_regex_open;
+        let mut iro = import_rules_open;
         let mut vm = view_mode;
         move |act: PaletteAction| match act {
             PaletteAction::SelectBook(b) => sb.set(Some(b)),
@@ -895,6 +902,9 @@ fn App() -> Element {
             PaletteAction::OpenNewsRecipes => nro.set(true),
             PaletteAction::OpenLibraryAudit => ao.set(true),
             PaletteAction::OpenReadingStats => sto.set(true),
+            PaletteAction::OpenContentSearch => cso.set(true),
+            PaletteAction::OpenBulkRegex => bro.set(true),
+            PaletteAction::OpenImportRules => iro.set(true),
             PaletteAction::OpenWebCompanion => {
                 let _ = open::that(format!("http://localhost:{opds_port}"));
             }
@@ -1442,6 +1452,13 @@ fn App() -> Element {
                                 "Modifier en masse"
                             }
                             button {
+                                class: "btn btn-secondary",
+                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                                onclick: move |_| bulk_regex_open.set(true),
+                                span { "🔤" }
+                                "Regex"
+                            }
+                            button {
                                 class: "btn btn-danger",
                                 style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                                 onclick: {
@@ -1479,6 +1496,46 @@ fn App() -> Element {
                             on_close: move |_| bulk_edit_open.set(false),
                         }
                     }
+                }
+            }
+
+            // Full-Text Content Search Modal (FTS5)
+            if *content_search_open.read() {
+                ContentSearchModal {
+                    book_service: book_service.clone(),
+                    books: books.read().clone(),
+                    on_close: move |_| content_search_open.set(false),
+                    on_select_book: move |b| selected_book.set(Some(b)),
+                }
+            }
+
+            // Bulk Regex Search & Replace Modal
+            if *bulk_regex_open.read() {
+                {
+                    let ids: Vec<String> = if selected_ids.read().is_empty() {
+                        books.read().iter().map(|b| b.id.clone()).collect()
+                    } else {
+                        selected_ids.read().iter().cloned().collect()
+                    };
+                    rsx! {
+                        BulkRegexModal {
+                            book_service: book_service.clone(),
+                            target_book_ids: ids,
+                            on_close: move |_| bulk_regex_open.set(false),
+                            on_updated: {
+                                let mut refresh = refresh_library.clone();
+                                move |_| refresh()
+                            },
+                        }
+                    }
+                }
+            }
+
+            // Automatic Import Rules Modal
+            if *import_rules_open.read() {
+                ImportRulesModal {
+                    book_service: book_service.clone(),
+                    on_close: move |_| import_rules_open.set(false),
                 }
             }
         }

@@ -1,9 +1,12 @@
 pub mod book_card;
 pub mod bulk_edit_modal;
+pub mod bulk_regex_modal;
 pub mod command_palette;
+pub mod content_search_modal;
 pub mod detail_drawer;
 pub mod epub_editor_modal;
 pub mod header;
+pub mod import_rules_modal;
 pub mod kanban_board;
 pub mod library_audit_modal;
 pub mod news_recipes_modal;
@@ -15,10 +18,13 @@ pub mod translate_modal;
 
 pub use book_card::BookCard;
 pub use bulk_edit_modal::BulkEditModal;
+pub use bulk_regex_modal::BulkRegexModal;
 pub use command_palette::{CommandPalette, PaletteAction};
+pub use content_search_modal::ContentSearchModal;
 pub use detail_drawer::DetailDrawer;
 pub use epub_editor_modal::EpubEditorModal;
 pub use header::Header;
+pub use import_rules_modal::ImportRulesModal;
 pub use kanban_board::{KanbanBoard, KanbanTargetStatus};
 pub use library_audit_modal::LibraryAuditModal;
 pub use news_recipes_modal::NewsRecipesModal;
