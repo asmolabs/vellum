@@ -66,7 +66,15 @@ fn App() -> Element {
     let mut books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
     let mut virtual_libraries = use_signal(|| virtual_library_service.list().unwrap_or_default());
     let mut active_virtual_library_id = use_signal(|| None::<String>);
-    let custom_columns = use_signal(|| custom_column_service.list_columns().unwrap_or_default());
+    let mut custom_columns = use_signal(|| custom_column_service.list_columns().unwrap_or_default());
+    let mut watch_folder_path = use_signal(|| {
+        book_service
+            .param_repo()
+            .get_value("watch_folder_path")
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+    });
 
     let current_filter = use_signal(|| FilterStatus::All);
     let mut current_sort = use_signal(|| SortOption::RecentAdded);
@@ -1302,6 +1310,54 @@ fn App() -> Element {
                     smtp_config: smtp_config.read().clone(),
                     is_testing_smtp: *is_testing_smtp.read(),
                     smtp_test_message: smtp_test_message.read().clone(),
+                    custom_columns: custom_columns.read().clone(),
+                    on_create_custom_column: {
+                        let ccs = custom_column_service.clone();
+                        move |(key, label, col_type): (String, String, vellum_domain::CustomColumnType)| {
+                            match ccs.define_column(&key, &label, col_type) {
+                                Ok(_) => {
+                                    custom_columns.set(ccs.list_columns().unwrap_or_default());
+                                }
+                                Err(e) => {
+                                    sync_message.set(Some(format!("Erreur colonne : {e}")));
+                                }
+                            }
+                        }
+                    },
+                    on_delete_custom_column: {
+                        let ccs = custom_column_service.clone();
+                        move |id: String| {
+                            if ccs.delete_column(&id).is_ok() {
+                                custom_columns.set(ccs.list_columns().unwrap_or_default());
+                            }
+                        }
+                    },
+                    watch_folder_path: watch_folder_path.read().clone(),
+                    on_scan_watch_folder: {
+                        let bs = book_service.clone();
+                        let mut refresh = refresh_library.clone();
+                        move |dir: String| {
+                            let _ = bs.param_repo().set_value("watch_folder_path", &dir);
+                            watch_folder_path.set(dir.clone());
+                            match vellum_core::WatchFolderService::scan_once(
+                                &bs,
+                                std::path::Path::new(&dir),
+                                true,
+                            ) {
+                                Ok(report) => {
+                                    sync_message.set(Some(format!(
+                                        "📥 Watch Folder : {} importé(s), {} doublon(s) ignoré(s)",
+                                        report.imported_book_ids.len(),
+                                        report.skipped_duplicates
+                                    )));
+                                    refresh();
+                                }
+                                Err(e) => {
+                                    sync_message.set(Some(format!("Erreur Watch Folder : {e}")));
+                                }
+                            }
+                        }
+                    },
                     on_sync_now: handle_sync_now.clone(),
                     on_select_folder: handle_pick_sync_folder.clone(),
                     on_auto_detect_folder: handle_auto_detect_folder.clone(),
