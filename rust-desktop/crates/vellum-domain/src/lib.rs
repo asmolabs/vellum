@@ -22,8 +22,8 @@ pub mod template;
 
 pub use config::{AppConfig, LitestreamConfig, SmtpConfig};
 pub use entity::{
-    Book, BookFormat, CustomColumnDefinition, CustomColumnType, Param, ReadingStats, Tag,
-    VirtualLibrary,
+    Book, BookFormat, ContentSearchHit, CustomColumnDefinition, CustomColumnType, Param,
+    ReadingStats, Tag, VirtualLibrary,
 };
 pub use epub::{EpubDiagnostics, EpubIssue, EpubIssueSeverity, EpubTocEntry};
 pub use error::{VellumError, VellumResult};

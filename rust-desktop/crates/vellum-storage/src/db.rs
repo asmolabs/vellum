@@ -233,7 +233,15 @@ impl Database {
             INSERT INTO books_fts(book_id, title, author, publisher, series, isbn, description)
             SELECT id, title, author, COALESCE(publisher, ''), COALESCE(series, ''), COALESCE(isbn, ''), COALESCE(description, '')
             FROM books
-            WHERE id NOT IN (SELECT book_id FROM books_fts);",
+            WHERE id NOT IN (SELECT book_id FROM books_fts);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS book_content_fts USING fts5(
+                book_id UNINDEXED,
+                chapter_index UNINDEXED,
+                chapter_title,
+                content,
+                tokenize='unicode61 remove_diacritics 2'
+            );",
         )
         .map_err(|e| VellumError::Database(e.to_string()))?;
 

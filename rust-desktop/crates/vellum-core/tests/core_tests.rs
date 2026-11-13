@@ -1822,6 +1822,30 @@ fn test_notes_export_markdown_and_bulk_regex_and_import_rules() {
     assert_eq!(b2.series.as_deref(), Some("Cycle de Fondation"));
 }
 
+#[test]
+fn test_full_text_search_inside_books() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    let txt_path = temp.path().join("Chronique.txt");
+    std::fs::write(
+        &txt_path,
+        "Chapitre 1\n\nL'épice gérontologique prolonge la vie sur Arrakis.\n\nChapitre 2\n\nLes vers des sables gardent le désert.",
+    )
+    .unwrap();
+
+    let imported = book_service.import_book(&txt_path).unwrap();
+
+    let indexed_chapters = book_service.index_book_content(&imported.id).unwrap();
+    assert!(indexed_chapters >= 1);
+
+    // Accent-insensitive FTS5 search inside book text ("epice" matches "épice")
+    let hits = book_service.search_inside_books("epice", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].book_id, imported.id);
+    assert!(hits[0].snippet.contains("épice"));
+}
+
 
 
 

@@ -237,3 +237,12 @@ impl CustomColumnDefinition {
         }
     }
 }
+
+/// Résultat d'une recherche plein texte à l'intérieur du contenu d'un livre.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentSearchHit {
+    pub book_id: String,
+    pub chapter_index: usize,
+    pub chapter_title: String,
+    pub snippet: String,
+}

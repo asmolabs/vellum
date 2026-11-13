@@ -299,6 +299,60 @@ impl BookService {
         }
         Ok(md)
     }
+
+    /// Indexe le texte brut de tous les chapitres d'un livre dans `book_content_fts`.
+    pub fn index_book_content(&self, book_id: &str) -> VellumResult<usize> {
+        let book = self
+            .book_repo
+            .find_by_id(book_id)?
+            .ok_or_else(|| {
+                vellum_domain::VellumError::NotFound(format!("Livre introuvable: {book_id}"))
+            })?;
+        let fmt = book
+            .formats
+            .iter()
+            .find(|f| {
+                matches!(
+                    f.format.to_lowercase().as_str(),
+                    "epub" | "kepub" | "txt" | "md"
+                )
+            })
+            .or_else(|| book.formats.first())
+            .ok_or_else(|| {
+                vellum_domain::VellumError::NotFound("Aucun format lisible pour ce livre".into())
+            })?;
+
+        let abs_path = if Path::new(&fmt.filepath).is_absolute() {
+            PathBuf::from(&fmt.filepath)
+        } else {
+            self.library_path.join(&fmt.filepath)
+        };
+
+        let provider = crate::reader_provider::create_content_provider(&abs_path);
+        let total = provider.total_pages();
+        let mut chapters = Vec::with_capacity(total);
+        for idx in 0..total {
+            let title = provider
+                .get_section_title(idx)
+                .unwrap_or_else(|| format!("Chapitre {}", idx + 1));
+            let plain = provider.chapter_text(idx);
+            if !plain.trim().is_empty() {
+                chapters.push((idx, title, plain));
+            }
+        }
+        let count = chapters.len();
+        self.book_repo.replace_book_content(book_id, &chapters)?;
+        Ok(count)
+    }
+
+    /// Recherche plein texte à l'intérieur du contenu indexé des livres.
+    pub fn search_inside_books(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> VellumResult<Vec<vellum_domain::ContentSearchHit>> {
+        self.book_repo.search_book_content(query, limit)
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,29 @@
 use crate::db::Database;
 use rusqlite::{params, Connection, OptionalExtension};
-use vellum_domain::{Book, BookFormat, Tag, VellumError, VellumResult};
+use vellum_domain::{Book, BookFormat, ContentSearchHit, Tag, VellumError, VellumResult};
+
+fn to_fts_match_expr(query: &str) -> Option<String> {
+    let fts_terms: Vec<String> = query
+        .split_whitespace()
+        .filter_map(|raw| {
+            let clean: String = raw
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+                .collect();
+            if clean.chars().any(|c| c.is_alphanumeric()) {
+                Some(format!("\"{clean}\"*"))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if fts_terms.is_empty() {
+        None
+    } else {
+        Some(fts_terms.join(" "))
+    }
+}
 
 #[derive(Clone)]
 pub struct BookRepository {
@@ -156,26 +179,9 @@ impl BookRepository {
 
     /// Recherche plein texte via SQLite FTS5 (insensible aux accents, triée par pertinence BM25).
     pub fn search_fts(&self, query: &str, tag_name: Option<&str>) -> VellumResult<Vec<Book>> {
-        let fts_terms: Vec<String> = query
-            .split_whitespace()
-            .filter_map(|raw| {
-                let clean: String = raw
-                    .chars()
-                    .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
-                    .collect();
-                if clean.chars().any(|c| c.is_alphanumeric()) {
-                    Some(format!("\"{clean}\"*"))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if fts_terms.is_empty() {
+        let Some(fts_expr) = to_fts_match_expr(query) else {
             return self.search_books(None, tag_name);
-        }
-
-        let fts_expr = fts_terms.join(" ");
+        };
         let tag_filter = tag_name
             .map(str::trim)
             .filter(|t| !t.is_empty() && !t.eq_ignore_ascii_case("Tous"))
@@ -341,5 +347,81 @@ impl BookRepository {
         book.tags = tags;
 
         Ok(Some(book))
+    }
+
+    /// Indexe (ou réindexe) le texte brut des chapitres d'un livre dans `book_content_fts`.
+    pub fn replace_book_content(
+        &self,
+        book_id: &str,
+        chapters: &[(usize, String, String)],
+    ) -> VellumResult<()> {
+        let mut conn = self.db.lock()?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        tx.execute(
+            "DELETE FROM book_content_fts WHERE book_id = ?1",
+            params![book_id],
+        )
+        .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        {
+            let mut stmt = tx
+                .prepare(
+                    "INSERT INTO book_content_fts (book_id, chapter_index, chapter_title, content)
+                     VALUES (?1, ?2, ?3, ?4)",
+                )
+                .map_err(|e| VellumError::Database(e.to_string()))?;
+
+            for (idx, title, text) in chapters {
+                stmt.execute(params![book_id, *idx as i64, title, text])
+                    .map_err(|e| VellumError::Database(e.to_string()))?;
+            }
+        }
+
+        tx.commit()
+            .map_err(|e| VellumError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Recherche plein texte à l'intérieur du contenu indexé des livres (FTS5 + BM25).
+    pub fn search_book_content(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> VellumResult<Vec<ContentSearchHit>> {
+        let Some(fts_expr) = to_fts_match_expr(query) else {
+            return Ok(Vec::new());
+        };
+        let conn = self.db.lock()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT book_id, chapter_index, chapter_title,
+                        snippet(book_content_fts, 3, '[', ']', '…', 18)
+                 FROM book_content_fts
+                 WHERE book_content_fts MATCH ?1
+                 ORDER BY bm25(book_content_fts, 0.0, 0.0, 2.0, 1.0)
+                 LIMIT ?2",
+            )
+            .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        let rows = stmt
+            .query_map(params![fts_expr, limit.max(1) as i64], |row| {
+                let idx: i64 = row.get(1)?;
+                Ok(ContentSearchHit {
+                    book_id: row.get(0)?,
+                    chapter_index: idx.max(0) as usize,
+                    chapter_title: row.get(2)?,
+                    snippet: row.get(3)?,
+                })
+            })
+            .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        let mut hits = Vec::new();
+        for item in rows {
+            hits.push(item.map_err(|e| VellumError::Database(e.to_string()))?);
+        }
+        Ok(hits)
     }
 }
