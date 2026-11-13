@@ -1,9 +1,11 @@
 use dioxus::prelude::*;
 use crate::state::FilterStatus;
+use vellum_core::{translate, Locale};
 use vellum_domain::ReadingStats;
 
 #[component]
 pub fn Sidebar(
+    locale: Locale,
     current_filter: Signal<FilterStatus>,
     selected_tag: Signal<Option<String>>,
     selected_series: Signal<Option<String>>,
@@ -21,11 +23,17 @@ pub fn Sidebar(
 
     rsx! {
         aside { class: "sidebar",
-            div { class: "sidebar-section-title", "Bibliothèque" }
+            div { class: "sidebar-section-title", "{translate(locale, \"nav.library\")}" }
             nav { class: "nav-list",
                 for f in filters.iter() {
                     {
                         let is_active = *current_filter.read() == *f && selected_series.read().is_none() && selected_tag.read().is_none();
+                        let filter_label = match f {
+                            FilterStatus::All => translate(locale, "nav.all_books"),
+                            FilterStatus::Reading => translate(locale, "nav.reading"),
+                            FilterStatus::Finished => translate(locale, "nav.finished"),
+                            FilterStatus::ToRead => translate(locale, "nav.to_read"),
+                        };
                         let count_label = match (f, &stats) {
                             (FilterStatus::All, Some(s)) => format!("{}", s.total_books),
                             (FilterStatus::Reading, Some(s)) => format!("{}", s.in_progress_books),
@@ -43,7 +51,7 @@ pub fn Sidebar(
                                     selected_tag.set(None);
                                     selected_series.set(None);
                                 },
-                                span { "{f.label()}" }
+                                span { "{filter_label}" }
                                 span { class: "nav-badge", "{count_label}" }
                             }
                         }
@@ -54,7 +62,7 @@ pub fn Sidebar(
             // Séries & Sagas
             if !series_counts.is_empty() {
                 div {
-                    div { class: "sidebar-section-title", "Séries & Sagas" }
+                    div { class: "sidebar-section-title", "{translate(locale, \"nav.series\")}" }
                     div { class: "tags-cloud",
                         for (s_name, count) in series_counts.iter() {
                             {

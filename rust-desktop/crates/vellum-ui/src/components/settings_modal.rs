@@ -1,8 +1,11 @@
 use dioxus::prelude::*;
+use vellum_core::{translate, Locale};
 use vellum_domain::{CloudSyncConfig, PluginDescriptor, SmtpConfig};
 
 #[component]
 pub fn SettingsModal(
+    locale: Locale,
+    on_change_locale: EventHandler<Locale>,
     opds_port: u16,
     opds_running: bool,
     litestream_status_text: String,
@@ -91,6 +94,21 @@ pub fn SettingsModal(
                         class: "btn btn-icon",
                         onclick: move |_| on_close.call(()),
                         "✕"
+                    }
+                }
+
+                // 0. Langue de l'interface (i18n)
+                div { style: "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
+                    span { style: "font-size: 13px; font-weight: 600;", "{translate(locale, \"settings.language\")}" }
+                    div { style: "display: flex; gap: 8px;",
+                        for loc in Locale::all().iter().copied() {
+                            button {
+                                class: if locale == loc { "btn btn-primary" } else { "btn btn-secondary" },
+                                style: "font-size: 12px; padding: 4px 12px;",
+                                onclick: move |_| on_change_locale.call(loc),
+                                "{loc.display_name()}"
+                            }
+                        }
                     }
                 }
 

@@ -1,9 +1,10 @@
 use dioxus::prelude::*;
-use vellum_core::ConnectedDevice;
+use vellum_core::{translate, ConnectedDevice, Locale};
 use vellum_domain::DeviceKind;
 
 #[component]
 pub fn Header(
+    locale: Locale,
     search_query: Signal<String>,
     connected_devices: Vec<ConnectedDevice>,
     sync_available: bool,
@@ -30,7 +31,7 @@ pub fn Header(
                 span { class: "search-icon-slot", "🔍" }
                 input {
                     r#type: "text",
-                    placeholder: "Rechercher (ex: Dune, author:Herbert, series:Fondation, tag:SF)...",
+                    placeholder: "{translate(locale, \"action.search\")} (Dune, author:Herbert, series:Fondation, tag:SF)...",
                     value: "{search_query}",
                     oninput: move |evt| search_query.set(evt.value()),
                 }

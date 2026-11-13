@@ -18,9 +18,9 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header,
-    KanbanBoard, KanbanTargetStatus, LibraryAuditModal, NewsRecipesModal, PaletteAction,
-    ReaderModal, ReadingStatsModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
+    BookCard, BulkEditModal, CommandPalette, DetailDrawer, EpubEditorModal, Header, KanbanBoard,
+    KanbanTargetStatus, LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal,
+    ReadingStatsModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -59,14 +59,9 @@ fn App() -> Element {
     let mut sync_config = use_signal(|| sync_service.config());
     let mut is_syncing = use_signal(|| false);
     let mut sync_message = use_signal(|| None::<String>);
+    let mut ui_locale = use_signal(|| book_service.get_ui_locale());
 
-    let mut books = use_signal(|| {
-        book_service
-            .book_repo()
-            .find_all()
-            .unwrap_or_default()
-    });
-
+    let mut books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
 
     let current_filter = use_signal(|| FilterStatus::All);
     let mut current_sort = use_signal(|| SortOption::RecentAdded);
@@ -103,7 +98,6 @@ fn App() -> Element {
             }
         }
     };
-
 
     // Calculate tag counts
     let tags_counts: Vec<(String, usize)> = {
@@ -190,10 +184,21 @@ fn App() -> Element {
 
         match sort {
             SortOption::TitleAsc => list.sort_by_key(|a| a.title.to_lowercase()),
-            SortOption::TitleDesc => list.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase())),
-            SortOption::AuthorAsc => list.sort_by(|a, b| a.author.to_lowercase().cmp(&b.author.to_lowercase()).then_with(|| a.title.cmp(&b.title))),
+            SortOption::TitleDesc => {
+                list.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()))
+            }
+            SortOption::AuthorAsc => list.sort_by(|a, b| {
+                a.author
+                    .to_lowercase()
+                    .cmp(&b.author.to_lowercase())
+                    .then_with(|| a.title.cmp(&b.title))
+            }),
             SortOption::RecentAdded => list.sort_by(|a, b| b.added_at.cmp(&a.added_at)),
-            SortOption::ProgressDesc => list.sort_by(|a, b| b.progress_percent.partial_cmp(&a.progress_percent).unwrap_or(std::cmp::Ordering::Equal)),
+            SortOption::ProgressDesc => list.sort_by(|a, b| {
+                b.progress_percent
+                    .partial_cmp(&a.progress_percent)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            }),
         }
 
         list
@@ -208,7 +213,9 @@ fn App() -> Element {
                 .set_title("Importer des livres ou bandes dessinées dans Vellum")
                 .add_filter(
                     "Fichiers pris en charge",
-                    &["epub", "pdf", "cbz", "cbr", "mobi", "azw3", "txt", "mp3", "m4b"],
+                    &[
+                        "epub", "pdf", "cbz", "cbr", "mobi", "azw3", "txt", "mp3", "m4b",
+                    ],
                 )
                 .pick_files();
 
@@ -217,7 +224,11 @@ fn App() -> Element {
                     tracing::info!("Importing file: {:?}", path);
                     match bs.import_book(&path) {
                         Ok(book) => {
-                            tracing::info!("Livre importé avec succès: {} par {}", book.title, book.author);
+                            tracing::info!(
+                                "Livre importé avec succès: {} par {}",
+                                book.title,
+                                book.author
+                            );
                         }
                         Err(e) => {
                             tracing::error!("Erreur lors de l'import de {:?}: {}", path, e);
@@ -303,13 +314,8 @@ fn App() -> Element {
             if let Some(ref sess) = *active_reader.read() {
                 let book_id = &sess.book.id;
                 let finished = page + 1 >= total && total > 0;
-                let _ = bs.update_reading_progress(
-                    book_id,
-                    page as i32,
-                    total as i32,
-                    pct,
-                    finished,
-                );
+                let _ =
+                    bs.update_reading_progress(book_id, page as i32, total as i32, pct, finished);
             }
         }
     };
@@ -431,16 +437,16 @@ fn App() -> Element {
     let handle_convert = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |(b_id, target_fmt): (String, String)| {
-            match bs.convert_book_to_format(&b_id, &target_fmt) {
-                Ok(updated) => {
-                    tracing::info!("Conversion réussie vers le format {target_fmt}");
-                    selected_book.set(Some(updated));
-                    refresh();
-                }
-                Err(e) => {
-                    tracing::error!("Erreur lors de la conversion en {target_fmt}: {e}");
-                }
+        move |(b_id, target_fmt): (String, String)| match bs
+            .convert_book_to_format(&b_id, &target_fmt)
+        {
+            Ok(updated) => {
+                tracing::info!("Conversion réussie vers le format {target_fmt}");
+                selected_book.set(Some(updated));
+                refresh();
+            }
+            Err(e) => {
+                tracing::error!("Erreur lors de la conversion en {target_fmt}: {e}");
             }
         }
     };
@@ -474,7 +480,10 @@ fn App() -> Element {
                 tag_names: tags,
             }) {
                 Ok(updated) => {
-                    tracing::info!("Métadonnées mises à jour avec succès pour: {}", updated.title);
+                    tracing::info!(
+                        "Métadonnées mises à jour avec succès pour: {}",
+                        updated.title
+                    );
                     selected_book.set(Some(updated));
                     refresh();
                 }
@@ -489,16 +498,14 @@ fn App() -> Element {
     let handle_enrich_metadata = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |b_id: String| {
-            match bs.enrich_book(&b_id) {
-                Ok(updated) => {
-                    tracing::info!("Métadonnées enrichies avec succès pour: {}", updated.title);
-                    selected_book.set(Some(updated));
-                    refresh();
-                }
-                Err(e) => {
-                    tracing::error!("Erreur lors de l'enrichissement des métadonnées: {e}");
-                }
+        move |b_id: String| match bs.enrich_book(&b_id) {
+            Ok(updated) => {
+                tracing::info!("Métadonnées enrichies avec succès pour: {}", updated.title);
+                selected_book.set(Some(updated));
+                refresh();
+            }
+            Err(e) => {
+                tracing::error!("Erreur lors de l'enrichissement des métadonnées: {e}");
             }
         }
     };
@@ -507,16 +514,14 @@ fn App() -> Element {
     let handle_change_cover = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |(b_id, path): (String, PathBuf)| {
-            match bs.update_book_cover(&b_id, &path) {
-                Ok(updated) => {
-                    tracing::info!("Couverture mise à jour avec succès pour: {}", updated.title);
-                    selected_book.set(Some(updated));
-                    refresh();
-                }
-                Err(e) => {
-                    tracing::error!("Erreur lors du changement de couverture: {e}");
-                }
+        move |(b_id, path): (String, PathBuf)| match bs.update_book_cover(&b_id, &path) {
+            Ok(updated) => {
+                tracing::info!("Couverture mise à jour avec succès pour: {}", updated.title);
+                selected_book.set(Some(updated));
+                refresh();
+            }
+            Err(e) => {
+                tracing::error!("Erreur lors du changement de couverture: {e}");
             }
         }
     };
@@ -562,18 +567,16 @@ fn App() -> Element {
         }
     };
 
-
     // Handle eReader export
     let handle_export_to_device = {
         let ds = device_service.clone();
-        move |(b_id, kind): (String, DeviceKind)| {
-            match ds.export_book_to_device(&b_id, kind, None) {
-                Ok(dest) => {
-                    tracing::info!("Livre exporté avec succès vers {:?}: {:?}", kind, dest);
-                }
-                Err(e) => {
-                    tracing::error!("Erreur lors de l'exportation vers {:?}: {e}", kind);
-                }
+        move |(b_id, kind): (String, DeviceKind)| match ds.export_book_to_device(&b_id, kind, None)
+        {
+            Ok(dest) => {
+                tracing::info!("Livre exporté avec succès vers {:?}: {:?}", kind, dest);
+            }
+            Err(e) => {
+                tracing::error!("Erreur lors de l'exportation vers {:?}: {e}", kind);
             }
         }
     };
@@ -590,7 +593,12 @@ fn App() -> Element {
                 let bs_cloned = bs.clone();
                 spawn(async move {
                     let res = tokio::task::spawn_blocking(move || {
-                        bs_cloned.export_book_to_directory(&b_id, &dest_dir, pref_fmt.as_deref(), None)
+                        bs_cloned.export_book_to_directory(
+                            &b_id,
+                            &dest_dir,
+                            pref_fmt.as_deref(),
+                            None,
+                        )
                     })
                     .await;
 
@@ -632,7 +640,9 @@ fn App() -> Element {
                 return;
             }
             is_syncing.set(true);
-            sync_message.set(Some("Synchronisation avec Google Drive en cours...".to_string()));
+            sync_message.set(Some(
+                "Synchronisation avec Google Drive en cours...".to_string(),
+            ));
             let ss_cloned = ss.clone();
             let pr_cloned = pr.clone();
             let mut refresh_cloned = refresh.clone();
@@ -688,7 +698,9 @@ fn App() -> Element {
                         let _ = pr.set_value("cloud_sync_config", &cfg_json);
                     }
                     sync_config.set(cfg);
-                    sync_message.set(Some("Dossier Google Drive configuré avec succès !".to_string()));
+                    sync_message.set(Some(
+                        "Dossier Google Drive configuré avec succès !".to_string(),
+                    ));
                 }
             }
         }
@@ -706,10 +718,15 @@ fn App() -> Element {
                         let _ = pr.set_value("cloud_sync_config", &cfg_json);
                     }
                     sync_config.set(cfg);
-                    sync_message.set(Some("Dossier Google Drive détecté et configuré !".to_string()));
+                    sync_message.set(Some(
+                        "Dossier Google Drive détecté et configuré !".to_string(),
+                    ));
                 }
             } else {
-                sync_message.set(Some("Google Drive n'a pas été détecté automatiquement dans les chemins standards.".to_string()));
+                sync_message.set(Some(
+                    "Google Drive n'a pas été détecté automatiquement dans les chemins standards."
+                        .to_string(),
+                ));
             }
         }
     };
@@ -764,8 +781,13 @@ fn App() -> Element {
                 let res = ms_cloned.test_connection(&cfg).await;
                 is_testing_smtp.set(false);
                 match res {
-                    Ok(()) => smtp_test_message.set(Some((true, "Connexion SMTP établie et authentifiée avec succès !".into()))),
-                    Err(e) => smtp_test_message.set(Some((false, format!("Échec du test SMTP : {e}")))),
+                    Ok(()) => smtp_test_message.set(Some((
+                        true,
+                        "Connexion SMTP établie et authentifiée avec succès !".into(),
+                    ))),
+                    Err(e) => {
+                        smtp_test_message.set(Some((false, format!("Échec du test SMTP : {e}"))))
+                    }
                 }
             });
         }
@@ -795,14 +817,16 @@ fn App() -> Element {
 
     // Global keyboard shortcut Cmd + K (or Ctrl + K) for Command Palette
     use_effect(move || {
-        let mut eval = document::eval(r#"
+        let mut eval = document::eval(
+            r#"
             window.addEventListener('keydown', (e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
                     e.preventDefault();
                     dioxus.send('toggle_palette');
                 }
             });
-        "#);
+        "#,
+        );
         spawn(async move {
             while let Ok(_) = eval.recv::<String>().await {
                 let cur = *palette_open.peek();
@@ -825,43 +849,41 @@ fn App() -> Element {
         let mut ao = audit_open;
         let mut sto = stats_open;
         let mut vm = view_mode;
-        move |act: PaletteAction| {
-            match act {
-                PaletteAction::SelectBook(b) => sb.set(Some(b)),
-                PaletteAction::ReadBook(b) => hr(b),
-                PaletteAction::SetViewGrid => vm.set(ViewMode::Grid),
-                PaletteAction::SetViewKanban => vm.set(ViewMode::Kanban),
-                PaletteAction::FilterAll => {
-                    cf.set(FilterStatus::All);
-                    st.set(None);
-                    ss.set(None);
-                }
-                PaletteAction::FilterReading => {
-                    cf.set(FilterStatus::Reading);
-                    st.set(None);
-                    ss.set(None);
-                }
-                PaletteAction::FilterFinished => {
-                    cf.set(FilterStatus::Finished);
-                    st.set(None);
-                    ss.set(None);
-                }
-                PaletteAction::FilterToRead => {
-                    cf.set(FilterStatus::ToRead);
-                    st.set(None);
-                    ss.set(None);
-                }
-                PaletteAction::ImportBooks => hi(()),
-                PaletteAction::ImportCalibre => hic(()),
-                PaletteAction::OpenNewsRecipes => nro.set(true),
-                PaletteAction::OpenLibraryAudit => ao.set(true),
-                PaletteAction::OpenReadingStats => sto.set(true),
-                PaletteAction::OpenWebCompanion => {
-                    let _ = open::that(format!("http://localhost:{opds_port}"));
-                }
-                PaletteAction::SyncCloud => hsc(()),
-                PaletteAction::OpenSettings => so.set(true),
+        move |act: PaletteAction| match act {
+            PaletteAction::SelectBook(b) => sb.set(Some(b)),
+            PaletteAction::ReadBook(b) => hr(b),
+            PaletteAction::SetViewGrid => vm.set(ViewMode::Grid),
+            PaletteAction::SetViewKanban => vm.set(ViewMode::Kanban),
+            PaletteAction::FilterAll => {
+                cf.set(FilterStatus::All);
+                st.set(None);
+                ss.set(None);
             }
+            PaletteAction::FilterReading => {
+                cf.set(FilterStatus::Reading);
+                st.set(None);
+                ss.set(None);
+            }
+            PaletteAction::FilterFinished => {
+                cf.set(FilterStatus::Finished);
+                st.set(None);
+                ss.set(None);
+            }
+            PaletteAction::FilterToRead => {
+                cf.set(FilterStatus::ToRead);
+                st.set(None);
+                ss.set(None);
+            }
+            PaletteAction::ImportBooks => hi(()),
+            PaletteAction::ImportCalibre => hic(()),
+            PaletteAction::OpenNewsRecipes => nro.set(true),
+            PaletteAction::OpenLibraryAudit => ao.set(true),
+            PaletteAction::OpenReadingStats => sto.set(true),
+            PaletteAction::OpenWebCompanion => {
+                let _ = open::that(format!("http://localhost:{opds_port}"));
+            }
+            PaletteAction::SyncCloud => hsc(()),
+            PaletteAction::OpenSettings => so.set(true),
         }
     };
 
@@ -876,7 +898,9 @@ fn App() -> Element {
         vellum_core::litestream_service::LitestreamStatus::Running => "En cours de synchronisation",
         vellum_core::litestream_service::LitestreamStatus::Stopped => "Arrêté (en attente)",
         vellum_core::litestream_service::LitestreamStatus::Disabled => "Désactivé",
-        vellum_core::litestream_service::LitestreamStatus::BinaryNotFound => "Exécutable introuvable",
+        vellum_core::litestream_service::LitestreamStatus::BinaryNotFound => {
+            "Exécutable introuvable"
+        }
         vellum_core::litestream_service::LitestreamStatus::Error => "Erreur de processus",
     }
     .to_string();
@@ -889,6 +913,7 @@ fn App() -> Element {
         div { class: "app-container",
             // Header
             Header {
+                locale: *ui_locale.read(),
                 search_query: search_query,
                 connected_devices: connected_devices.read().clone(),
                 sync_available: sync_service.is_backend_available(),
@@ -908,6 +933,7 @@ fn App() -> Element {
             div { class: "main-content",
                 // Sidebar
                 Sidebar {
+                    locale: *ui_locale.read(),
                     current_filter: current_filter,
                     selected_tag: selected_tag,
                     selected_series: selected_series,
@@ -1189,6 +1215,14 @@ fn App() -> Element {
             // Settings Modal
             if *settings_open.read() {
                 SettingsModal {
+                    locale: *ui_locale.read(),
+                    on_change_locale: {
+                        let bs = book_service.clone();
+                        move |new_loc| {
+                            let _ = bs.set_ui_locale(new_loc);
+                            ui_locale.set(new_loc);
+                        }
+                    },
                     opds_port: opds_port,
                     opds_running: true,
                     litestream_status_text: litestream_status_str,
