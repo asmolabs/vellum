@@ -220,6 +220,7 @@ impl BookService {
         };
 
         let saved = self.book_repo.save(&book)?;
+        let _ = self.ensure_book_thumbnail(&saved);
         if rule_outcome.should_polish {
             let _ = self.polish_book(&saved.id, crate::PolishOptions::default());
         }
@@ -351,6 +352,7 @@ impl BookService {
         }
 
         self.book_repo.delete(book_id)?;
+        self.invalidate_book_thumbnail(book_id);
 
         if let Some(ref sr) = self.sync_repo {
             let event = vellum_domain::SyncEvent::new(

@@ -15,6 +15,7 @@ use dioxus::html::HasFileData;
 use dioxus::prelude::*;
 
 mod components;
+mod cover_cache;
 mod library_logic;
 mod state;
 mod styles;
@@ -83,6 +84,7 @@ fn App() -> Element {
     let search_query = use_signal(String::new);
     let mut selected_book = use_signal(|| None::<Book>);
     let mut focused_book_id = use_signal(|| None::<String>);
+    let mut grid_scroll_metrics = use_signal(|| (0.0_f64, 920.0_f64, 720.0_f64));
     let mut active_reader = use_signal(|| None::<ReaderSession>);
     let mut settings_open = use_signal(|| false);
     let mut palette_open = use_signal(|| false);
@@ -271,6 +273,7 @@ fn App() -> Element {
         let mut refresh = refresh_library.clone();
         move |id: String| {
             let _ = bs.delete_book(&id, true);
+            cover_cache::invalidate_book_cover(&id);
             selected_book.set(None);
             refresh();
         }
@@ -326,6 +329,9 @@ fn App() -> Element {
             let ids: Vec<String> = set.into_iter().collect();
             if !ids.is_empty() {
                 let _ = bs.bulk_delete_books(&ids, true);
+                for id in &ids {
+                    cover_cache::invalidate_book_cover(id);
+                }
                 selected_ids.set(std::collections::HashSet::new());
                 selected_book.set(None);
                 refresh();
@@ -412,6 +418,7 @@ fn App() -> Element {
                     "Métadonnées mises à jour avec succès pour: {}",
                     updated.title
                 );
+                cover_cache::invalidate_book_cover(&updated.id);
                 selected_book.set(Some(updated));
                 refresh();
             }
@@ -428,6 +435,7 @@ fn App() -> Element {
         move |b_id: String| match bs.enrich_book(&b_id) {
             Ok(updated) => {
                 tracing::info!("Métadonnées enrichies avec succès pour: {}", updated.title);
+                cover_cache::invalidate_book_cover(&updated.id);
                 selected_book.set(Some(updated));
                 refresh();
             }
@@ -444,6 +452,7 @@ fn App() -> Element {
         move |(b_id, path): (String, PathBuf)| match bs.update_book_cover(&b_id, &path) {
             Ok(updated) => {
                 tracing::info!("Couverture mise à jour avec succès pour: {}", updated.title);
+                cover_cache::invalidate_book_cover(&updated.id);
                 selected_book.set(Some(updated));
                 refresh();
             }
@@ -741,6 +750,37 @@ fn App() -> Element {
             });
         }
     };
+
+    // Grid virtualization scroll + resize observer (rAF-throttled)
+    use_effect(move || {
+        let mut eval = document::eval(
+            r#"
+            const scroller = document.getElementById('vellum-library-scroll');
+            if (!scroller) return;
+            let rafId = 0;
+            const emit = () => {
+                rafId = 0;
+                const grid = document.getElementById('vellum-books-grid');
+                const width = grid ? grid.clientWidth : Math.max(scroller.clientWidth - 48, 200);
+                dioxus.send([scroller.scrollTop, width, scroller.clientHeight]);
+            };
+            const schedule = () => {
+                if (!rafId) rafId = requestAnimationFrame(emit);
+            };
+            scroller.addEventListener('scroll', schedule, { passive: true });
+            const ro = new ResizeObserver(schedule);
+            ro.observe(scroller);
+            emit();
+        "#,
+        );
+        spawn(async move {
+            while let Ok(vals) = eval.recv::<Vec<f64>>().await {
+                if vals.len() == 3 {
+                    grid_scroll_metrics.set((vals[0], vals[1], vals[2]));
+                }
+            }
+        });
+    });
 
     // Global keyboard shortcuts (Cmd/Ctrl+K palette, Escape to close, Arrows/Enter/Space in library)
     {
@@ -1143,7 +1183,9 @@ fn App() -> Element {
                 }
 
                 // Books Library
-                main { class: "library-area",
+                main {
+                    id: "vellum-library-scroll",
+                    class: "library-area",
                     div { class: "library-header",
                         div { class: "library-title-group",
                             div { style: "display: flex; align-items: center; gap: 10px;",
@@ -1307,22 +1349,47 @@ fn App() -> Element {
                             on_read: handle_read.clone(),
                         }
                     } else {
-                        div { class: "books-grid",
-                            for b in filtered_books.iter() {
-                                {
-                                    let id = b.id.clone();
-                                    let is_selected = selected_ids.read().contains(&id);
-                                    let selection_mode = !selected_ids.read().is_empty();
-                                    rsx! {
-                                        BookCard {
-                                            key: "{b.id}",
-                                            book: b.clone(),
-                                            is_selected: is_selected,
-                                            selection_mode: selection_mode,
-                                            on_toggle_select: handle_toggle_select,
-                                            on_select: move |selected| selected_book.set(Some(selected)),
-                                            on_read: handle_read.clone(),
+                        {
+                            let (scroll_top, grid_w, view_h) = *grid_scroll_metrics.read();
+                            let grid_win = library_logic::compute_grid_window(
+                                filtered_books.len(),
+                                grid_w,
+                                scroll_top,
+                                view_h,
+                            );
+                            rsx! {
+                                if grid_win.top_spacer_px > 0.0 {
+                                    div {
+                                        key: "grid-top-spacer",
+                                        style: "height: {grid_win.top_spacer_px:.1}px; flex-shrink: 0;",
+                                    }
+                                }
+                                div {
+                                    id: "vellum-books-grid",
+                                    class: "books-grid",
+                                    for b in filtered_books[grid_win.start_idx..grid_win.end_idx].iter() {
+                                        {
+                                            let id = b.id.clone();
+                                            let is_selected = selected_ids.read().contains(&id);
+                                            let selection_mode = !selected_ids.read().is_empty();
+                                            rsx! {
+                                                BookCard {
+                                                    key: "{b.id}",
+                                                    book: b.clone(),
+                                                    is_selected: is_selected,
+                                                    selection_mode: selection_mode,
+                                                    on_toggle_select: handle_toggle_select,
+                                                    on_select: move |selected| selected_book.set(Some(selected)),
+                                                    on_read: handle_read.clone(),
+                                                }
+                                            }
                                         }
+                                    }
+                                }
+                                if grid_win.bottom_spacer_px > 0.0 {
+                                    div {
+                                        key: "grid-bottom-spacer",
+                                        style: "height: {grid_win.bottom_spacer_px:.1}px; flex-shrink: 0;",
                                     }
                                 }
                             }

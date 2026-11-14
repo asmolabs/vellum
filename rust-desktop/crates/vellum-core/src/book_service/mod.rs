@@ -5,9 +5,13 @@ mod conversion;
 mod epub_and_audit;
 mod lifecycle;
 mod metadata;
+pub mod thumbnails;
 
 pub use bulk_regex::{BulkRegexChange, BulkRegexReport, BulkRegexRequest, RegexTargetField};
 pub use conversion::BulkConvertReport;
+pub use thumbnails::{
+    ensure_thumbnail_for_cover, generate_webp_thumbnail, thumbnail_path_for_book,
+};
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

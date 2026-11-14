@@ -447,6 +447,10 @@ body {
   transition: background 0.15s ease;
 }
 
+.books-table tbody tr.book-row {
+  height: 57px;
+}
+
 .books-table tbody tr:hover {
   background: rgba(99, 102, 241, 0.1);
 }

@@ -25,6 +25,7 @@ ammonia.workspace = true
 zip.workspace = true
 lopdf.workspace = true
 base64.workspace = true
+image.workspace = true
 dirs.workspace = true
 tempfile.workspace = true
 lettre.workspace = true

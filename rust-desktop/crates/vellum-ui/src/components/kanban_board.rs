@@ -173,38 +173,7 @@ fn KanbanCard(
     let progress = book.progress_percent;
     let formats = book.formats.clone();
 
-    use base64::Engine;
-    let cover_src = cover_path.as_ref().and_then(|p| {
-        if p.starts_with("data:") || p.starts_with("http") {
-            Some(p.clone())
-        } else {
-            let full_path = if std::path::Path::new(p).is_absolute() {
-                std::path::PathBuf::from(p)
-            } else {
-                dirs::home_dir().map(|h| h.join(".vellum").join("library").join(p))?
-            };
-
-            if full_path.exists() {
-                if let Ok(bytes) = std::fs::read(&full_path) {
-                    let ext = full_path
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("jpeg")
-                        .to_lowercase();
-                    let mime = match ext.as_str() {
-                        "png" => "image/png",
-                        "webp" => "image/webp",
-                        _ => "image/jpeg",
-                    };
-                    return Some(format!(
-                        "data:{mime};base64,{}",
-                        base64::engine::general_purpose::STANDARD.encode(&bytes)
-                    ));
-                }
-            }
-            None
-        }
-    });
+    let cover_src = crate::cover_cache::resolve_cover_src(&b_id, cover_path.as_deref(), true);
 
     rsx! {
         div {

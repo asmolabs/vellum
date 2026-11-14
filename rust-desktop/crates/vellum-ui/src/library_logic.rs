@@ -141,6 +141,111 @@ pub fn next_focused_book_id(
     books.get(next_idx).map(|b| b.id.clone())
 }
 
+/// Fenêtre de virtualisation calculée pour la grille de couvertures (`.books-grid`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GridWindow {
+    pub start_idx: usize,
+    pub end_idx: usize,
+    pub top_spacer_px: f64,
+    pub bottom_spacer_px: f64,
+}
+
+/// Calcule la plage visible `[start_idx..end_idx]` et les espaces haut/bas pour la grille virtualisée.
+pub fn compute_grid_window(
+    total_items: usize,
+    container_width_px: f64,
+    scroll_top_px: f64,
+    viewport_height_px: f64,
+) -> GridWindow {
+    const CARD_MIN_W: f64 = 136.0;
+    const GRID_GAP: f64 = 14.0;
+    const CARD_ASPECT: f64 = 1.45;
+    const OVERSCAN_ROWS: usize = 2;
+
+    if total_items == 0 {
+        return GridWindow {
+            start_idx: 0,
+            end_idx: 0,
+            top_spacer_px: 0.0,
+            bottom_spacer_px: 0.0,
+        };
+    }
+
+    let width = container_width_px.max(CARD_MIN_W);
+    let view_h = viewport_height_px.max(200.0);
+    let cols = ((width + GRID_GAP) / (CARD_MIN_W + GRID_GAP))
+        .floor()
+        .max(1.0) as usize;
+    let card_w =
+        ((width - (cols.saturating_sub(1)) as f64 * GRID_GAP) / cols as f64).max(CARD_MIN_W);
+    let row_stride = card_w * CARD_ASPECT + GRID_GAP;
+    let total_rows = total_items.div_ceil(cols);
+
+    let first_visible_row =
+        ((scroll_top_px.max(0.0) / row_stride).floor() as usize).min(total_rows.saturating_sub(1));
+    let start_row = first_visible_row.saturating_sub(OVERSCAN_ROWS);
+    let visible_rows = (view_h / row_stride).ceil().max(1.0) as usize;
+    let end_row = (first_visible_row + visible_rows + OVERSCAN_ROWS + 1).min(total_rows);
+
+    let start_idx = (start_row * cols).min(total_items);
+    let end_idx = (end_row * cols).min(total_items);
+    let top_spacer_px = start_row as f64 * row_stride;
+    let bottom_spacer_px = total_rows.saturating_sub(end_row) as f64 * row_stride;
+
+    GridWindow {
+        start_idx,
+        end_idx,
+        top_spacer_px,
+        bottom_spacer_px,
+    }
+}
+
+/// Fenêtre de virtualisation calculée pour le tableau des livres (`.books-table`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TableWindow {
+    pub start_idx: usize,
+    pub end_idx: usize,
+    pub top_spacer_px: f64,
+    pub bottom_spacer_px: f64,
+}
+
+/// Hauteur nominale (px) d'une ligne de tableau dans `.books-table`.
+pub const TABLE_ROW_HEIGHT_PX: f64 = 57.0;
+
+/// Calcule la plage visible `[start_idx..end_idx]` et les espaces haut/bas pour le tableau virtualisé.
+pub fn compute_table_window(
+    total_rows: usize,
+    scroll_top_px: f64,
+    viewport_height_px: f64,
+    row_height_px: f64,
+) -> TableWindow {
+    const OVERSCAN_ROWS: usize = 8;
+
+    if total_rows == 0 {
+        return TableWindow {
+            start_idx: 0,
+            end_idx: 0,
+            top_spacer_px: 0.0,
+            bottom_spacer_px: 0.0,
+        };
+    }
+
+    let row_h = row_height_px.max(24.0);
+    let view_h = viewport_height_px.max(row_h);
+    let first_visible =
+        ((scroll_top_px.max(0.0) / row_h).floor() as usize).min(total_rows.saturating_sub(1));
+    let start_idx = first_visible.saturating_sub(OVERSCAN_ROWS);
+    let visible_rows = (view_h / row_h).ceil().max(1.0) as usize + 1;
+    let end_idx = (first_visible + visible_rows + OVERSCAN_ROWS).min(total_rows);
+
+    TableWindow {
+        start_idx,
+        end_idx,
+        top_spacer_px: start_idx as f64 * row_h,
+        bottom_spacer_px: total_rows.saturating_sub(end_idx) as f64 * row_h,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,5 +443,44 @@ mod tests {
         assert!(bulk_req.auto_index);
         assert_eq!(bulk_req.add_tags, vec!["SF"]);
         assert_eq!(bulk_req.remove_tags, vec!["Old"]);
+    }
+
+    #[test]
+    fn test_compute_grid_window_and_spacers() {
+        let empty = compute_grid_window(0, 900.0, 0.0, 700.0);
+        assert_eq!(empty.start_idx, 0);
+        assert_eq!(empty.end_idx, 0);
+
+        // 1000 items across ~6 columns (900px width -> 6 cols)
+        let top_win = compute_grid_window(1000, 900.0, 0.0, 700.0);
+        assert_eq!(top_win.start_idx, 0);
+        assert_eq!(top_win.top_spacer_px, 0.0);
+        assert!(top_win.end_idx > 0 && top_win.end_idx < 100);
+        assert!(top_win.bottom_spacer_px > 0.0);
+
+        let mid_win = compute_grid_window(1000, 900.0, 2000.0, 700.0);
+        assert!(mid_win.start_idx > 0);
+        assert!(mid_win.top_spacer_px > 0.0);
+        assert!(mid_win.end_idx < 1000);
+        assert!(mid_win.bottom_spacer_px > 0.0);
+    }
+
+    #[test]
+    fn test_compute_table_window_bounds() {
+        let empty = compute_table_window(0, 0.0, 500.0, TABLE_ROW_HEIGHT_PX);
+        assert_eq!(empty.start_idx, 0);
+        assert_eq!(empty.end_idx, 0);
+
+        let top = compute_table_window(2000, 0.0, 570.0, TABLE_ROW_HEIGHT_PX);
+        assert_eq!(top.start_idx, 0);
+        assert!(top.end_idx <= 25);
+        assert_eq!(top.top_spacer_px, 0.0);
+        assert!(top.bottom_spacer_px > 0.0);
+
+        let scrolled = compute_table_window(2000, 5700.0, 570.0, TABLE_ROW_HEIGHT_PX);
+        assert_eq!(scrolled.start_idx, 92);
+        assert!(scrolled.end_idx > 100 && scrolled.end_idx < 130);
+        assert!(scrolled.top_spacer_px > 0.0);
+        assert!(scrolled.bottom_spacer_px > 0.0);
     }
 }

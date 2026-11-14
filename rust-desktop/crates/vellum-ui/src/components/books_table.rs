@@ -1,37 +1,8 @@
-use base64::Engine;
+use crate::cover_cache::resolve_cover_src;
+use crate::library_logic::{compute_table_window, TABLE_ROW_HEIGHT_PX};
 use dioxus::prelude::*;
 use std::collections::HashSet;
 use vellum_domain::Book;
-
-fn resolve_cover_src(cover_path: Option<&str>) -> Option<String> {
-    let p = cover_path?;
-    if p.starts_with("data:") || p.starts_with("http") {
-        return Some(p.to_string());
-    }
-    let full_path = if std::path::Path::new(p).is_absolute() {
-        std::path::PathBuf::from(p)
-    } else {
-        dirs::home_dir().map(|h| h.join(".vellum").join("library").join(p))?
-    };
-    if !full_path.exists() {
-        return None;
-    }
-    let bytes = std::fs::read(&full_path).ok()?;
-    let ext = full_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("jpeg")
-        .to_lowercase();
-    let mime = match ext.as_str() {
-        "png" => "image/png",
-        "webp" => "image/webp",
-        _ => "image/jpeg",
-    };
-    Some(format!(
-        "data:{mime};base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(&bytes)
-    ))
-}
 
 #[component]
 pub fn BooksTable(
@@ -43,10 +14,42 @@ pub fn BooksTable(
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
 ) -> Element {
+    let mut table_scroll = use_signal(|| (0.0_f64, 560.0_f64));
+
+    use_effect(move || {
+        let mut eval = document::eval(
+            r#"
+            const el = document.getElementById('vellum-books-table-wrap');
+            if (!el) return;
+            let rafId = 0;
+            const emit = () => {
+                rafId = 0;
+                dioxus.send([el.scrollTop, el.clientHeight]);
+            };
+            const schedule = () => {
+                if (!rafId) rafId = requestAnimationFrame(emit);
+            };
+            el.addEventListener('scroll', schedule, { passive: true });
+            const ro = new ResizeObserver(schedule);
+            ro.observe(el);
+            emit();
+        "#,
+        );
+        spawn(async move {
+            while let Ok(vals) = eval.recv::<Vec<f64>>().await {
+                if vals.len() == 2 {
+                    table_scroll.set((vals[0], vals[1]));
+                }
+            }
+        });
+    });
+
     let active_idx =
         crate::library_logic::resolve_active_index(&books, focused_book_id.read().as_deref())
             .unwrap_or(0);
     let active_id = books.get(active_idx).map(|b| b.id.clone());
+    let (scroll_top, viewport_h) = *table_scroll.read();
+    let table_win = compute_table_window(books.len(), scroll_top, viewport_h, TABLE_ROW_HEIGHT_PX);
 
     rsx! {
         div { style: "display: flex; flex-direction: column; flex: 1; min-height: 0;",
@@ -105,7 +108,7 @@ pub fn BooksTable(
                                                 let tz = -(abs_off * 48);
                                                 format!("translateX(calc(-50% + {tx}px)) translateZ({tz}px) rotateY(-48deg) scale(0.92)")
                                             };
-                                            let cover_src = resolve_cover_src(b.cover_path.as_deref());
+                                            let cover_src = resolve_cover_src(&b.id, b.cover_path.as_deref(), true);
                                             let id_click = b.id.clone();
                                             let b_click = b.clone();
                                             let b_dbl = b.clone();
@@ -176,7 +179,9 @@ pub fn BooksTable(
                 }
             }
 
-            div { class: "books-table-wrap",
+            div {
+                id: "vellum-books-table-wrap",
+                class: "books-table-wrap",
                 table { class: "books-table",
                     thead {
                         tr {
@@ -192,11 +197,18 @@ pub fn BooksTable(
                         }
                     }
                     tbody {
-                        for b in books.iter() {
+                        if table_win.top_spacer_px > 0.0 {
+                            tr {
+                                key: "table-top-spacer",
+                                style: "height: {table_win.top_spacer_px:.1}px; pointer-events: none;",
+                                td { colspan: "9", style: "padding: 0; border: none;" }
+                            }
+                        }
+                        for b in books[table_win.start_idx..table_win.end_idx].iter() {
                             {
                                 let is_active = active_id.as_deref() == Some(b.id.as_str());
                                 let is_checked = selected_ids.contains(&b.id);
-                                let cover_src = resolve_cover_src(b.cover_path.as_deref());
+                                let cover_src = resolve_cover_src(&b.id, b.cover_path.as_deref(), true);
                                 let series_label = match (&b.series, b.series_index) {
                                     (Some(s), Some(idx)) if !s.is_empty() => format!("{s} #{idx}"),
                                     (Some(s), None) if !s.is_empty() => s.clone(),
@@ -218,7 +230,7 @@ pub fn BooksTable(
                                 rsx! {
                                     tr {
                                         key: "row-{b.id}",
-                                        class: if is_active { "active-row" } else { "" },
+                                        class: if is_active { "book-row active-row" } else { "book-row" },
                                         onclick: move |_| {
                                             focused_book_id.set(Some(id_focus.clone()));
                                             on_select.call(b_row_select.clone());
@@ -281,6 +293,13 @@ pub fn BooksTable(
                                         }
                                     }
                                 }
+                            }
+                        }
+                        if table_win.bottom_spacer_px > 0.0 {
+                            tr {
+                                key: "table-bottom-spacer",
+                                style: "height: {table_win.bottom_spacer_px:.1}px; pointer-events: none;",
+                                td { colspan: "9", style: "padding: 0; border: none;" }
                             }
                         }
                     }

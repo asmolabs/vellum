@@ -147,6 +147,7 @@ impl BookService {
         }
 
         let saved = self.book_repo.save(&book)?;
+        let _ = self.ensure_book_thumbnail(&saved);
 
         if let Some(ref sr) = self.sync_repo {
             let event = vellum_domain::SyncEvent::new(
@@ -268,6 +269,8 @@ impl BookService {
         }
 
         let saved = self.book_repo.save(&book)?;
+        self.invalidate_book_thumbnail(book_id);
+        let _ = self.ensure_book_thumbnail(&saved);
 
         if let Some(ref sr) = self.sync_repo {
             let event = vellum_domain::SyncEvent::new(
@@ -324,6 +327,8 @@ impl BookService {
 
         book.cover_path = Some(cover_dest_rel);
         let saved = self.book_repo.save(&book)?;
+        self.invalidate_book_thumbnail(book_id);
+        let _ = self.ensure_book_thumbnail(&saved);
 
         if let Some(ref sr) = self.sync_repo {
             let event = vellum_domain::SyncEvent::new(
