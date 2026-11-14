@@ -17,7 +17,7 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BooksTable, BulkEditModal, BulkRegexModal, CommandPalette, ContentSearchModal,
+    BookCard, BooksTable, BulkConvertModal, BulkEditModal, BulkRegexModal, CommandPalette, ContentSearchModal,
     DetailDrawer, EpubEditorModal, Header, ImportRulesModal, KanbanBoard, KanbanTargetStatus,
     LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal, ReadingStatsModal,
     SettingsModal, Sidebar, TranslateModal, TranslationRequest,
@@ -82,6 +82,7 @@ fn App() -> Element {
     let mut settings_open = use_signal(|| false);
     let mut palette_open = use_signal(|| false);
     let mut bulk_edit_open = use_signal(|| false);
+    let mut bulk_convert_open = use_signal(|| false);
     let mut selected_ids = use_signal(std::collections::HashSet::<String>::new);
     let mut translating_book = use_signal(|| None::<Book>);
     let mut is_translating = use_signal(|| false);
@@ -950,6 +951,7 @@ fn App() -> Element {
                     selected_book.set(None);
                     settings_open.set(false);
                     bulk_edit_open.set(false);
+                    bulk_convert_open.set(false);
                     bulk_regex_open.set(false);
                     content_search_open.set(false);
                     import_rules_open.set(false);
@@ -1587,6 +1589,13 @@ fn App() -> Element {
                             button {
                                 class: "btn btn-secondary",
                                 style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                                onclick: move |_| bulk_convert_open.set(true),
+                                span { "🔄" }
+                                "Convertir"
+                            }
+                            button {
+                                class: "btn btn-secondary",
+                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                                 onclick: move |_| bulk_regex_open.set(true),
                                 span { "🔤" }
                                 "Regex"
@@ -1639,6 +1648,24 @@ fn App() -> Element {
                     books: books.read().clone(),
                     on_close: move |_| content_search_open.set(false),
                     on_select_book: move |b| selected_book.set(Some(b)),
+                }
+            }
+
+            // Bulk Convert Modal
+            if *bulk_convert_open.read() {
+                {
+                    let ids: Vec<String> = selected_ids.read().iter().cloned().collect();
+                    rsx! {
+                        BulkConvertModal {
+                            book_service: book_service.clone(),
+                            target_book_ids: ids,
+                            on_close: move |_| bulk_convert_open.set(false),
+                            on_converted: {
+                                let mut refresh = refresh_library.clone();
+                                move |_| refresh()
+                            },
+                        }
+                    }
                 }
             }
 

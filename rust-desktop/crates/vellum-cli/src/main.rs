@@ -100,6 +100,36 @@ fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, St
                 r.metadata_updated, r.cover_embedded, r.chapters_smartened, r.toc_rebuilt, r.repaired
             ))
         }
+        "convert" => {
+            if args.len() < 3 {
+                return Err(
+                    "Usage: vellum-cli convert <epub|pdf|cbz|txt> [--all | <book_id>...]"
+                        .to_string(),
+                );
+            }
+            let fmt = &args[1];
+            let ids: Vec<String> = if args[2] == "--all" {
+                bs.get_books(None, None)
+                    .map_err(|e| format!("Erreur lecture catalogue : {e}"))?
+                    .into_iter()
+                    .map(|b| b.id)
+                    .collect()
+            } else {
+                args[2..].to_vec()
+            };
+            let report = bs.bulk_convert_books(&ids, fmt);
+            let mut out = format!(
+                "Conversion batch -> {} : {} converti(s), {} ignoré(s), {} erreur(s)",
+                report.target_format,
+                report.converted_count,
+                report.skipped_count,
+                report.errors.len()
+            );
+            for err in report.errors {
+                out.push_str(&format!("\n  - {err}"));
+            }
+            Ok(out)
+        }
         "audit" => {
             let report = bs
                 .audit_library()
@@ -189,6 +219,7 @@ fn print_help() {
            list [--search <q>] [--tag <t>]         Lister les livres\n\
            import <fichier>                        Importer un ebook\n\
            polish <book_id>                        Polir un EPUB (métadonnées, couverture, TOC)\n\
+           convert <fmt> <--all | id...>           Convertir un lot de livres (epub, pdf, cbz, txt)\n\
            audit                                   Auditer la santé de la bibliothèque\n\
            export <csv|json|bibtex> <sortie>       Exporter le catalogue\n\
            watch <dossier> [--keep]                Scanner un dossier Watch Folder\n\
@@ -301,5 +332,40 @@ mod tests {
 
         let err2 = dispatch_sync_command(&["import".to_string()], &bs).unwrap_err();
         assert!(err2.contains("Usage: vellum-cli import"));
+    }
+
+    #[test]
+    fn test_cli_bulk_convert_txt_to_epub() {
+        let (tmp, bs) = setup_test_book_service();
+        let txt1 = tmp.path().join("Livre1.txt");
+        let txt2 = tmp.path().join("Livre2.txt");
+        std::fs::write(&txt1, "Chapitre 1\n\nContenu du premier livre.").unwrap();
+        std::fs::write(&txt2, "Chapitre 1\n\nContenu du second livre.").unwrap();
+
+        dispatch_sync_command(
+            &["import".to_string(), txt1.to_string_lossy().to_string()],
+            &bs,
+        )
+        .unwrap();
+        dispatch_sync_command(
+            &["import".to_string(), txt2.to_string_lossy().to_string()],
+            &bs,
+        )
+        .unwrap();
+
+        let out = dispatch_sync_command(
+            &["convert".to_string(), "epub".to_string(), "--all".to_string()],
+            &bs,
+        )
+        .expect("bulk convert");
+        assert!(out.contains("2 converti(s), 0 ignoré(s), 0 erreur(s)"));
+
+        // Second pass must skip both since EPUB already exists
+        let out2 = dispatch_sync_command(
+            &["convert".to_string(), "epub".to_string(), "--all".to_string()],
+            &bs,
+        )
+        .expect("bulk convert second pass");
+        assert!(out2.contains("0 converti(s), 2 ignoré(s), 0 erreur(s)"));
     }
 }

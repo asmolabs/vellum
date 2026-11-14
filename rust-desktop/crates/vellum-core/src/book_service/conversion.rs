@@ -2,9 +2,19 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
 use vellum_domain::{Book, BookFormat, VellumError, VellumResult};
 
 use super::{BookService, TranslateBookRequest};
+
+/// Rapport d'une opération de conversion en lot (`bulk_convert_books`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BulkConvertReport {
+    pub target_format: String,
+    pub converted_count: usize,
+    pub skipped_count: usize,
+    pub errors: Vec<String>,
+}
 
 impl BookService {
     pub fn get_convertible_formats_for_book(&self, book: &Book) -> Vec<String> {
@@ -26,6 +36,42 @@ impl BookService {
         let mut list: Vec<String> = available.into_iter().collect();
         list.sort();
         list
+    }
+
+    /// Convertit un lot de livres vers `target_format`, en ignorant ceux qui possèdent déjà ce format.
+    pub fn bulk_convert_books(
+        &self,
+        book_ids: &[String],
+        target_format: &str,
+    ) -> BulkConvertReport {
+        let target_ext = target_format.trim().to_lowercase();
+        let mut report = BulkConvertReport {
+            target_format: target_ext.to_uppercase(),
+            ..Default::default()
+        };
+
+        for book_id in book_ids {
+            let Ok(Some(book)) = self.book_repo.find_by_id(book_id) else {
+                report
+                    .errors
+                    .push(format!("{book_id} : livre introuvable"));
+                continue;
+            };
+            if book
+                .formats
+                .iter()
+                .any(|f| f.format.eq_ignore_ascii_case(&target_ext))
+            {
+                report.skipped_count += 1;
+                continue;
+            }
+            match self.convert_book_to_format(book_id, &target_ext) {
+                Ok(_) => report.converted_count += 1,
+                Err(e) => report.errors.push(format!("{} : {e}", book.title)),
+            }
+        }
+
+        report
     }
 
     pub fn convert_book_to_format(

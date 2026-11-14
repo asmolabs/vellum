@@ -7,6 +7,7 @@ mod lifecycle;
 mod metadata;
 
 pub use bulk_regex::{BulkRegexChange, BulkRegexReport, BulkRegexRequest, RegexTargetField};
+pub use conversion::BulkConvertReport;
 
 use std::collections::BTreeMap;
 use std::fs;

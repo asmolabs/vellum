@@ -40,7 +40,8 @@ pub mod web_companion_assets;
 
 pub use app_services::{define_passage_with_ai, init_services, scan_and_index_library, AppServices};
 pub use book_service::{
-    BookService, BulkRegexChange, BulkRegexReport, BulkRegexRequest, DuplicateBookInfo,
+    BookService, BulkConvertReport, BulkRegexChange, BulkRegexReport, BulkRegexRequest,
+    DuplicateBookInfo,
     RegexTargetField, TranslateBookRequest, UpdateMetadataRequest,
 };
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
