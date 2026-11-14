@@ -53,6 +53,7 @@ pub fn BookCard(
     rsx! {
         div {
             class: if is_selected { "book-card selected" } else { "book-card" },
+            title: "{title} — {author}",
             style: if is_selected { "border-color: #818cf8; box-shadow: 0 0 12px rgba(129, 140, 248, 0.4); transform: scale(1.02);" } else { "" },
             onclick: {
                 let book = book.clone();
@@ -109,36 +110,10 @@ pub fn BookCard(
                         span { class: "format-pill", "{fmt.format.to_uppercase()}" }
                     }
                 }
-            }
-
-            div { class: "card-body",
-                div { class: "book-title", title: "{title}", "{title}" }
-
-                if let Some(ref s) = book.series {
-                    {
-                        let series_str = if let Some(idx) = book.series_index {
-                            if idx.fract() == 0.0 {
-                                format!("📚 {s} • T.{}", idx as i64)
-                            } else {
-                                format!("📚 {s} • T.{idx}")
-                            }
-                        } else {
-                            format!("📚 {s}")
-                        };
-                        rsx! {
-                            div {
-                                style: "font-size: 11px; font-weight: 600; color: #a78bfa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
-                                title: "{series_str}",
-                                "{series_str}"
-                            }
-                        }
-                    }
-                }
-
-                div { class: "book-author", title: "{author}", "{author}" }
 
                 if progress > 0.0 {
-                    div { class: "progress-track",
+                    div {
+                        style: "position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(0, 0, 0, 0.45);",
                         div {
                             class: "progress-bar",
                             style: "width: {progress.clamp(0.0, 100.0)}%;",
