@@ -44,44 +44,134 @@ pub fn BooksTable(
 ) -> Element {
     let mut focused_book_id = use_signal(|| books.first().map(|b| b.id.clone()));
 
-    let active_id = focused_book_id
+    let active_idx = focused_book_id
         .read()
-        .clone()
-        .filter(|id| books.iter().any(|b| &b.id == id))
-        .or_else(|| books.first().map(|b| b.id.clone()));
+        .as_ref()
+        .and_then(|id| books.iter().position(|b| &b.id == id))
+        .unwrap_or(0);
+    let active_id = books.get(active_idx).map(|b| b.id.clone());
 
     rsx! {
         div { style: "display: flex; flex-direction: column; flex: 1; min-height: 0;",
-            if show_carousel {
-                div { class: "cover-carousel",
-                    for b in books.iter() {
-                        {
-                            let is_active = active_id.as_deref() == Some(b.id.as_str());
-                            let cover_src = resolve_cover_src(b.cover_path.as_deref());
-                            let b_click = b.clone();
-                            let b_dbl = b.clone();
-                            let id_click = b.id.clone();
-                            rsx! {
-                                div {
-                                    key: "car-{b.id}",
-                                    class: if is_active { "carousel-item active" } else { "carousel-item" },
-                                    title: "{b.title} — {b.author}",
-                                    onclick: move |_| {
-                                        focused_book_id.set(Some(id_click.clone()));
-                                        on_select.call(b_click.clone());
-                                    },
-                                    ondoubleclick: move |_| on_read.call(b_dbl.clone()),
-                                    div { class: "carousel-cover",
-                                        if let Some(src) = cover_src {
-                                            img {
-                                                src: "{src}",
-                                                style: "width: 100%; height: 100%; object-fit: cover;",
+            if show_carousel && !books.is_empty() {
+                {
+                    let total = books.len();
+                    let books_prev = books.clone();
+                    let books_next = books.clone();
+                    let books_wheel = books.clone();
+                    let active_book = books[active_idx].clone();
+                    let active_read = active_book.clone();
+                    let active_detail = active_book.clone();
+
+                    rsx! {
+                        div {
+                            class: "coverflow-stage",
+                            onwheel: move |evt: WheelEvent| {
+                                let delta = evt.delta().strip_units();
+                                let dy = if delta.x.abs() > delta.y.abs() { delta.x } else { delta.y };
+                                if dy > 4.0 && active_idx + 1 < books_wheel.len() {
+                                    focused_book_id.set(Some(books_wheel[active_idx + 1].id.clone()));
+                                } else if dy < -4.0 && active_idx > 0 {
+                                    focused_book_id.set(Some(books_wheel[active_idx - 1].id.clone()));
+                                }
+                            },
+
+                            button {
+                                class: "coverflow-nav prev",
+                                title: "Précédent",
+                                disabled: active_idx == 0,
+                                onclick: move |_| {
+                                    if active_idx > 0 {
+                                        focused_book_id.set(Some(books_prev[active_idx - 1].id.clone()));
+                                    }
+                                },
+                                "‹"
+                            }
+
+                            div { class: "coverflow-track",
+                                for (idx, b) in books.iter().enumerate() {
+                                    {
+                                        let offset = idx as isize - active_idx as isize;
+                                        if offset.abs() <= 5 {
+                                            let is_center = offset == 0;
+                                            let abs_off = offset.abs();
+                                            let z_index = 20 - abs_off;
+                                            let opacity = if is_center { 1.0 } else { (1.0 - (abs_off as f32) * 0.13).max(0.35) };
+                                            let transform = if is_center {
+                                                "translateX(-50%) translateZ(90px) scale(1.1) rotateY(0deg)".to_string()
+                                            } else if offset < 0 {
+                                                let tx = offset * 82 - 44;
+                                                let tz = -(abs_off * 48);
+                                                format!("translateX(calc(-50% + {tx}px)) translateZ({tz}px) rotateY(48deg) scale(0.92)")
+                                            } else {
+                                                let tx = offset * 82 + 44;
+                                                let tz = -(abs_off * 48);
+                                                format!("translateX(calc(-50% + {tx}px)) translateZ({tz}px) rotateY(-48deg) scale(0.92)")
+                                            };
+                                            let cover_src = resolve_cover_src(b.cover_path.as_deref());
+                                            let id_click = b.id.clone();
+                                            let b_click = b.clone();
+                                            let b_dbl = b.clone();
+                                            rsx! {
+                                                div {
+                                                    key: "cf-{b.id}",
+                                                    class: if is_center { "coverflow-card is-center" } else { "coverflow-card" },
+                                                    style: "transform: {transform}; z-index: {z_index}; opacity: {opacity};",
+                                                    title: "{b.title} — {b.author}",
+                                                    onclick: move |_| {
+                                                        if is_center {
+                                                            on_select.call(b_click.clone());
+                                                        } else {
+                                                            focused_book_id.set(Some(id_click.clone()));
+                                                        }
+                                                    },
+                                                    ondoubleclick: move |_| on_read.call(b_dbl.clone()),
+                                                    if let Some(src) = cover_src {
+                                                        img {
+                                                            src: "{src}",
+                                                            style: "width: 100%; height: 100%; object-fit: cover; pointer-events: none;",
+                                                        }
+                                                    } else {
+                                                        div { style: "padding: 10px; text-align: center; font-size: 11px; color: var(--text-secondary);",
+                                                            div { style: "font-size: 26px; margin-bottom: 6px;", "📖" }
+                                                            div { style: "font-weight: 600;", "{b.title}" }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         } else {
-                                            span { style: "font-size: 22px; color: var(--text-muted);", "📖" }
+                                            rsx! {}
                                         }
                                     }
-                                    div { class: "carousel-caption", "{b.title}" }
+                                }
+                            }
+
+                            button {
+                                class: "coverflow-nav next",
+                                title: "Suivant",
+                                disabled: active_idx + 1 >= total,
+                                onclick: move |_| {
+                                    if active_idx + 1 < books_next.len() {
+                                        focused_book_id.set(Some(books_next[active_idx + 1].id.clone()));
+                                    }
+                                },
+                                "›"
+                            }
+
+                            div { class: "coverflow-info",
+                                span { style: "font-weight: 700;", "{active_book.title}" }
+                                span { style: "color: var(--text-muted);", "— {active_book.author}" }
+                                button {
+                                    class: "btn btn-primary",
+                                    style: "padding: 3px 10px; font-size: 11px; border-radius: 6px;",
+                                    onclick: move |_| on_read.call(active_read.clone()),
+                                    "📖 Lire"
+                                }
+                                button {
+                                    class: "btn btn-secondary",
+                                    style: "padding: 3px 10px; font-size: 11px; border-radius: 6px;",
+                                    onclick: move |_| on_select.call(active_detail.clone()),
+                                    "ℹ️ Détails"
                                 }
                             }
                         }
