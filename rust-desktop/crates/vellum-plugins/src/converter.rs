@@ -1,4 +1,5 @@
 pub mod cbz_to_pdf;
+pub mod epub_to_kepub;
 pub mod epub_to_pdf;
 pub mod epub_to_text;
 pub mod mobi_to_epub;

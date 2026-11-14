@@ -72,6 +72,7 @@ pub fn BulkConvertModal(
                         value: "{target_format}",
                         onchange: move |e| target_format.set(e.value()),
                         option { value: "epub", "EPUB (Pivot universel / liseuses)" }
+                        option { value: "kepub", "KEPUB (Kobo EPUB avec koboSpan)" }
                         option { value: "pdf", "PDF (Document imprimable)" }
                         option { value: "cbz", "CBZ (Archive BD / Manga)" }
                         option { value: "txt", "TXT (Texte brut)" }

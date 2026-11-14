@@ -103,7 +103,7 @@ fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, St
         "convert" => {
             if args.len() < 3 {
                 return Err(
-                    "Usage: vellum-cli convert <epub|pdf|cbz|txt> [--all | <book_id>...]"
+                    "Usage: vellum-cli convert <epub|kepub|pdf|cbz|txt> [--all | <book_id>...]"
                         .to_string(),
                 );
             }
@@ -219,7 +219,7 @@ fn print_help() {
            list [--search <q>] [--tag <t>]         Lister les livres\n\
            import <fichier>                        Importer un ebook\n\
            polish <book_id>                        Polir un EPUB (métadonnées, couverture, TOC)\n\
-           convert <fmt> <--all | id...>           Convertir un lot de livres (epub, pdf, cbz, txt)\n\
+           convert <fmt> <--all | id...>           Convertir un lot de livres (epub, kepub, pdf, cbz, txt)\n\
            audit                                   Auditer la santé de la bibliothèque\n\
            export <csv|json|bibtex> <sortie>       Exporter le catalogue\n\
            watch <dossier> [--keep]                Scanner un dossier Watch Folder\n\
@@ -367,5 +367,18 @@ mod tests {
         )
         .expect("bulk convert second pass");
         assert!(out2.contains("0 converti(s), 2 ignoré(s), 0 erreur(s)"));
+
+        // Convert both to KEPUB
+        let out_kepub = dispatch_sync_command(
+            &["convert".to_string(), "kepub".to_string(), "--all".to_string()],
+            &bs,
+        )
+        .expect("bulk convert to kepub");
+        assert!(out_kepub.contains("2 converti(s), 0 ignoré(s), 0 erreur(s)"));
+        let books = bs.get_books(None, None).unwrap();
+        assert!(books[0]
+            .formats
+            .iter()
+            .any(|f| f.format.eq_ignore_ascii_case("kepub") && f.filename.ends_with(".kepub.epub")));
     }
 }

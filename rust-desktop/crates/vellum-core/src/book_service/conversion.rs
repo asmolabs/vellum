@@ -136,7 +136,12 @@ impl BookService {
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| self.library_path.clone());
 
-        let target_filename = format!("{}.{target_ext}", Self::sanitize_filename(&book.title));
+        let file_ext = if target_ext == "kepub" {
+            "kepub.epub"
+        } else {
+            target_ext.as_str()
+        };
+        let target_filename = format!("{}.{file_ext}", Self::sanitize_filename(&book.title));
         let dest_abs = book_dir_abs.join(&target_filename);
 
         self.conversion_service.convert_file(

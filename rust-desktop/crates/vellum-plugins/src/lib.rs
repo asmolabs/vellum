@@ -45,6 +45,7 @@ pub fn built_in_converter_plugins() -> Vec<Arc<dyn BookConverterPlugin>> {
         Arc::new(converter::text_to_epub::TextToEpubConverterPlugin::new()),
         Arc::new(converter::mobi_to_epub::MobiToEpubConverterPlugin::new()),
         Arc::new(converter::epub_to_pdf::EpubToPdfConverterPlugin::new()),
+        Arc::new(converter::epub_to_kepub::EpubToKepubConverterPlugin::new()),
     ]
 }
 
@@ -70,6 +71,7 @@ pub fn builtin_plugins() -> Vec<Arc<dyn VellumPlugin>> {
         Arc::new(converter::text_to_epub::TextToEpubConverterPlugin::new()),
         Arc::new(converter::mobi_to_epub::MobiToEpubConverterPlugin::new()),
         Arc::new(converter::epub_to_pdf::EpubToPdfConverterPlugin::new()),
+        Arc::new(converter::epub_to_kepub::EpubToKepubConverterPlugin::new()),
         // Enrichers & Transformations
         Arc::new(enricher::GoogleBooksEnricherPlugin::new()),
         Arc::new(cleaner::OceanOfPdfCleanerPlugin::new()),
