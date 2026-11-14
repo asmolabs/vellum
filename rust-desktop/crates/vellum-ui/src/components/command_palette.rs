@@ -10,6 +10,8 @@ pub enum PaletteAction {
     FilterFinished,
     FilterToRead,
     SetViewGrid,
+    SetViewTable,
+    SetViewTableCarousel,
     SetViewKanban,
     ImportBooks,
     ImportCalibre,
@@ -55,6 +57,8 @@ pub fn CommandPalette(
     // Quick built-in actions
     let all_actions = [
         ("⊞ Basculer en vue Grille classique", PaletteAction::SetViewGrid, "vue grille grid affichage"),
+        ("☰ Basculer en vue Tableau (Calibre)", PaletteAction::SetViewTable, "vue tableau liste table calibre"),
+        ("🎠 Basculer en vue Tableau + Carrousel (Calibre)", PaletteAction::SetViewTableCarousel, "vue tableau carrousel cover browser calibre"),
         ("📋 Basculer en vue Tableau Kanban (Pile à Lire)", PaletteAction::SetViewKanban, "vue kanban pal pile a lire tableau trello colonnes"),
         ("📥 Importer des livres (Fichiers EPUB, PDF, CBZ...)", PaletteAction::ImportBooks, "import ajouter"),
         ("📦 Importer une bibliothèque Calibre (metadata.db)", PaletteAction::ImportCalibre, "calibre import migration db metadata"),

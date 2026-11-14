@@ -17,10 +17,10 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BulkEditModal, BulkRegexModal, CommandPalette, ContentSearchModal, DetailDrawer,
-    EpubEditorModal, Header, ImportRulesModal, KanbanBoard, KanbanTargetStatus, LibraryAuditModal,
-    NewsRecipesModal, PaletteAction, ReaderModal, ReadingStatsModal, SettingsModal, Sidebar,
-    TranslateModal, TranslationRequest,
+    BookCard, BooksTable, BulkEditModal, BulkRegexModal, CommandPalette, ContentSearchModal,
+    DetailDrawer, EpubEditorModal, Header, ImportRulesModal, KanbanBoard, KanbanTargetStatus,
+    LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal, ReadingStatsModal,
+    SettingsModal, Sidebar, TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -879,6 +879,8 @@ fn App() -> Element {
             PaletteAction::SelectBook(b) => sb.set(Some(b)),
             PaletteAction::ReadBook(b) => hr(b),
             PaletteAction::SetViewGrid => vm.set(ViewMode::Grid),
+            PaletteAction::SetViewTable => vm.set(ViewMode::Table),
+            PaletteAction::SetViewTableCarousel => vm.set(ViewMode::TableCarousel),
             PaletteAction::SetViewKanban => vm.set(ViewMode::Kanban),
             PaletteAction::FilterAll => {
                 cf.set(FilterStatus::All);
@@ -1141,6 +1143,24 @@ fn App() -> Element {
                                     "⊞ Grille"
                                 }
                                 button {
+                                    style: if *view_mode.read() == ViewMode::Table {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                                    } else {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                                    },
+                                    onclick: move |_| view_mode.set(ViewMode::Table),
+                                    "☰ Tableau"
+                                }
+                                button {
+                                    style: if *view_mode.read() == ViewMode::TableCarousel {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                                    } else {
+                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                                    },
+                                    onclick: move |_| view_mode.set(ViewMode::TableCarousel),
+                                    "🎠 Tableau + Carrousel"
+                                }
+                                button {
                                     style: if *view_mode.read() == ViewMode::Kanban {
                                         "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
                                     } else {
@@ -1229,6 +1249,15 @@ fn App() -> Element {
                                 },
                                 "Ajouter un livre"
                             }
+                        }
+                    } else if *view_mode.read() == ViewMode::Table || *view_mode.read() == ViewMode::TableCarousel {
+                        BooksTable {
+                            books: filtered_books.clone(),
+                            show_carousel: *view_mode.read() == ViewMode::TableCarousel,
+                            selected_ids: selected_ids.read().clone(),
+                            on_toggle_select: handle_toggle_select,
+                            on_select: move |selected| selected_book.set(Some(selected)),
+                            on_read: handle_read.clone(),
                         }
                     } else {
                         div { class: "books-grid",

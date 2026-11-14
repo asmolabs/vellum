@@ -326,6 +326,117 @@ body {
   gap: 10px;
 }
 
+/* Calibre-style Cover Carousel & Books Table */
+.cover-carousel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  background: rgba(18, 22, 38, 0.72);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.carousel-item {
+  flex: 0 0 auto;
+  width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  opacity: 0.72;
+  transform: scale(0.95);
+  transition: all 0.2s ease;
+}
+
+.carousel-item:hover,
+.carousel-item.active {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.carousel-cover {
+  width: 82px;
+  height: 118px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: #181b2c;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-item.active .carousel-cover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+
+.carousel-caption {
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.books-table-wrap {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: rgba(18, 22, 38, 0.55);
+}
+
+.books-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.books-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(18, 22, 38, 0.96);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.books-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.books-table tbody tr:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.books-table tbody tr.active-row {
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.books-table td {
+  padding: 8px 12px;
+  vertical-align: middle;
+  color: var(--text-primary);
+}
+
 /* Main Layout */
 .main-content {
   display: flex;
@@ -474,8 +585,8 @@ body {
 
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  gap: 14px;
 }
 
 /* Book Card */
