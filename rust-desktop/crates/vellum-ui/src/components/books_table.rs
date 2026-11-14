@@ -125,6 +125,7 @@ pub fn BooksTable(
                                 let id_focus = b.id.clone();
                                 let id_toggle = b.id.clone();
                                 let b_row = b.clone();
+                                let b_row_select = b.clone();
                                 let b_read = b.clone();
                                 let b_detail = b.clone();
                                 rsx! {
@@ -133,6 +134,7 @@ pub fn BooksTable(
                                         class: if is_active { "active-row" } else { "" },
                                         onclick: move |_| {
                                             focused_book_id.set(Some(id_focus.clone()));
+                                            on_select.call(b_row_select.clone());
                                         },
                                         ondoubleclick: move |_| on_read.call(b_row.clone()),
                                         td {
