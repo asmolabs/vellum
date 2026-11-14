@@ -78,9 +78,12 @@ impl EpubContentProvider {
                     if let Ok(mut container) = archive.by_name("META-INF/container.xml") {
                         let mut content = String::new();
                         if container.read_to_string(&mut content).is_ok() {
-                            let re_root =
-                                Regex::new(r#"<rootfile[^>]+full-path=["']([^"']+)["']"#).unwrap();
-                            if let Some(caps) = re_root.captures(&content) {
+                            static RE_ROOT: std::sync::LazyLock<Regex> =
+                                std::sync::LazyLock::new(|| {
+                                    Regex::new(r#"<rootfile[^>]+full-path=["']([^"']+)["']"#)
+                                        .expect("valid rootfile regex")
+                                });
+                            if let Some(caps) = RE_ROOT.captures(&content) {
                                 p = Some(caps[1].to_string());
                             }
                         }
@@ -111,14 +114,34 @@ impl EpubContentProvider {
                                 .unwrap_or("");
 
                             let mut manifest: HashMap<String, String> = HashMap::new();
-                            let re_item = Regex::new(r#"<item\s+[^>]*>"#).unwrap();
-                            let re_id = Regex::new(r#"id=["']([^"']+)["']"#).unwrap();
-                            let re_href = Regex::new(r#"href=["']([^"']+)["']"#).unwrap();
+                            static RE_ITEM: std::sync::LazyLock<Regex> =
+                                std::sync::LazyLock::new(|| {
+                                    Regex::new(r#"<item\s+[^>]*>"#).expect("valid item regex")
+                                });
+                            static RE_ID: std::sync::LazyLock<Regex> =
+                                std::sync::LazyLock::new(|| {
+                                    Regex::new(r#"id=["']([^"']+)["']"#).expect("valid id regex")
+                                });
+                            static RE_HREF: std::sync::LazyLock<Regex> =
+                                std::sync::LazyLock::new(|| {
+                                    Regex::new(r#"href=["']([^"']+)["']"#)
+                                        .expect("valid href regex")
+                                });
+                            static RE_SPINE: std::sync::LazyLock<Regex> =
+                                std::sync::LazyLock::new(|| {
+                                    Regex::new(r#"(?s)<spine[^>]*>(.*?)</spine>"#)
+                                        .expect("valid spine regex")
+                                });
+                            static RE_ITEMREF: std::sync::LazyLock<Regex> =
+                                std::sync::LazyLock::new(|| {
+                                    Regex::new(r#"<itemref\s+[^>]*idref=["']([^"']+)["']"#)
+                                        .expect("valid itemref regex")
+                                });
 
-                            for mat in re_item.find_iter(&opf_xml) {
+                            for mat in RE_ITEM.find_iter(&opf_xml) {
                                 let item_tag = mat.as_str();
                                 if let (Some(id_caps), Some(href_caps)) =
-                                    (re_id.captures(item_tag), re_href.captures(item_tag))
+                                    (RE_ID.captures(item_tag), RE_HREF.captures(item_tag))
                                 {
                                     let id = id_caps[1].to_string();
                                     let href = href_caps[1].to_string();
@@ -127,13 +150,9 @@ impl EpubContentProvider {
                                 }
                             }
 
-                            let re_spine = Regex::new(r#"(?s)<spine[^>]*>(.*?)</spine>"#).unwrap();
-                            if let Some(spine_caps) = re_spine.captures(&opf_xml) {
+                            if let Some(spine_caps) = RE_SPINE.captures(&opf_xml) {
                                 let spine_content = &spine_caps[1];
-                                let re_itemref =
-                                    Regex::new(r#"<itemref\s+[^>]*idref=["']([^"']+)["']"#)
-                                        .unwrap();
-                                for caps in re_itemref.captures_iter(spine_content) {
+                                for caps in RE_ITEMREF.captures_iter(spine_content) {
                                     let idref = &caps[1];
                                     if let Some(target_file) = manifest.get(idref) {
                                         let lower = target_file.to_lowercase();

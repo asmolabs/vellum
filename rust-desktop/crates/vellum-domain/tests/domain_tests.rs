@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use serde_json::json;
 use std::collections::HashMap;
 use vellum_domain::{Book, BookFormat, ConfigField, Param, PluginDescriptor, PluginType, Tag};

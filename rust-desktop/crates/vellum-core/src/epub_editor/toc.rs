@@ -202,8 +202,14 @@ impl EpubEditor {
             if name == ncx_full_path {
                 zip_out.write_all(ncx_xml.as_bytes())?;
                 written_ncx = true;
-            } else if name == opf_path && updated_opf_xml.is_some() {
-                zip_out.write_all(updated_opf_xml.as_ref().unwrap().as_bytes())?;
+            } else if name == opf_path {
+                if let Some(ref updated_opf) = updated_opf_xml {
+                    zip_out.write_all(updated_opf.as_bytes())?;
+                } else {
+                    let mut buf = Vec::new();
+                    entry.read_to_end(&mut buf)?;
+                    zip_out.write_all(&buf)?;
+                }
             } else {
                 let mut buf = Vec::new();
                 entry.read_to_end(&mut buf)?;
@@ -270,8 +276,14 @@ impl EpubEditor {
 
         let mut entries = Vec::new();
         let mut play_order = 1usize;
-        let heading_re = Regex::new(r#"(?is)<h([1-3])(\s+[^>]*)?>(.*?)</h[1-3]>"#).unwrap();
-        let id_re = Regex::new(r#"id=["']([^"']+)["']"#).unwrap();
+        static HEADING_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+            Regex::new(r#"(?is)<h([1-3])(\s+[^>]*)?>(.*?)</h[1-3]>"#).expect("valid heading regex")
+        });
+        static ID_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+            Regex::new(r#"id=["']([^"']+)["']"#).expect("valid id regex")
+        });
+        let heading_re = &*HEADING_RE;
+        let id_re = &*ID_RE;
 
         for file_path in spine_files {
             let mut content = String::new();

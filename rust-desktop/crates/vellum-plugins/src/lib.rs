@@ -1,6 +1,8 @@
 //! # `vellum-plugins`
 //!
 //! Adaptateurs et plugins intégrés ou externes de Vellum.
+
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 //!
 //! Regroupe :
 //! - **Formats** (`format`) : extraction de métadonnées et couvertures (EPUB, PDF, CBZ/CBR, MOBI/AZW3, Audiobooks)

@@ -158,7 +158,13 @@ impl CloudSyncBackend for FolderSyncBackend {
 
         // Atomic write via temp file
         let temp_filename = format!(".tmp_{}", uuid::Uuid::new_v4());
-        let temp_path = target_path.parent().unwrap().join(temp_filename);
+        let parent_dir = target_path.parent().ok_or_else(|| {
+            VellumError::InvalidArgument(format!(
+                "Chemin cible de synchronisation invalide: {}",
+                target_path.display()
+            ))
+        })?;
+        let temp_path = parent_dir.join(temp_filename);
         fs::copy(local_path, &temp_path)?;
         fs::rename(temp_path, target_path)?;
 

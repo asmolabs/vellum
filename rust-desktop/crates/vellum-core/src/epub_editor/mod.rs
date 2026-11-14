@@ -63,8 +63,9 @@ pub(super) fn normalize_zip_path(base_dir: &str, rel_path: &str) -> String {
 }
 
 pub(super) fn strip_html_tags(s: &str) -> String {
-    let tag_re = Regex::new(r#"(?is)<[^>]*>"#).unwrap();
-    let unescaped = tag_re.replace_all(s, " ");
+    static TAG_RE: std::sync::LazyLock<Regex> =
+        std::sync::LazyLock::new(|| Regex::new(r#"(?is)<[^>]*>"#).expect("valid tag regex"));
+    let unescaped = TAG_RE.replace_all(s, " ");
     unescaped
         .split_whitespace()
         .collect::<Vec<_>>()

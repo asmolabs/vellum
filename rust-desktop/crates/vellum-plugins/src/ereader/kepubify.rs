@@ -100,16 +100,22 @@ fn inject_kobo_spans(html: &str, chapter_idx: usize) -> String {
     let mut span_idx = 0usize;
     let mut cursor = 0;
 
-    let p_regex = regex::Regex::new(r"(?is)(<p\b[^>]*>)(.*?)(</p>)").unwrap();
+    static P_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?is)(<p\b[^>]*>)(.*?)(</p>)").expect("valid paragraph regex")
+    });
 
-    for cap in p_regex.captures_iter(html) {
-        let whole_match = cap.get(0).unwrap();
+    for cap in P_REGEX.captures_iter(html) {
+        let (Some(whole_match), Some(p_start), Some(p_body), Some(p_end)) =
+            (cap.get(0), cap.get(1), cap.get(2), cap.get(3))
+        else {
+            continue;
+        };
         // Append text prior to this <p>
         result.push_str(&html[cursor..whole_match.start()]);
 
-        let p_start = cap.get(1).unwrap().as_str();
-        let p_body = cap.get(2).unwrap().as_str();
-        let p_end = cap.get(3).unwrap().as_str();
+        let p_start = p_start.as_str();
+        let p_body = p_body.as_str();
+        let p_end = p_end.as_str();
 
         span_idx += 1;
         result.push_str(p_start);

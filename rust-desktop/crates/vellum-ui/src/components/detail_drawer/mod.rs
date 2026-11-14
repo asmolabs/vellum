@@ -1,20 +1,26 @@
+mod edit_form;
+
 use dioxus::prelude::*;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use vellum_domain::{Book, CustomColumnDefinition};
 
-pub type SaveMetadataPayload = (
-    String,
-    String,
-    String,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<f64>,
-    Vec<String>,
-);
+use self::edit_form::MetadataEditForm;
+
+/// Données soumises lors de l'enregistrement des métadonnées d'un livre.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SaveMetadataRequest {
+    pub book_id: String,
+    pub title: String,
+    pub author: String,
+    pub publisher: Option<String>,
+    pub description: Option<String>,
+    pub isbn: Option<String>,
+    pub publish_date: Option<String>,
+    pub series: Option<String>,
+    pub series_index: Option<f64>,
+    pub tags: Vec<String>,
+}
 
 #[component]
 pub fn DetailDrawer(
@@ -26,7 +32,7 @@ pub fn DetailDrawer(
     on_delete: EventHandler<String>,
     on_convert: EventHandler<(String, String)>,
     on_change_cover: EventHandler<(String, PathBuf)>,
-    on_save_metadata: EventHandler<SaveMetadataPayload>,
+    on_save_metadata: EventHandler<SaveMetadataRequest>,
     on_enrich_metadata: EventHandler<String>,
     on_open_translate: EventHandler<Book>,
     on_export_to_device: EventHandler<(String, vellum_domain::DeviceKind)>,
@@ -42,16 +48,16 @@ pub fn DetailDrawer(
     on_save_custom_value: EventHandler<(String, String, String)>,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
+    let mut show_more_actions = use_signal(|| false);
 
     let mut edit_title = use_signal(|| book.title.clone());
     let mut edit_author = use_signal(|| book.author.clone());
-    let mut show_more_actions = use_signal(|| false);
-    let mut edit_series = use_signal(|| book.series.clone().unwrap_or_default());
-    let mut edit_series_index =
+    let edit_series = use_signal(|| book.series.clone().unwrap_or_default());
+    let edit_series_index =
         use_signal(|| book.series_index.map(|i| i.to_string()).unwrap_or_default());
     let mut edit_publisher = use_signal(|| book.publisher.clone().unwrap_or_default());
-    let mut edit_publish_date = use_signal(|| book.publish_date.clone().unwrap_or_default());
-    let mut edit_isbn = use_signal(|| book.isbn.clone().unwrap_or_default());
+    let edit_publish_date = use_signal(|| book.publish_date.clone().unwrap_or_default());
+    let edit_isbn = use_signal(|| book.isbn.clone().unwrap_or_default());
     let mut edit_description = use_signal(|| book.description.clone().unwrap_or_default());
     let mut edit_tags = use_signal(|| {
         book.tags
@@ -81,7 +87,7 @@ pub fn DetailDrawer(
             Some(p.clone())
         } else {
             let full_path = if std::path::Path::new(p).is_absolute() {
-                std::path::PathBuf::from(p)
+                PathBuf::from(p)
             } else {
                 dirs::home_dir().map(|h| h.join(".vellum").join("library").join(p))?
             };
@@ -167,164 +173,25 @@ pub fn DetailDrawer(
                     }
                 }
 
-                // If in Edit Mode
                 if *is_editing.read() {
-                    div { style: "display: flex; flex-direction: column; gap: 14px; padding: 4px 0;",
-                        div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Titre :" }
-                            input {
-                                class: "drawer-input",
-                                value: "{edit_title}",
-                                oninput: move |e| edit_title.set(e.value()),
-                            }
-                        }
-
-                        div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Auteur :" }
-                            input {
-                                class: "drawer-input",
-                                value: "{edit_author}",
-                                oninput: move |e| edit_author.set(e.value()),
-                            }
-                        }
-
-                        div { style: "display: grid; grid-template-columns: 2fr 1fr; gap: 10px;",
-                            div { class: "drawer-form-group",
-                                label { class: "drawer-form-label", "Série / Saga :" }
-                                input {
-                                    class: "drawer-input",
-                                    placeholder: "Ex: Le Cycle de Dune",
-                                    value: "{edit_series}",
-                                    oninput: move |e| edit_series.set(e.value()),
-                                }
-                            }
-                            div { class: "drawer-form-group",
-                                label { class: "drawer-form-label", "Tome / Numéro :" }
-                                input {
-                                    class: "drawer-input",
-                                    placeholder: "Ex: 1",
-                                    value: "{edit_series_index}",
-                                    oninput: move |e| edit_series_index.set(e.value()),
-                                }
-                            }
-                        }
-
-                        div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Éditeur :" }
-                            input {
-                                class: "drawer-input",
-                                placeholder: "Nom de l'éditeur...",
-                                value: "{edit_publisher}",
-                                oninput: move |e| edit_publisher.set(e.value()),
-                            }
-                        }
-
-                        div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
-                            div { class: "drawer-form-group",
-                                label { class: "drawer-form-label", "ISBN :" }
-                                input {
-                                    class: "drawer-input",
-                                    placeholder: "Ex: 9782207249117",
-                                    value: "{edit_isbn}",
-                                    oninput: move |e| edit_isbn.set(e.value()),
-                                }
-                            }
-                            div { class: "drawer-form-group",
-                                label { class: "drawer-form-label", "Date de publication :" }
-                                input {
-                                    class: "drawer-input",
-                                    placeholder: "Ex: 1965",
-                                    value: "{edit_publish_date}",
-                                    oninput: move |e| edit_publish_date.set(e.value()),
-                                }
-                            }
-                        }
-
-                        div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Tags / Catégories (séparés par virgule) :" }
-                            input {
-                                class: "drawer-input",
-                                placeholder: "Roman, Science-Fiction, Hugo Award...",
-                                value: "{edit_tags}",
-                                oninput: move |e| edit_tags.set(e.value()),
-                            }
-                        }
-
-                        div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Synopsis / Description :" }
-                            textarea {
-                                class: "drawer-textarea",
-                                rows: "5",
-                                value: "{edit_description}",
-                                oninput: move |e| edit_description.set(e.value()),
-                            }
-                        }
-
-                        div { style: "display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;",
-                            button {
-                                class: "btn btn-secondary",
-                                onclick: move |_| is_editing.set(false),
-                                "Annuler"
-                            }
-                            button {
-                                class: "btn btn-primary",
-                                onclick: {
-                                    let b_id = book_id.clone();
-                                    move |_| {
-                                        let t_list: Vec<String> = edit_tags
-                                            .read()
-                                            .split(',')
-                                            .map(|s| s.trim().to_string())
-                                            .filter(|s| !s.is_empty())
-                                            .collect();
-                                        let pub_val = if edit_publisher.read().trim().is_empty() {
-                                            None
-                                        } else {
-                                            Some(edit_publisher.read().trim().to_string())
-                                        };
-                                        let desc_val = if edit_description.read().trim().is_empty() {
-                                            None
-                                        } else {
-                                            Some(edit_description.read().trim().to_string())
-                                        };
-                                        let isbn_val = if edit_isbn.read().trim().is_empty() {
-                                            None
-                                        } else {
-                                            Some(edit_isbn.read().trim().to_string())
-                                        };
-                                        let date_val = if edit_publish_date.read().trim().is_empty() {
-                                            None
-                                        } else {
-                                            Some(edit_publish_date.read().trim().to_string())
-                                        };
-                                        let series_val = if edit_series.read().trim().is_empty() {
-                                            None
-                                        } else {
-                                            Some(edit_series.read().trim().to_string())
-                                        };
-                                        let series_idx_val = edit_series_index.read().trim().parse::<f64>().ok();
-
-                                        on_save_metadata.call((
-                                            b_id.clone(),
-                                            edit_title.read().clone(),
-                                            edit_author.read().clone(),
-                                            pub_val,
-                                            desc_val,
-                                            isbn_val,
-                                            date_val,
-                                            series_val,
-                                            series_idx_val,
-                                            t_list,
-                                        ));
-                                        is_editing.set(false);
-                                    }
-                                },
-                                "💾 Enregistrer"
-                            }
-                        }
+                    MetadataEditForm {
+                        book_id: book_id.clone(),
+                        edit_title,
+                        edit_author,
+                        edit_series,
+                        edit_series_index,
+                        edit_publisher,
+                        edit_isbn,
+                        edit_publish_date,
+                        edit_tags,
+                        edit_description,
+                        on_cancel: move |_| is_editing.set(false),
+                        on_save: move |req| {
+                            on_save_metadata.call(req);
+                            is_editing.set(false);
+                        },
                     }
                 } else {
-                    // Standard View Mode
                     div { class: "drawer-cover-row",
                         div { style: "display: flex; flex-direction: column; gap: 8px; align-items: center;",
                             if let Some(src) = cover_src {
@@ -522,7 +389,6 @@ pub fn DetailDrawer(
                                     }
                                 }
 
-                                // eReader Export Actions
                                 if !connected_devices.is_empty() {
                                     for dev in connected_devices.iter() {
                                         {
@@ -571,8 +437,6 @@ pub fn DetailDrawer(
                         }
                     }
 
-
-                    // Tags
                     if !tags.is_empty() {
                         div {
                             div { class: "sidebar-section-title", "Catégories & Tags" }
@@ -584,7 +448,6 @@ pub fn DetailDrawer(
                         }
                     }
 
-                    // Formats Available & Conversions
                     div {
                         div { class: "sidebar-section-title", "Fichiers & Formats" }
                         div { style: "display: flex; flex-direction: column; gap: 6px;",
@@ -623,13 +486,11 @@ pub fn DetailDrawer(
                         }
                     }
 
-                    // Description
                     div {
                         div { class: "sidebar-section-title", "Synopsis" }
                         div { class: "drawer-description", "{description}" }
                     }
 
-                    // Danger zone (Delete)
                     div { style: "margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end;",
                         button {
                             class: "btn btn-secondary",

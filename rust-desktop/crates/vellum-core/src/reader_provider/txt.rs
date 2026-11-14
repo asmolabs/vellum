@@ -20,9 +20,12 @@ impl TextContentProvider {
         let mut chapters: Vec<(String, String)> = Vec::new();
 
         if let Ok(content) = std::fs::read_to_string(path) {
-            let re = Regex::new(r"(?m)(?:^#{1,3}\s+.*$|^(?:Chapitre|Chapter)\s+\d+.*$|\f|\n{3,})")
-                .unwrap();
-            let mut split_points: Vec<usize> = re.find_iter(&content).map(|m| m.start()).collect();
+            static SPLIT_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+                Regex::new(r"(?m)(?:^#{1,3}\s+.*$|^(?:Chapitre|Chapter)\s+\d+.*$|\f|\n{3,})")
+                    .expect("valid txt split regex")
+            });
+            let mut split_points: Vec<usize> =
+                SPLIT_RE.find_iter(&content).map(|m| m.start()).collect();
             if split_points.is_empty() || split_points[0] != 0 {
                 split_points.insert(0, 0);
             }

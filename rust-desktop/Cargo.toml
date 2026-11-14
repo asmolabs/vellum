@@ -66,6 +66,9 @@ tempfile = "3.14"
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
+[workspace.lints.clippy]
+unwrap_used = "warn"
+
 # Optimisations d'espace disque et de mémoire pour Dev & Tests
 [profile.dev]
 debug = 1 # Conserve les numéros de ligne pour les backtraces tout en divisant la taille par 4

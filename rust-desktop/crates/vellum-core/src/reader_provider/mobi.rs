@@ -79,8 +79,10 @@ impl MobiContentProvider {
 
         if !raw_text.trim().is_empty() {
             // Kindle books mark chapter boundaries with <mbp:pagebreak/>
-            let re_break = Regex::new(r"(?i)<mbp:pagebreak[^>]*>").unwrap();
-            for part in re_break.split(&raw_text) {
+            static RE_BREAK: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+                Regex::new(r"(?i)<mbp:pagebreak[^>]*>").expect("valid mobi break regex")
+            });
+            for part in RE_BREAK.split(&raw_text) {
                 let clean = sanitize_reader_html(part);
                 if html_to_plain_text(&clean).is_empty() && !clean.contains("<img") {
                     continue;

@@ -134,8 +134,10 @@ pub fn get_context(spans: &[TextSpan], index: usize, max_len: usize) -> Context 
 }
 
 pub fn split_text_into_chunks(text: &str, max_len: usize) -> Vec<String> {
-    let sentence_re = Regex::new(r"[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+(?:\s+|$)").unwrap();
-    let mut sentences: Vec<String> = sentence_re
+    static SENTENCE_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+(?:\s+|$)").expect("valid sentence regex")
+    });
+    let mut sentences: Vec<String> = SENTENCE_RE
         .find_iter(text)
         .map(|m| m.as_str().trim().to_string())
         .filter(|s| !s.is_empty())
@@ -202,11 +204,16 @@ pub struct Paragraph {
 }
 
 pub fn extract_paragraphs(html: &str) -> Vec<Paragraph> {
-    let p_regex =
+    static P_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
         Regex::new(r"(?is)<(p|h1|h2|h3|h4|h5|h6|div)\b([^>]*)>(.*?)</(p|h1|h2|h3|h4|h5|h6|div)>")
-            .unwrap();
-    let inline_tag_regex =
-        Regex::new(r"(?is)<([a-zA-Z0-9]+)\b([^>]*)>(.*?)</([a-zA-Z0-9]+)>").unwrap();
+            .expect("valid paragraph regex")
+    });
+    static INLINE_TAG_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"(?is)<([a-zA-Z0-9]+)\b([^>]*)>(.*?)</([a-zA-Z0-9]+)>")
+            .expect("valid inline tag regex")
+    });
+    let p_regex = &*P_REGEX;
+    let inline_tag_regex = &*INLINE_TAG_REGEX;
 
     let mut paragraphs = Vec::new();
     for cap in p_regex.captures_iter(html) {
@@ -216,7 +223,9 @@ pub fn extract_paragraphs(html: &str) -> Vec<Paragraph> {
             continue;
         }
 
-        let mat = cap.get(0).unwrap();
+        let Some(mat) = cap.get(0) else {
+            continue;
+        };
         let raw = mat.as_str();
         let start = mat.start();
         let end = mat.end();

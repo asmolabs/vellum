@@ -38,17 +38,14 @@ pub fn BooksTable(
     books: Vec<Book>,
     show_carousel: bool,
     selected_ids: HashSet<String>,
+    mut focused_book_id: Signal<Option<String>>,
     on_toggle_select: EventHandler<String>,
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
 ) -> Element {
-    let mut focused_book_id = use_signal(|| books.first().map(|b| b.id.clone()));
-
-    let active_idx = focused_book_id
-        .read()
-        .as_ref()
-        .and_then(|id| books.iter().position(|b| &b.id == id))
-        .unwrap_or(0);
+    let active_idx =
+        crate::library_logic::resolve_active_index(&books, focused_book_id.read().as_deref())
+            .unwrap_or(0);
     let active_id = books.get(active_idx).map(|b| b.id.clone());
 
     rsx! {

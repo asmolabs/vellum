@@ -1,5 +1,7 @@
 //! Interface en ligne de commande (mode headless) pour Vellum.
 
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use std::path::{Path, PathBuf};
 
 use vellum_core::{

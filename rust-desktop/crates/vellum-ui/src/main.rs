@@ -6,6 +6,8 @@
 //! en tâche de fond et rend l'interface réactive (bibliothèque grille/liste/Kanban, lecteur intégré,
 //! éditeur EPUB, palette de commandes, statistiques et modales de configuration).
 
+#![cfg_attr(test, allow(clippy::unwrap_used))]
+
 use std::path::PathBuf;
 
 use dioxus::desktop::{Config, WindowBuilder};
@@ -13,6 +15,7 @@ use dioxus::html::HasFileData;
 use dioxus::prelude::*;
 
 mod components;
+mod library_logic;
 mod state;
 mod styles;
 
@@ -25,7 +28,7 @@ use components::{
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
 
-use vellum_core::{init_services, CatalogExporter, CatalogFormat, FolderSyncBackend, SearchQuery};
+use vellum_core::{init_services, CatalogExporter, CatalogFormat, FolderSyncBackend};
 use vellum_domain::{Book, DeviceKind, SmtpConfig};
 
 fn main() {
@@ -79,6 +82,7 @@ fn App() -> Element {
     let mut selected_series = use_signal(|| None::<String>);
     let search_query = use_signal(String::new);
     let mut selected_book = use_signal(|| None::<Book>);
+    let mut focused_book_id = use_signal(|| None::<String>);
     let mut active_reader = use_signal(|| None::<ReaderSession>);
     let mut settings_open = use_signal(|| false);
     let mut palette_open = use_signal(|| false);
@@ -115,35 +119,10 @@ fn App() -> Element {
     };
 
     // Calculate tag counts
-    let tags_counts: Vec<(String, usize)> = {
-        let all_books = books.read();
-        let mut map = std::collections::HashMap::new();
-        for b in all_books.iter() {
-            for t in &b.tags {
-                *map.entry(t.name.clone()).or_insert(0) += 1;
-            }
-        }
-        let mut list: Vec<_> = map.into_iter().collect();
-        list.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        list
-    };
+    let tags_counts = library_logic::compute_tags_counts(&books.read());
 
     // Calculate series counts
-    let series_counts: Vec<(String, usize)> = {
-        let all_books = books.read();
-        let mut map = std::collections::HashMap::new();
-        for b in all_books.iter() {
-            if let Some(ref s) = b.series {
-                let trimmed = s.trim();
-                if !trimmed.is_empty() {
-                    *map.entry(trimmed.to_string()).or_insert(0) += 1;
-                }
-            }
-        }
-        let mut list: Vec<_> = map.into_iter().collect();
-        list.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        list
-    };
+    let series_counts = library_logic::compute_series_counts(&books.read());
     let series_names: Vec<String> = series_counts.iter().map(|(n, _)| n.clone()).collect();
 
     // Reading stats
@@ -152,87 +131,22 @@ fn App() -> Element {
     // Filter and sort books
     let filtered_books: Vec<Book> = {
         let all = books.read();
-        let filter = *current_filter.read();
-        let sort = *current_sort.read();
-        let tag_filter = selected_tag.read().clone();
-        let series_filter = selected_series.read().clone();
-        let raw_query = search_query.read();
-        let parsed_query = SearchQuery::parse(&raw_query);
-        let active_vl_query = active_virtual_library_id
-            .read()
-            .as_ref()
-            .and_then(|id| {
-                virtual_libraries
-                    .read()
-                    .iter()
-                    .find(|vl| &vl.id == id)
-                    .cloned()
-            })
-            .map(|vl| SearchQuery::parse(&vl.query));
-
-        let mut list: Vec<Book> = all
-            .iter()
-            .filter(|b| {
-                if let Some(ref vl_q) = active_vl_query {
-                    if !vl_q.is_empty() && !vl_q.matches(b) {
-                        return false;
-                    }
-                }
-                // Status Filter
-                let matches_status = match filter {
-                    FilterStatus::All => true,
-                    FilterStatus::Reading => b.progress_percent > 0.0 && !b.is_finished,
-                    FilterStatus::Finished => b.is_finished,
-                    FilterStatus::ToRead => b.progress_percent == 0.0 && !b.is_finished,
-                };
-                if !matches_status {
-                    return false;
-                }
-
-                // Tag Filter
-                if let Some(ref t) = tag_filter {
-                    if !b.tags.iter().any(|bt| &bt.name == t) {
-                        return false;
-                    }
-                }
-
-                // Series Filter
-                if let Some(ref s) = series_filter {
-                    if b.series.as_deref().map(str::trim) != Some(s.as_str()) {
-                        return false;
-                    }
-                }
-
-                // Calibre Advanced Query Search (author:, series:, tag:, format:, not, quotes...)
-                if !parsed_query.is_empty() && !parsed_query.matches(b) {
-                    return false;
-                }
-
-                true
-            })
-            .cloned()
-            .collect();
-
-        match sort {
-            SortOption::TitleAsc => list.sort_by_key(|a| a.title.to_lowercase()),
-            SortOption::TitleDesc => {
-                list.sort_by_key(|a| std::cmp::Reverse(a.title.to_lowercase()))
-            }
-            SortOption::AuthorAsc => list.sort_by(|a, b| {
-                a.author
-                    .to_lowercase()
-                    .cmp(&b.author.to_lowercase())
-                    .then_with(|| a.title.cmp(&b.title))
-            }),
-            SortOption::RecentAdded => list.sort_by(|a, b| b.added_at.cmp(&a.added_at)),
-            SortOption::ProgressDesc => list.sort_by(|a, b| {
-                b.progress_percent
-                    .partial_cmp(&a.progress_percent)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            }),
-        }
-
-        list
+        let active_vl_query = active_virtual_library_id.read().as_ref().and_then(|id| {
+            virtual_libraries
+                .read()
+                .iter()
+                .find(|vl| &vl.id == id)
+                .map(|vl| vl.query.clone())
+        });
+        library_logic::filter_and_sort_books(
+            &all,
+            *current_filter.read(),
+            *current_sort.read(),
+            selected_tag.read().as_deref(),
+            selected_series.read().as_deref(),
+            &search_query.read(),
+            active_vl_query.as_deref(),
+        )
     };
 
     // Handle book file import via native file picker
@@ -379,13 +293,7 @@ fn App() -> Element {
     let handle_bulk_edit_save = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |(author, series, auto_index, add_tags, remove_tags): (
-            Option<String>,
-            Option<String>,
-            bool,
-            Vec<String>,
-            Vec<String>,
-        )| {
+        move |req: components::bulk_edit_modal::BulkEditRequest| {
             let set = selected_ids.read().clone();
             let all = books.read();
             let ordered_ids: Vec<String> = all
@@ -397,11 +305,11 @@ fn App() -> Element {
             if !ordered_ids.is_empty() {
                 let _ = bs.bulk_update_books(
                     &ordered_ids,
-                    author.as_deref(),
-                    series.as_deref(),
-                    auto_index,
-                    &add_tags,
-                    &remove_tags,
+                    req.author.as_deref(),
+                    req.series.as_deref(),
+                    req.auto_index,
+                    &req.add_tags,
+                    &req.remove_tags,
                 );
                 refresh();
                 selected_ids.set(std::collections::HashSet::new());
@@ -486,30 +394,29 @@ fn App() -> Element {
     let handle_save_metadata = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |(b_id, title, author, publ, desc, isbn, pdate, series, series_idx, tags): components::detail_drawer::SaveMetadataPayload| {
-            match bs.update_book_metadata_full(vellum_core::UpdateMetadataRequest {
-                book_id: &b_id,
-                title: &title,
-                author: &author,
-                publisher: publ.as_deref(),
-                description: desc.as_deref(),
-                isbn: isbn.as_deref(),
-                publish_date: pdate.as_deref(),
-                series: series.as_deref(),
-                series_index: series_idx,
-                tag_names: tags,
+        move |req: components::detail_drawer::SaveMetadataRequest| match bs
+            .update_book_metadata_full(vellum_core::UpdateMetadataRequest {
+                book_id: &req.book_id,
+                title: &req.title,
+                author: &req.author,
+                publisher: req.publisher.as_deref(),
+                description: req.description.as_deref(),
+                isbn: req.isbn.as_deref(),
+                publish_date: req.publish_date.as_deref(),
+                series: req.series.as_deref(),
+                series_index: req.series_index,
+                tag_names: req.tags,
             }) {
-                Ok(updated) => {
-                    tracing::info!(
-                        "Métadonnées mises à jour avec succès pour: {}",
-                        updated.title
-                    );
-                    selected_book.set(Some(updated));
-                    refresh();
-                }
-                Err(e) => {
-                    tracing::error!("Erreur lors de la mise à jour des métadonnées: {e}");
-                }
+            Ok(updated) => {
+                tracing::info!(
+                    "Métadonnées mises à jour avec succès pour: {}",
+                    updated.title
+                );
+                selected_book.set(Some(updated));
+                refresh();
+            }
+            Err(e) => {
+                tracing::error!("Erreur lors de la mise à jour des métadonnées: {e}");
             }
         }
     };
@@ -835,25 +742,166 @@ fn App() -> Element {
         }
     };
 
-    // Global keyboard shortcut Cmd + K (or Ctrl + K) for Command Palette
-    use_effect(move || {
-        let mut eval = document::eval(
-            r#"
+    // Global keyboard shortcuts (Cmd/Ctrl+K palette, Escape to close, Arrows/Enter/Space in library)
+    {
+        let hr = handle_read.clone();
+        use_effect(move || {
+            let mut hr_spawn = hr.clone();
+            let mut eval = document::eval(
+                r#"
             window.addEventListener('keydown', (e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
                     e.preventDefault();
                     dioxus.send('toggle_palette');
+                    return;
+                }
+                const tag = e.target?.tagName;
+                const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable;
+                if (e.key === 'Escape') {
+                    dioxus.send('escape');
+                    return;
+                }
+                if (isEditable) return;
+                if (document.querySelector('.reader-modal, .modal-backdrop, .palette-overlay')) return;
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    dioxus.send('prev');
+                } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    dioxus.send('next');
+                } else if (e.key === 'Enter' && tag !== 'BUTTON' && tag !== 'A') {
+                    e.preventDefault();
+                    dioxus.send('open_reader');
+                } else if (e.key === ' ' && tag !== 'BUTTON' && tag !== 'A') {
+                    e.preventDefault();
+                    dioxus.send('toggle_detail');
                 }
             });
         "#,
-        );
-        spawn(async move {
-            while eval.recv::<String>().await.is_ok() {
-                let cur = *palette_open.peek();
-                palette_open.set(!cur);
-            }
+            );
+            spawn(async move {
+                let current_filtered = || {
+                    let active_vl_query =
+                        active_virtual_library_id.peek().as_ref().and_then(|id| {
+                            virtual_libraries
+                                .peek()
+                                .iter()
+                                .find(|vl| &vl.id == id)
+                                .map(|vl| vl.query.clone())
+                        });
+                    library_logic::filter_and_sort_books(
+                        &books.peek(),
+                        *current_filter.peek(),
+                        *current_sort.peek(),
+                        selected_tag.peek().as_deref(),
+                        selected_series.peek().as_deref(),
+                        &search_query.peek(),
+                        active_vl_query.as_deref(),
+                    )
+                };
+
+                while let Ok(cmd) = eval.recv::<String>().await {
+                    if active_reader.peek().is_some() {
+                        continue;
+                    }
+                    match cmd.as_str() {
+                        "toggle_palette" => {
+                            let cur = *palette_open.peek();
+                            palette_open.set(!cur);
+                        }
+                        "escape" => {
+                            if *palette_open.peek() {
+                                palette_open.set(false);
+                            } else if *bulk_convert_open.peek() {
+                                bulk_convert_open.set(false);
+                            } else if *bulk_edit_open.peek() {
+                                bulk_edit_open.set(false);
+                            } else if *bulk_regex_open.peek() {
+                                bulk_regex_open.set(false);
+                            } else if *settings_open.peek() {
+                                settings_open.set(false);
+                            } else if *audit_open.peek() {
+                                audit_open.set(false);
+                            } else if *stats_open.peek() {
+                                stats_open.set(false);
+                            } else if *content_search_open.peek() {
+                                content_search_open.set(false);
+                            } else if *import_rules_open.peek() {
+                                import_rules_open.set(false);
+                            } else if *news_recipes_open.peek() {
+                                news_recipes_open.set(false);
+                            } else if epub_editing_book.peek().is_some() {
+                                epub_editing_book.set(None);
+                            } else if translating_book.peek().is_some() {
+                                translating_book.set(None);
+                            } else if selected_book.peek().is_some() {
+                                selected_book.set(None);
+                            }
+                        }
+                        "prev" | "next" => {
+                            let delta = if cmd == "prev" { -1 } else { 1 };
+                            let list = current_filtered();
+                            let next_id = {
+                                let cur_focused = focused_book_id.peek();
+                                let sel_book = selected_book.peek();
+                                let fallback_id = cur_focused
+                                    .as_deref()
+                                    .or_else(|| sel_book.as_ref().map(|b| b.id.as_str()));
+                                library_logic::next_focused_book_id(&list, fallback_id, delta)
+                            };
+                            if let Some(ref id) = next_id {
+                                focused_book_id.set(Some(id.clone()));
+                                if selected_book.peek().is_some() {
+                                    if let Some(b) = list.iter().find(|b| &b.id == id).cloned() {
+                                        selected_book.set(Some(b));
+                                    }
+                                }
+                            }
+                        }
+                        "open_reader" => {
+                            let list = current_filtered();
+                            let idx = {
+                                let cur_focused = focused_book_id.peek();
+                                let sel_book = selected_book.peek();
+                                let target_id = cur_focused
+                                    .as_deref()
+                                    .or_else(|| sel_book.as_ref().map(|b| b.id.as_str()));
+                                library_logic::resolve_active_index(&list, target_id)
+                            };
+                            if let Some(book) = idx.and_then(|i| list.get(i).cloned()) {
+                                focused_book_id.set(Some(book.id.clone()));
+                                hr_spawn(book);
+                            }
+                        }
+                        "toggle_detail" => {
+                            let list = current_filtered();
+                            let idx = {
+                                let cur_focused = focused_book_id.peek();
+                                let sel_book = selected_book.peek();
+                                let target_id = cur_focused
+                                    .as_deref()
+                                    .or_else(|| sel_book.as_ref().map(|b| b.id.as_str()));
+                                library_logic::resolve_active_index(&list, target_id)
+                            };
+                            if let Some(book) = idx.and_then(|i| list.get(i).cloned()) {
+                                focused_book_id.set(Some(book.id.clone()));
+                                let already_open = selected_book
+                                    .peek()
+                                    .as_ref()
+                                    .is_some_and(|b| b.id == book.id);
+                                if already_open {
+                                    selected_book.set(None);
+                                } else {
+                                    selected_book.set(Some(book));
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            });
         });
-    });
+    }
 
     let handle_palette_action = {
         let mut cf = current_filter;
@@ -1253,6 +1301,7 @@ fn App() -> Element {
                             books: filtered_books.clone(),
                             show_carousel: *view_mode.read() == ViewMode::TableCarousel,
                             selected_ids: selected_ids.read().clone(),
+                            focused_book_id,
                             on_toggle_select: handle_toggle_select,
                             on_select: move |selected| selected_book.set(Some(selected)),
                             on_read: handle_read.clone(),

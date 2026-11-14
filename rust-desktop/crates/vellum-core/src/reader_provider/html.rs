@@ -1,17 +1,25 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::LazyLock;
 
 use regex::Regex;
 
-pub fn html_to_plain_text(html: &str) -> String {
-    let re_img = Regex::new(r"(?is)<img[^>]*>").unwrap();
-    let re_tags = Regex::new(r"(?s)<[^>]+>").unwrap();
-    let re_num = Regex::new(r"&#(x?[0-9a-fA-F]+);").unwrap();
-    let re_ws = Regex::new(r"\s+").unwrap();
+static RE_TAGS_STRIP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<[^>]+>").expect("valid strip tag regex"));
 
-    let no_img = re_img.replace_all(html, " ");
-    let no_tags = re_tags.replace_all(&no_img, " ");
-    let decoded_num = re_num.replace_all(&no_tags, |c: &regex::Captures| {
+pub fn html_to_plain_text(html: &str) -> String {
+    static RE_IMG: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<img[^>]*>").expect("valid img regex"));
+    static RE_TAGS_DOTALL: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?s)<[^>]+>").expect("valid dotall tags regex"));
+    static RE_NUM: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"&#(x?[0-9a-fA-F]+);").expect("valid entity num regex"));
+    static RE_WS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\s+").expect("valid whitespace regex"));
+
+    let no_img = RE_IMG.replace_all(html, " ");
+    let no_tags = RE_TAGS_DOTALL.replace_all(&no_img, " ");
+    let decoded_num = RE_NUM.replace_all(&no_tags, |c: &regex::Captures| {
         let raw = &c[1];
         let code = if let Some(hex) = raw.strip_prefix('x').or_else(|| raw.strip_prefix('X')) {
             u32::from_str_radix(hex, 16).ok()
@@ -36,7 +44,7 @@ pub fn html_to_plain_text(html: &str) -> String {
         .replace("&laquo;", "«")
         .replace("&raquo;", "»")
         .replace("&amp;", "&");
-    re_ws.replace_all(&decoded, " ").trim().to_string()
+    RE_WS.replace_all(&decoded, " ").trim().to_string()
 }
 
 pub fn wrap_with_reader_theme(
@@ -50,8 +58,9 @@ pub fn wrap_with_reader_theme(
 }
 
 pub fn sanitize_reader_html(html: &str) -> String {
-    let re_body = Regex::new(r"(?is)<body[^>]*>(.*?)</body>").unwrap();
-    let body_only = re_body
+    static RE_BODY: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<body[^>]*>(.*?)</body>").expect("valid body regex"));
+    let body_only = RE_BODY
         .captures(html)
         .and_then(|caps| caps.get(1))
         .map(|m| m.as_str())
@@ -73,13 +82,16 @@ pub fn split_html_into_blocks(html: &str) -> Vec<String> {
     // Match block-level elements: <p>, <h1>..<h6>, <blockquote>, <li>, <table>, <figure>, <img>, <hr>
     // Note: <div> is intentionally NOT matched as a single atomic block, because in ePubs <div> often
     // wraps the entire chapter or multiple paragraphs, which would cause the entire chapter to be treated as 1 page!
-    let re_block = Regex::new(
-        r#"(?is)(<p[^>]*>.*?</p>|<h[1-6][^>]*>.*?</h[1-6]>|<blockquote[^>]*>.*?</blockquote>|<li[^>]*>.*?</li>|<table[^>]*>.*?</table>|<figure[^>]*>.*?</figure>|<img[^>]*>|<hr[^>]*>)"#
-    ).unwrap();
+    static RE_BLOCK: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r#"(?is)(<p[^>]*>.*?</p>|<h[1-6][^>]*>.*?</h[1-6]>|<blockquote[^>]*>.*?</blockquote>|<li[^>]*>.*?</li>|<table[^>]*>.*?</table>|<figure[^>]*>.*?</figure>|<img[^>]*>|<hr[^>]*>)"#,
+        )
+        .expect("valid block regex")
+    });
 
-    let re_strip = Regex::new(r"<[^>]+>").unwrap();
+    let re_strip = &*RE_TAGS_STRIP;
     let mut last_end = 0;
-    for mat in re_block.find_iter(html) {
+    for mat in RE_BLOCK.find_iter(html) {
         let inter = html[last_end..mat.start()].trim();
         if !inter.is_empty() {
             let stripped = re_strip.replace_all(inter, " ").trim().to_string();
@@ -121,7 +133,7 @@ pub fn paginate_html_into_pages(raw_html: &str, target_chars: usize) -> Vec<Stri
     }
 
     let raw_blocks = split_html_into_blocks(&clean);
-    let re_strip = Regex::new(r"<[^>]+>").unwrap();
+    let re_strip = &*RE_TAGS_STRIP;
 
     let mut pages = Vec::new();
     let mut current_page = Vec::new();
@@ -198,9 +210,12 @@ pub(super) fn replace_image_sources(
         .and_then(|p| p.to_str())
         .unwrap_or("");
 
-    let re_attr = Regex::new(r#"(?i)(src|xlink:href|href)\s*=\s*(?:"([^"]*)"|'([^']*)')"#).unwrap();
+    static RE_ATTR: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"(?i)(src|xlink:href|href)\s*=\s*(?:"([^"]*)"|'([^']*)')"#)
+            .expect("valid attr regex")
+    });
 
-    re_attr
+    RE_ATTR
         .replace_all(html, |caps: &regex::Captures| {
             let attr = &caps[1];
             let (quote, val) = if let Some(v) = caps.get(2) {
@@ -281,21 +296,24 @@ pub(super) fn natural_sort_key(s: &str) -> Vec<(bool, String, u64)> {
 }
 
 pub(super) fn extract_chapter_title(html: &str, fallback_index: usize) -> String {
-    let re_h1 = Regex::new(r#"(?is)<h1[^>]*>(.*?)</h1>"#).unwrap();
-    let re_h2 = Regex::new(r#"(?is)<h2[^>]*>(.*?)</h2>"#).unwrap();
-    let re_title = Regex::new(r#"(?is)<title[^>]*>(.*?)</title>"#).unwrap();
-    let re_tags = Regex::new(r#"<[^>]+>"#).unwrap();
+    static RE_H1: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#"(?is)<h1[^>]*>(.*?)</h1>"#).expect("valid h1 regex"));
+    static RE_H2: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#"(?is)<h2[^>]*>(.*?)</h2>"#).expect("valid h2 regex"));
+    static RE_TITLE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"(?is)<title[^>]*>(.*?)</title>"#).expect("valid title regex")
+    });
 
-    let raw = if let Some(c) = re_h1.captures(html) {
+    let raw = if let Some(c) = RE_H1.captures(html) {
         Some(c[1].to_string())
-    } else if let Some(c) = re_h2.captures(html) {
+    } else if let Some(c) = RE_H2.captures(html) {
         Some(c[1].to_string())
     } else {
-        re_title.captures(html).map(|c| c[1].to_string())
+        RE_TITLE.captures(html).map(|c| c[1].to_string())
     };
 
     if let Some(text) = raw {
-        let clean = re_tags.replace_all(&text, " ").trim().to_string();
+        let clean = RE_TAGS_STRIP.replace_all(&text, " ").trim().to_string();
         if !clean.is_empty() && clean.len() < 80 {
             return clean;
         }

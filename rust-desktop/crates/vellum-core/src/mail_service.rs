@@ -121,12 +121,15 @@ impl MailService {
 
         // 3. Prepare MIME Content Type and clean filename
         let ext = format_entry.format.to_lowercase();
-        let content_type = match ext.as_str() {
-            "epub" => ContentType::parse("application/epub+zip").unwrap(),
-            "pdf" => ContentType::parse("application/pdf").unwrap(),
-            "mobi" => ContentType::parse("application/x-mobipocket-ebook").unwrap(),
-            _ => ContentType::parse("application/octet-stream").unwrap(),
+        let content_type_str = match ext.as_str() {
+            "epub" => "application/epub+zip",
+            "pdf" => "application/pdf",
+            "mobi" => "application/x-mobipocket-ebook",
+            _ => "application/octet-stream",
         };
+        let content_type = ContentType::parse(content_type_str).map_err(|e| {
+            VellumError::InvalidArgument(format!("Type MIME invalide ({content_type_str}): {e}"))
+        })?;
 
         let safe_author = book
             .author

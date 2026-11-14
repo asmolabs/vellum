@@ -1,6 +1,8 @@
 //! # `vellum-core`
 //!
 //! Couche Application / Cas d'usage de Vellum.
+
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 //!
 //! Orchestre les entités de `vellum-domain`, la persistance de `vellum-storage` et les adaptateurs
 //! de `vellum-plugins` pour fournir les services métier :

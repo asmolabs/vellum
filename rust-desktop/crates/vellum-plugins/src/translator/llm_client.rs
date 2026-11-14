@@ -170,15 +170,26 @@ pub fn clean_model_artifacts(text: &str) -> String {
         }
     }
 
-    let thought_re = Regex::new(r"(?s)<\|channel\|>thought.*?$").unwrap();
-    let final_re = Regex::new(r"(?s)<\|channel\|>final.*?$").unwrap();
-    let assistant_re = Regex::new(r"(?s)<\|channel\|>assistant.*?$").unwrap();
-    let thinking_re = Regex::new(r"(?is)^\s*Thinking Process:.*?\n\n").unwrap();
+    static THOUGHT_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"(?s)<\|channel\|>thought.*?$").expect("valid thought regex")
+    });
+    static FINAL_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"(?s)<\|channel\|>final.*?$").expect("valid final regex")
+    });
+    static ASSISTANT_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"(?s)<\|channel\|>assistant.*?$").expect("valid assistant regex")
+    });
+    static THINKING_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"(?is)^\s*Thinking Process:.*?\n\n").expect("valid thinking regex")
+    });
+    static FENCE_START_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"^```[a-zA-Z]*\s*").expect("valid fence start regex")
+    });
 
-    s = thought_re.replace_all(&s, "").to_string();
-    s = final_re.replace_all(&s, "").to_string();
-    s = assistant_re.replace_all(&s, "").to_string();
-    s = thinking_re.replace_all(&s, "").to_string();
+    s = THOUGHT_RE.replace_all(&s, "").to_string();
+    s = FINAL_RE.replace_all(&s, "").to_string();
+    s = ASSISTANT_RE.replace_all(&s, "").to_string();
+    s = THINKING_RE.replace_all(&s, "").to_string();
     s = s
         .replace("<|channel|>", "")
         .replace("<start_of_turn>", "")
@@ -187,8 +198,7 @@ pub fn clean_model_artifacts(text: &str) -> String {
 
     let trimmed = s.trim();
     if trimmed.starts_with("```") && trimmed.ends_with("```") {
-        let fence_start = Regex::new(r"^```[a-zA-Z]*\s*").unwrap();
-        let without_start = fence_start.replace(trimmed, "");
+        let without_start = FENCE_START_RE.replace(trimmed, "");
         return without_start.trim_end_matches("```").trim().to_string();
     }
 
@@ -196,7 +206,10 @@ pub fn clean_model_artifacts(text: &str) -> String {
 }
 
 pub fn parse_numbered_response(response: &str, expected_count: usize) -> Vec<String> {
-    let re = Regex::new(r"(?m)^\s*\[(\d+)\]\s*(.*)$").unwrap();
+    static NUMBERED_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"(?m)^\s*\[(\d+)\]\s*(.*)$").expect("valid numbered line regex")
+    });
+    let re = &*NUMBERED_RE;
     let mut map = std::collections::BTreeMap::new();
     let mut current_idx = None;
     let mut current_text = String::new();

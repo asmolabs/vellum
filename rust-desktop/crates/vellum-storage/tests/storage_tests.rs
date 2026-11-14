@@ -1,8 +1,15 @@
+#![allow(clippy::unwrap_used)]
+
 use serde_json::json;
 use std::collections::HashMap;
 use tempfile::tempdir;
-use vellum_domain::{Book, BookFormat, Param, Tag};
-use vellum_storage::{BookRepository, Database, ParamRepository, TagRepository};
+use vellum_domain::{
+    Book, BookFormat, CustomColumnDefinition, CustomColumnType, Param, Tag, VirtualLibrary,
+};
+use vellum_storage::{
+    BookRepository, CustomColumnRepository, Database, ParamRepository, TagRepository,
+    VirtualLibraryRepository,
+};
 
 #[test]
 fn test_sqlite_wal_book_and_tag_persistence() {
@@ -140,4 +147,119 @@ fn test_fts5_accent_insensitive_search_and_bm25_ranking() {
     let after_del = book_repo.search_fts("miserables", None).unwrap();
     assert_eq!(after_del.len(), 1);
     assert_eq!(after_del[0].id, b2.id);
+}
+
+#[test]
+fn test_custom_columns_crud_and_book_values() {
+    let db = Database::open_in_memory().unwrap();
+    let book_repo = BookRepository::new(db.clone());
+    let col_repo = CustomColumnRepository::new(db);
+
+    let book = Book::new("Hyperion", "Dan Simmons");
+    book_repo.save(&book).unwrap();
+
+    let col_read_status =
+        CustomColumnDefinition::new("lecture_prio", "Priorité", CustomColumnType::Number);
+    let col_source = CustomColumnDefinition::new("source", "Origine", CustomColumnType::Text);
+    col_repo.save_definition(&col_read_status).unwrap();
+    col_repo.save_definition(&col_source).unwrap();
+
+    let defs = col_repo.list_definitions().unwrap();
+    assert_eq!(defs.len(), 2);
+    assert_eq!(defs[0].key, "source");
+    assert_eq!(defs[1].key, "lecture_prio");
+
+    let found = col_repo.find_by_key("lecture_prio").unwrap().unwrap();
+    assert_eq!(found.column_type, CustomColumnType::Number);
+
+    col_repo
+        .set_value(&book.id, &col_read_status.id, "5")
+        .unwrap();
+    col_repo
+        .set_value(&book.id, &col_source.id, "Librairie")
+        .unwrap();
+    // Upsert overwrites existing value cleanly
+    col_repo
+        .set_value(&book.id, &col_read_status.id, "1")
+        .unwrap();
+
+    let values = col_repo.get_values_for_book(&book.id).unwrap();
+    assert_eq!(values.get("lecture_prio").map(String::as_str), Some("1"));
+    assert_eq!(values.get("source").map(String::as_str), Some("Librairie"));
+
+    assert!(col_repo.clear_value(&book.id, &col_source.id).unwrap());
+    let after_clear = col_repo.get_values_for_book(&book.id).unwrap();
+    assert!(!after_clear.contains_key("source"));
+
+    assert!(col_repo.delete_definition(&col_read_status.id).unwrap());
+    assert!(col_repo.get_values_for_book(&book.id).unwrap().is_empty());
+}
+
+#[test]
+fn test_virtual_libraries_crud_and_upsert() {
+    let db = Database::open_in_memory().unwrap();
+    let vl_repo = VirtualLibraryRepository::new(db);
+
+    let mut vl1 = VirtualLibrary::new(
+        "SF Française",
+        "tag:Sci-Fi language:fr",
+        Some("#6366f1".to_string()),
+    );
+    let vl2 = VirtualLibrary::new("BD & Manga", "format:cbz", None);
+
+    vl_repo.save(&vl1).unwrap();
+    vl_repo.save(&vl2).unwrap();
+
+    let all = vl_repo.find_all().unwrap();
+    assert_eq!(all.len(), 2);
+    assert_eq!(all[0].name, "BD & Manga");
+    assert_eq!(all[1].name, "SF Française");
+
+    vl1.query = "tag:Sci-Fi not format:pdf".to_string();
+    vl_repo.save(&vl1).unwrap();
+    let loaded = vl_repo.find_by_id(&vl1.id).unwrap().unwrap();
+    assert_eq!(loaded.query, "tag:Sci-Fi not format:pdf");
+
+    assert!(vl_repo.delete(&vl2.id).unwrap());
+    assert!(!vl_repo.delete("non-existent-id").unwrap());
+    assert_eq!(vl_repo.find_all().unwrap().len(), 1);
+}
+
+#[test]
+fn test_param_kv_and_book_tag_replacement() {
+    let db = Database::open_in_memory().unwrap();
+    let book_repo = BookRepository::new(db.clone());
+    let tag_repo = TagRepository::new(db.clone());
+    let param_repo = ParamRepository::new(db);
+
+    param_repo
+        .set_value("watch_folder_path", "/tmp/vellum-inbox")
+        .unwrap();
+    assert_eq!(
+        param_repo
+            .get_value("watch_folder_path")
+            .unwrap()
+            .as_deref(),
+        Some("/tmp/vellum-inbox")
+    );
+
+    let mut book = Book::new("La Horde du Contrevent", "Alain Damasio");
+    book.add_tag(Tag::new("Fantasy"));
+    book.add_tag(Tag::new("Temporaire"));
+    book_repo.save(&book).unwrap();
+
+    book.tags.retain(|t| t.name != "Temporaire");
+    book.add_tag(Tag::new("Chef-d'oeuvre"));
+    book_repo.save(&book).unwrap();
+
+    let reloaded = book_repo.find_by_id(&book.id).unwrap().unwrap();
+    let names: Vec<&str> = reloaded.tags.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names.len(), 2);
+    assert!(names.contains(&"Fantasy"));
+    assert!(names.contains(&"Chef-d'oeuvre"));
+
+    let counts = tag_repo.find_tags_with_book_counts().unwrap();
+    assert_eq!(counts.get("Fantasy"), Some(&1));
+    assert_eq!(counts.get("Chef-d'oeuvre"), Some(&1));
+    assert_eq!(counts.get("Temporaire").copied().unwrap_or(0), 0);
 }

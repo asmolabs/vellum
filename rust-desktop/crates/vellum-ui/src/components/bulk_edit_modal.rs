@@ -1,17 +1,19 @@
 use dioxus::prelude::*;
 
-pub type BulkEditPayload = (
-    Option<String>,
-    Option<String>,
-    bool,
-    Vec<String>,
-    Vec<String>,
-);
+/// Données soumises par la modale d'édition en masse.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BulkEditRequest {
+    pub author: Option<String>,
+    pub series: Option<String>,
+    pub auto_index: bool,
+    pub add_tags: Vec<String>,
+    pub remove_tags: Vec<String>,
+}
 
 #[component]
 pub fn BulkEditModal(
     selected_count: usize,
-    on_save: EventHandler<BulkEditPayload>,
+    on_save: EventHandler<BulkEditRequest>,
     on_close: EventHandler<()>,
 ) -> Element {
     let mut author_input = use_signal(String::new);
@@ -47,7 +49,6 @@ pub fn BulkEditModal(
                 }
 
                 div { style: "display: flex; flex-direction: column; gap: 14px; margin-top: 6px;",
-                    // Auteur
                     div { class: "drawer-form-group",
                         label { class: "drawer-form-label", "Définir un auteur commun :" }
                         input {
@@ -58,7 +59,6 @@ pub fn BulkEditModal(
                         }
                     }
 
-                    // Série & Numérotation
                     div { style: "display: flex; flex-direction: column; gap: 8px; padding: 12px; background: rgba(167, 139, 250, 0.05); border: 1px solid rgba(167, 139, 250, 0.2); border-radius: 8px;",
                         div { class: "drawer-form-group",
                             label { class: "drawer-form-label", "Assigner à une série / saga :" }
@@ -80,7 +80,6 @@ pub fn BulkEditModal(
                         }
                     }
 
-                    // Tags à ajouter
                     div { class: "drawer-form-group",
                         label { class: "drawer-form-label", "Ajouter ces étiquettes (séparées par virgule) :" }
                         input {
@@ -91,7 +90,6 @@ pub fn BulkEditModal(
                         }
                     }
 
-                    // Tags à retirer
                     div { class: "drawer-form-group",
                         label { class: "drawer-form-label", "Retirer ces étiquettes (séparées par virgule) :" }
                         input {
@@ -102,7 +100,6 @@ pub fn BulkEditModal(
                         }
                     }
 
-                    // Boutons de validation
                     div { style: "display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;",
                         button {
                             class: "btn btn-secondary",
@@ -122,20 +119,26 @@ pub fn BulkEditModal(
                                 } else {
                                     Some(series_input.read().trim().to_string())
                                 };
-                                let add_t: Vec<String> = add_tags_input
+                                let add_tags: Vec<String> = add_tags_input
                                     .read()
                                     .split(',')
                                     .map(|s| s.trim().to_string())
                                     .filter(|s| !s.is_empty())
                                     .collect();
-                                let rem_t: Vec<String> = remove_tags_input
+                                let remove_tags: Vec<String> = remove_tags_input
                                     .read()
                                     .split(',')
                                     .map(|s| s.trim().to_string())
                                     .filter(|s| !s.is_empty())
                                     .collect();
 
-                                on_save.call((author, series, *auto_index.read(), add_t, rem_t));
+                                on_save.call(BulkEditRequest {
+                                    author,
+                                    series,
+                                    auto_index: *auto_index.read(),
+                                    add_tags,
+                                    remove_tags,
+                                });
                                 on_close.call(());
                             },
                             "💾 Appliquer aux {selected_count} livre(s)"

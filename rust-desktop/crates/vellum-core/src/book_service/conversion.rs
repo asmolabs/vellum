@@ -14,6 +14,8 @@ pub struct BulkConvertReport {
     pub converted_count: usize,
     pub skipped_count: usize,
     pub errors: Vec<String>,
+    #[serde(default)]
+    pub cancelled: bool,
 }
 
 impl BookService {
@@ -47,17 +49,42 @@ impl BookService {
         book_ids: &[String],
         target_format: &str,
     ) -> BulkConvertReport {
+        self.bulk_convert_books_with_progress(book_ids, target_format, None, |_, _, _| {})
+    }
+
+    /// Convertit un lot de livres vers `target_format` avec suivi de progression `(faits, total, titre)` et annulation optionnelle.
+    pub fn bulk_convert_books_with_progress<F>(
+        &self,
+        book_ids: &[String],
+        target_format: &str,
+        cancel: Option<&std::sync::atomic::AtomicBool>,
+        mut on_progress: F,
+    ) -> BulkConvertReport
+    where
+        F: FnMut(usize, usize, &str),
+    {
         let target_ext = target_format.trim().to_lowercase();
         let mut report = BulkConvertReport {
             target_format: target_ext.to_uppercase(),
             ..Default::default()
         };
+        let total = book_ids.len();
 
-        for book_id in book_ids {
+        for (idx, book_id) in book_ids.iter().enumerate() {
+            if cancel
+                .map(|c| c.load(std::sync::atomic::Ordering::Relaxed))
+                .unwrap_or(false)
+            {
+                report.cancelled = true;
+                break;
+            }
+
             let Ok(Some(book)) = self.book_repo.find_by_id(book_id) else {
+                on_progress(idx + 1, total, book_id);
                 report.errors.push(format!("{book_id} : livre introuvable"));
                 continue;
             };
+            on_progress(idx + 1, total, &book.title);
             if book
                 .formats
                 .iter()

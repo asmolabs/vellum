@@ -213,7 +213,12 @@ fn is_xhtml_entry(name: &str) -> bool {
 
 fn upsert_dc_tag(metadata_inner: &str, tag: &str, value: &str) -> String {
     let escaped = escape_xml(value);
-    let re = Regex::new(&format!(r#"(?is)<dc:{tag}(?:\s+[^>]*)?>.*?</dc:{tag}>"#)).unwrap();
+    let tag_escaped = regex::escape(tag);
+    let Ok(re) = Regex::new(&format!(
+        r#"(?is)<dc:{tag_escaped}(?:\s+[^>]*)?>.*?</dc:{tag_escaped}>"#
+    )) else {
+        return metadata_inner.to_string();
+    };
     let replacement = format!("<dc:{tag}>{escaped}</dc:{tag}>");
     if re.is_match(metadata_inner) {
         re.replace(metadata_inner, replacement.as_str()).to_string()
@@ -223,8 +228,10 @@ fn upsert_dc_tag(metadata_inner: &str, tag: &str, value: &str) -> String {
 }
 
 fn inject_opf_metadata(opf_xml: &str, book: &Book) -> String {
-    let meta_re = Regex::new(r#"(?is)(<metadata\b[^>]*>)(.*?)(</metadata>)"#).unwrap();
-    let Some(caps) = meta_re.captures(opf_xml) else {
+    static META_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r#"(?is)(<metadata\b[^>]*>)(.*?)(</metadata>)"#).expect("valid metadata regex")
+    });
+    let Some(caps) = META_RE.captures(opf_xml) else {
         return opf_xml.to_string();
     };
 
@@ -254,14 +261,23 @@ fn inject_opf_metadata(opf_xml: &str, book: &Book) -> String {
     }
 
     let rebuilt = format!("{}{}\n  {}", &caps[1], inner, &caps[3]);
-    meta_re.replace(opf_xml, rebuilt.as_str()).to_string()
+    META_RE.replace(opf_xml, rebuilt.as_str()).to_string()
 }
 
 fn inject_opf_cover(opf_xml: &str, cover_href: &str, mime: &str) -> String {
+    static COVER_META_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r#"(?is)<meta\b[^>]*\bname=["']cover["'][^>]*/?>"#)
+            .expect("valid cover meta regex")
+    });
+    static ITEM_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r#"(?is)<item\b[^>]*\bid=["']vellum-cover-img["'][^>]*/?>"#)
+            .expect("valid cover item regex")
+    });
+
     let mut out = opf_xml.to_string();
 
     // Ensure <meta name="cover" content="vellum-cover-img"/> in <metadata>
-    let cover_meta_re = Regex::new(r#"(?is)<meta\b[^>]*\bname=["']cover["'][^>]*/?>"#).unwrap();
+    let cover_meta_re = &*COVER_META_RE;
     let meta_tag = r#"<meta name="cover" content="vellum-cover-img"/>"#;
     if cover_meta_re.is_match(&out) {
         out = cover_meta_re.replace(&out, meta_tag).to_string();
@@ -270,7 +286,7 @@ fn inject_opf_cover(opf_xml: &str, cover_href: &str, mime: &str) -> String {
     }
 
     // Ensure <item id="vellum-cover-img" .../> in <manifest>
-    let item_re = Regex::new(r#"(?is)<item\b[^>]*\bid=["']vellum-cover-img["'][^>]*/?>"#).unwrap();
+    let item_re = &*ITEM_RE;
     let item_tag = format!(
         r#"<item id="vellum-cover-img" href="{}" media-type="{}" properties="cover-image"/>"#,
         escape_xml(cover_href),
