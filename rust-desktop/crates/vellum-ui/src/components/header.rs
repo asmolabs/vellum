@@ -46,7 +46,7 @@ pub fn Header(
                     button {
                         class: "btn btn-icon",
                         style: "position: absolute; right: 44px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; font-size: 11px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.1); color: var(--text-muted); border: none; cursor: pointer;",
-                        title: "Effacer la recherche",
+                        title: translate(locale, "header.clear_search"),
                         onclick: move |_| search_query.set(String::new()),
                         "✕"
                     }
@@ -54,7 +54,7 @@ pub fn Header(
                 button {
                     class: "btn btn-icon",
                     style: "position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: auto; height: 24px; font-size: 11px; padding: 0 7px; border-radius: 5px; background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-subtle); cursor: pointer;",
-                    title: "Ouvrir la palette de commandes (⌘K)",
+                    title: translate(locale, "header.command_palette"),
                     onclick: move |_| on_open_palette.call(()),
                     "⌘K"
                 }
@@ -66,11 +66,17 @@ pub fn Header(
                     button {
                         class: "btn btn-secondary",
                         style: "border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;",
-                        title: "Synchroniser la bibliothèque avec Google Drive",
+                        title: translate(locale, "header.sync_tooltip"),
                         disabled: is_syncing,
                         onclick: move |_| on_sync_cloud.call(()),
                         span { if is_syncing { "⏳" } else { "☁️" } }
-                        span { if is_syncing { "Synchro..." } else { "Sync" } }
+                        span {
+                            {if is_syncing {
+                                translate(locale, "header.syncing")
+                            } else {
+                                translate(locale, "header.sync")
+                            }}
+                        }
                     }
                 }
 
@@ -100,10 +106,10 @@ pub fn Header(
                 button {
                     class: "btn btn-secondary",
                     style: "border-color: rgba(251, 191, 36, 0.35); color: #fbbf24;",
-                    title: "Recherche plein texte dans les chapitres (FTS5)",
+                    title: translate(locale, "header.content_search_tooltip"),
                     onclick: move |_| on_open_content_search.call(()),
                     span { "🔎" }
-                    span { "Contenu" }
+                    span { "{translate(locale, \"header.content_search\")}" }
                 }
 
                 // Menu Outils regroupé
@@ -115,7 +121,7 @@ pub fn Header(
                             tools_open.set(!cur);
                         },
                         span { "🧰" }
-                        span { "Outils ▾" }
+                        span { "{translate(locale, \"header.tools\")} ▾" }
                     }
 
                     if *tools_open.read() {
@@ -131,7 +137,7 @@ pub fn Header(
                                     on_open_audit.call(());
                                 },
                                 span { "🛡️" }
-                                span { "Santé & Audit (doublons)" }
+                                span { "{translate(locale, \"header.tools_audit\")}" }
                             }
                             button {
                                 class: "tools-menu-item",
@@ -140,7 +146,7 @@ pub fn Header(
                                     on_open_import_rules.call(());
                                 },
                                 span { "⚡" }
-                                span { "Règles d'import automatiques" }
+                                span { "{translate(locale, \"header.tools_import_rules\")}" }
                             }
                             button {
                                 class: "tools-menu-item",
@@ -149,7 +155,7 @@ pub fn Header(
                                     on_open_bulk_regex.call(());
                                 },
                                 span { "🔤" }
-                                span { "Regex en masse" }
+                                span { "{translate(locale, \"header.tools_bulk_regex\")}" }
                             }
                             button {
                                 class: "tools-menu-item",
@@ -158,7 +164,7 @@ pub fn Header(
                                     on_open_news.call(());
                                 },
                                 span { "📰" }
-                                span { "Recettes d'actualités (RSS)" }
+                                span { "{translate(locale, \"header.tools_news\")}" }
                             }
                             button {
                                 class: "tools-menu-item",
@@ -167,7 +173,7 @@ pub fn Header(
                                     on_open_web_companion.call(());
                                 },
                                 span { "🌐" }
-                                span { "Compagnon Web & OPDS" }
+                                span { "{translate(locale, \"header.tools_web_companion\")}" }
                             }
                             button {
                                 class: "tools-menu-item",
@@ -176,7 +182,7 @@ pub fn Header(
                                     on_import_calibre.call(());
                                 },
                                 span { "📦" }
-                                span { "Importer depuis Calibre" }
+                                span { "{translate(locale, \"header.tools_import_calibre\")}" }
                             }
                         }
                     }
@@ -186,11 +192,11 @@ pub fn Header(
                     class: "btn btn-primary",
                     onclick: move |_| on_import.call(()),
                     span { "＋" }
-                    span { "Importer" }
+                    span { "{translate(locale, \"action.import\")}" }
                 }
                 button {
                     class: "btn btn-icon",
-                    title: "Paramètres & Diagnostics",
+                    title: translate(locale, "header.settings_tooltip"),
                     onclick: move |_| on_open_settings.call(()),
                     "⚙"
                 }

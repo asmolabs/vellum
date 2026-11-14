@@ -71,10 +71,10 @@ pub fn Sidebar(
                 div {
                     class: "sidebar-section-title",
                     style: "display: flex; justify-content: space-between; align-items: center;",
-                    span { "Bibliothèques virtuelles" }
+                    span { "{translate(locale, \"sidebar.virtual_libraries\")}" }
                     button {
                         style: "background: none; border: none; color: #818cf8; cursor: pointer; font-size: 14px; font-weight: 700; padding: 0 4px;",
-                        title: "Créer une bibliothèque virtuelle",
+                        title: translate(locale, "sidebar.create_vl"),
                         onclick: move |_| {
                             let next = !*show_new_vl.read();
                             show_new_vl.set(next);
@@ -87,14 +87,14 @@ pub fn Sidebar(
                         style: "display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; margin-bottom: 8px; background: rgba(255,255,255,0.04); border-radius: 6px;",
                         input {
                             r#type: "text",
-                            placeholder: "Nom (ex: SF à lire)",
+                            placeholder: translate(locale, "sidebar.vl_name_placeholder"),
                             style: "font-size: 11px; padding: 4px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);",
                             value: "{new_vl_name}",
                             oninput: move |e| new_vl_name.set(e.value()),
                         }
                         input {
                             r#type: "text",
-                            placeholder: "Requête (ex: tag:sf -status:finished)",
+                            placeholder: translate(locale, "sidebar.vl_query_placeholder"),
                             style: "font-size: 11px; padding: 4px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);",
                             value: "{new_vl_query}",
                             oninput: move |e| new_vl_query.set(e.value()),
@@ -111,7 +111,7 @@ pub fn Sidebar(
                                     show_new_vl.set(false);
                                 }
                             },
-                            "Enregistrer"
+                            "{translate(locale, \"action.save\")}"
                         }
                     }
                 }
@@ -184,7 +184,7 @@ pub fn Sidebar(
             // Étiquettes / Tags
             if !tags_counts.is_empty() {
                 div {
-                    div { class: "sidebar-section-title", "Étiquettes" }
+                    div { class: "sidebar-section-title", "{translate(locale, \"nav.tags\")}" }
                     div { class: "tags-cloud",
                         for (tag_name, count) in tags_counts.iter() {
                             {
@@ -214,22 +214,22 @@ pub fn Sidebar(
                     class: "sidebar-stats-card",
                     style: "cursor: pointer; transition: transform 0.15s, border-color 0.15s;",
                     onclick: move |_| on_open_stats.call(()),
-                    title: "Cliquer pour ouvrir les statistiques détaillées et le calendrier d'activité",
+                    title: translate(locale, "sidebar.stats_tooltip"),
                     div { class: "stat-row",
-                        span { "Total :" }
+                        span { "{translate(locale, \"sidebar.stats_total\")}" }
                         span { class: "stat-val", "{s.total_books}" }
                     }
                     div { class: "stat-row",
-                        span { "En lecture :" }
+                        span { "{translate(locale, \"sidebar.stats_reading\")}" }
                         span { class: "stat-val", "{s.in_progress_books}" }
                     }
                     div { class: "stat-row",
-                        span { "Terminés :" }
+                        span { "{translate(locale, \"sidebar.stats_finished\")}" }
                         span { class: "stat-val", "{s.finished_books}" }
                     }
                     div {
                         style: "margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11px; color: #818cf8; text-align: center; font-weight: 600;",
-                        "📊 Voir les statistiques ➔"
+                        "{translate(locale, \"sidebar.stats_open\")}"
                     }
                 }
             }

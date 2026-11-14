@@ -14,6 +14,7 @@ use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::html::HasFileData;
 use dioxus::prelude::*;
 
+mod app_modals;
 mod components;
 mod cover_cache;
 mod library_logic;
@@ -21,15 +22,13 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BooksTable, BulkConvertModal, BulkEditModal, BulkRegexModal, CommandPalette,
-    ContentSearchModal, DetailDrawer, EpubEditorModal, Header, ImportRulesModal, KanbanBoard,
-    KanbanTargetStatus, LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal,
-    ReadingStatsModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
+    BookCard, BooksTable, DetailDrawer, Header, KanbanBoard, KanbanTargetStatus, PaletteAction,
+    Sidebar, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
 
-use vellum_core::{init_services, CatalogExporter, CatalogFormat, FolderSyncBackend};
+use vellum_core::{init_services, FolderSyncBackend};
 use vellum_domain::{Book, DeviceKind, SmtpConfig};
 
 fn main() {
@@ -60,14 +59,13 @@ fn App() -> Element {
     let mut sync_config = use_signal(|| sync_service.config());
     let mut is_syncing = use_signal(|| false);
     let mut sync_message = use_signal(|| None::<String>);
-    let mut ui_locale = use_signal(|| book_service.get_ui_locale());
+    let ui_locale = use_signal(|| book_service.get_ui_locale());
 
     let mut books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
     let mut virtual_libraries = use_signal(|| virtual_library_service.list().unwrap_or_default());
     let mut active_virtual_library_id = use_signal(|| None::<String>);
-    let mut custom_columns =
-        use_signal(|| custom_column_service.list_columns().unwrap_or_default());
-    let mut watch_folder_path = use_signal(|| {
+    let custom_columns = use_signal(|| custom_column_service.list_columns().unwrap_or_default());
+    let watch_folder_path = use_signal(|| {
         book_service
             .param_repo()
             .get_value("watch_folder_path")
@@ -1023,6 +1021,69 @@ fn App() -> Element {
 
     let plugin_descriptors = book_service.plugin_service().list_descriptors();
 
+    let overlay_services = app_modals::OverlayServices {
+        book_service: book_service.clone(),
+        news_service: news_service.clone(),
+        custom_column_service: custom_column_service.clone(),
+        sync_service: sync_service.clone(),
+        opds_port,
+        litestream_status_str,
+        plugin_descriptors,
+        reading_stats: reading_stats.clone(),
+        series_names: series_names.clone(),
+    };
+    let overlay_state = app_modals::OverlayState {
+        books,
+        custom_columns,
+        watch_folder_path,
+        ui_locale,
+        sync_config,
+        is_syncing,
+        sync_message,
+        smtp_config,
+        is_testing_smtp,
+        smtp_test_message,
+        selected_book,
+        active_reader,
+        settings_open,
+        palette_open,
+        bulk_edit_open,
+        bulk_convert_open,
+        selected_ids,
+        translating_book,
+        is_translating,
+        epub_editing_book,
+        news_recipes_open,
+        audit_open,
+        stats_open,
+        content_search_open,
+        bulk_regex_open,
+        import_rules_open,
+        toast_msg,
+    };
+    let overlay_handlers = app_modals::OverlayHandlers {
+        on_refresh: EventHandler::new({
+            let mut r = refresh_library.clone();
+            move |()| r()
+        }),
+        on_read: EventHandler::new(handle_read.clone()),
+        on_progress: EventHandler::new(handle_progress),
+        on_start_translate: EventHandler::new(handle_start_translate.clone()),
+        on_palette_action: EventHandler::new(handle_palette_action.clone()),
+        on_bulk_edit_save: EventHandler::new(handle_bulk_edit_save.clone()),
+        on_bulk_delete: EventHandler::new({
+            let mut h = handle_bulk_delete.clone();
+            move |()| h(())
+        }),
+        on_sync_now: EventHandler::new(handle_sync_now.clone()),
+        on_pick_sync_folder: EventHandler::new(handle_pick_sync_folder.clone()),
+        on_auto_detect_folder: EventHandler::new(handle_auto_detect_folder.clone()),
+        on_toggle_auto_download: EventHandler::new(handle_toggle_auto_download),
+        on_toggle_sync_enabled: EventHandler::new(handle_toggle_sync_enabled),
+        on_save_smtp: EventHandler::new(handle_save_smtp),
+        on_test_smtp: EventHandler::new(handle_test_smtp),
+    };
+
     rsx! {
         style { "{APP_CSS}" }
 
@@ -1479,354 +1540,7 @@ fn App() -> Element {
                 }
             }
 
-            // EPUB Inspector & TOC Editor Modal
-            if let Some(book) = epub_editing_book.read().as_ref() {
-                EpubEditorModal {
-                    book: book.clone(),
-                    book_service: book_service.clone(),
-                    on_close: move |_| epub_editing_book.set(None),
-                    on_updated: {
-                        let mut refresh = refresh_library.clone();
-                        move |_| {
-                            refresh();
-                        }
-                    },
-                }
-            }
-
-            // Translate Modal
-            if let Some(book) = translating_book.read().as_ref() {
-                TranslateModal {
-                    book: book.clone(),
-                    is_translating: *is_translating.read(),
-                    on_close: move |_| translating_book.set(None),
-                    on_start_translate: handle_start_translate.clone(),
-                }
-            }
-
-            // News Recipes Modal (RSS to EPUB)
-            if *news_recipes_open.read() {
-                NewsRecipesModal {
-                    news_service: news_service.clone(),
-                    on_close: move |_| news_recipes_open.set(false),
-                    on_imported: {
-                        let mut refresh = refresh_library.clone();
-                        move |_| {
-                            refresh();
-                        }
-                    },
-                }
-            }
-
-            // Library Health & Audit Modal
-            if *audit_open.read() {
-                LibraryAuditModal {
-                    book_service: book_service.clone(),
-                    on_close: move |_| audit_open.set(false),
-                    on_updated: {
-                        let mut refresh = refresh_library.clone();
-                        move |_| {
-                            refresh();
-                        }
-                    },
-                }
-            }
-
-            // Reading Stats & Annual Heatmap Modal
-            if *stats_open.read() {
-                if let Some(ref st) = reading_stats {
-                    ReadingStatsModal {
-                        stats: st.clone(),
-                        on_close: move |_| stats_open.set(false),
-                        on_read_book: handle_read.clone(),
-                    }
-                }
-            }
-
-            // Fullscreen Reader
-            if active_reader.read().is_some() {
-                ReaderModal {
-                    session: active_reader,
-                    on_close: {
-                        let mut refresh = refresh_library.clone();
-                        move |_| {
-                            active_reader.set(None);
-                            refresh();
-                        }
-                    },
-                    on_progress_update: handle_progress,
-                }
-            }
-
-            // Settings Modal
-            if *settings_open.read() {
-                SettingsModal {
-                    locale: *ui_locale.read(),
-                    on_change_locale: {
-                        let bs = book_service.clone();
-                        move |new_loc| {
-                            let _ = bs.set_ui_locale(new_loc);
-                            ui_locale.set(new_loc);
-                        }
-                    },
-                    opds_port: opds_port,
-                    opds_running: true,
-                    litestream_status_text: litestream_status_str,
-                    plugins: plugin_descriptors,
-                    sync_config: sync_config.read().clone(),
-                    sync_available: sync_service.is_backend_available(),
-                    is_syncing: *is_syncing.read(),
-                    sync_message: sync_message.read().clone(),
-                    smtp_config: smtp_config.read().clone(),
-                    is_testing_smtp: *is_testing_smtp.read(),
-                    smtp_test_message: smtp_test_message.read().clone(),
-                    custom_columns: custom_columns.read().clone(),
-                    on_create_custom_column: {
-                        let ccs = custom_column_service.clone();
-                        move |(key, label, col_type): (String, String, vellum_domain::CustomColumnType)| {
-                            match ccs.define_column(&key, &label, col_type) {
-                                Ok(_) => {
-                                    custom_columns.set(ccs.list_columns().unwrap_or_default());
-                                }
-                                Err(e) => {
-                                    sync_message.set(Some(format!("Erreur colonne : {e}")));
-                                }
-                            }
-                        }
-                    },
-                    on_delete_custom_column: {
-                        let ccs = custom_column_service.clone();
-                        move |id: String| {
-                            if ccs.delete_column(&id).is_ok() {
-                                custom_columns.set(ccs.list_columns().unwrap_or_default());
-                            }
-                        }
-                    },
-                    watch_folder_path: watch_folder_path.read().clone(),
-                    on_scan_watch_folder: {
-                        let bs = book_service.clone();
-                        let mut refresh = refresh_library.clone();
-                        move |dir: String| {
-                            let _ = bs.param_repo().set_value("watch_folder_path", &dir);
-                            watch_folder_path.set(dir.clone());
-                            match vellum_core::WatchFolderService::scan_once(
-                                &bs,
-                                std::path::Path::new(&dir),
-                                true,
-                            ) {
-                                Ok(report) => {
-                                    sync_message.set(Some(format!(
-                                        "📥 Watch Folder : {} importé(s), {} doublon(s) ignoré(s)",
-                                        report.imported_book_ids.len(),
-                                        report.skipped_duplicates
-                                    )));
-                                    refresh();
-                                }
-                                Err(e) => {
-                                    sync_message.set(Some(format!("Erreur Watch Folder : {e}")));
-                                }
-                            }
-                        }
-                    },
-                    on_export_catalog: move |fmt: CatalogFormat| {
-                        let (default_name, ext) = match fmt {
-                            CatalogFormat::Csv => ("vellum-catalogue.csv", "csv"),
-                            CatalogFormat::Json => ("vellum-catalogue.json", "json"),
-                            CatalogFormat::Bibtex => ("vellum-catalogue.bib", "bib"),
-                        };
-                        if let Some(dest) = rfd::FileDialog::new()
-                            .set_file_name(default_name)
-                            .add_filter("Catalogue", &[ext])
-                            .save_file()
-                        {
-                            let all_books = books.read().clone();
-                            match CatalogExporter::export_to_file(&all_books, fmt, &dest) {
-                                Ok(()) => {
-                                    sync_message.set(Some(format!(
-                                        "📚 Catalogue exporté ({} livres) : {}",
-                                        all_books.len(),
-                                        dest.display()
-                                    )));
-                                }
-                                Err(e) => {
-                                    sync_message.set(Some(format!("Erreur export catalogue : {e}")));
-                                }
-                            }
-                        }
-                    },
-                    on_sync_now: handle_sync_now.clone(),
-                    on_select_folder: handle_pick_sync_folder.clone(),
-                    on_auto_detect_folder: handle_auto_detect_folder.clone(),
-                    on_toggle_auto_download: handle_toggle_auto_download.clone(),
-                    on_toggle_enabled: handle_toggle_sync_enabled.clone(),
-                    on_save_smtp: handle_save_smtp.clone(),
-                    on_test_smtp: handle_test_smtp.clone(),
-                    on_close: move |_| settings_open.set(false),
-                }
-            }
-
-            // Command Palette (Cmd + K)
-            if *palette_open.read() {
-                CommandPalette {
-                    books: books.read().clone(),
-                    series_list: series_names.clone(),
-                    on_close: move |_| palette_open.set(false),
-                    on_action: handle_palette_action.clone(),
-                }
-            }
-
-            // Floating Selection Toolbar
-            if !selected_ids.read().is_empty() {
-                {
-                    let count = selected_ids.read().len();
-                    rsx! {
-                        div {
-                            style: "position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: rgba(24, 24, 27, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 12px 32px rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 9999px; display: flex; align-items: center; gap: 14px; z-index: 1000;",
-                            div {
-                                style: "display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #fff;",
-                                span {
-                                    style: "background: var(--accent-primary); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;",
-                                    "{count}"
-                                }
-                                span { "sélectionné(s)" }
-                            }
-                            div { style: "width: 1px; height: 20px; background: rgba(255,255,255,0.15);" }
-                            button {
-                                class: "btn btn-primary",
-                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
-                                onclick: move |_| bulk_edit_open.set(true),
-                                span { "✏️" }
-                                "Modifier en masse"
-                            }
-                            button {
-                                class: "btn btn-secondary",
-                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
-                                onclick: move |_| bulk_convert_open.set(true),
-                                span { "🔄" }
-                                "Convertir"
-                            }
-                            button {
-                                class: "btn btn-secondary",
-                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
-                                onclick: move |_| bulk_regex_open.set(true),
-                                span { "🔤" }
-                                "Regex"
-                            }
-                            button {
-                                class: "btn btn-danger",
-                                style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
-                                onclick: {
-                                    let mut h = handle_bulk_delete.clone();
-                                    move |_| h(())
-                                },
-                                span { "🗑️" }
-                                "Supprimer ({count})"
-                            }
-                            button {
-                                class: "btn btn-secondary",
-                                style: "padding: 6px 12px; font-size: 12px; border-radius: 20px; color: var(--text-muted); cursor: pointer;",
-                                onclick: move |_| selected_ids.set(std::collections::HashSet::new()),
-                                "Annuler"
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Bulk Edit Modal
-            if *bulk_edit_open.read() {
-                {
-                    let count = selected_ids.read().len();
-                    rsx! {
-                        BulkEditModal {
-                            selected_count: count,
-                            on_save: {
-                                let mut h = handle_bulk_edit_save.clone();
-                                move |data| {
-                                    bulk_edit_open.set(false);
-                                    h(data);
-                                }
-                            },
-                            on_close: move |_| bulk_edit_open.set(false),
-                        }
-                    }
-                }
-            }
-
-            // Full-Text Content Search Modal (FTS5)
-            if *content_search_open.read() {
-                ContentSearchModal {
-                    book_service: book_service.clone(),
-                    books: books.read().clone(),
-                    on_close: move |_| content_search_open.set(false),
-                    on_select_book: move |b| selected_book.set(Some(b)),
-                }
-            }
-
-            // Bulk Convert Modal
-            if *bulk_convert_open.read() {
-                {
-                    let ids: Vec<String> = selected_ids.read().iter().cloned().collect();
-                    rsx! {
-                        BulkConvertModal {
-                            book_service: book_service.clone(),
-                            target_book_ids: ids,
-                            on_close: move |_| bulk_convert_open.set(false),
-                            on_converted: {
-                                let mut refresh = refresh_library.clone();
-                                move |_| refresh()
-                            },
-                        }
-                    }
-                }
-            }
-
-            // Bulk Regex Search & Replace Modal
-            if *bulk_regex_open.read() {
-                {
-                    let ids: Vec<String> = if selected_ids.read().is_empty() {
-                        books.read().iter().map(|b| b.id.clone()).collect()
-                    } else {
-                        selected_ids.read().iter().cloned().collect()
-                    };
-                    rsx! {
-                        BulkRegexModal {
-                            book_service: book_service.clone(),
-                            target_book_ids: ids,
-                            on_close: move |_| bulk_regex_open.set(false),
-                            on_updated: {
-                                let mut refresh = refresh_library.clone();
-                                move |_| refresh()
-                            },
-                        }
-                    }
-                }
-            }
-
-            // Automatic Import Rules Modal
-            if *import_rules_open.read() {
-                ImportRulesModal {
-                    book_service: book_service.clone(),
-                    on_close: move |_| import_rules_open.set(false),
-                }
-            }
-
-            if let Some((msg, ok)) = toast_msg.read().as_ref() {
-                div {
-                    class: "toast-banner",
-                    style: if *ok {
-                        "background: rgba(20, 83, 45, 0.92); color: #dcfce7; border: 1px solid rgba(34, 197, 94, 0.45);"
-                    } else {
-                        "background: rgba(127, 29, 29, 0.92); color: #fee2e2; border: 1px solid rgba(239, 68, 68, 0.45);"
-                    },
-                    span { "{msg}" }
-                    button {
-                        style: "background: transparent; border: none; color: inherit; cursor: pointer; font-size: 13px; padding: 0 2px;",
-                        onclick: move |_| toast_msg.set(None),
-                        "✕"
-                    }
-                }
-            }
+            {app_modals::render_app_overlays(overlay_services, overlay_state, overlay_handlers)}
         }
 
     }

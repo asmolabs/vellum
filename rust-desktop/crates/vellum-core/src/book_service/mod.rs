@@ -3,6 +3,7 @@
 mod bulk_regex;
 mod conversion;
 mod epub_and_audit;
+mod formats_progress;
 mod lifecycle;
 mod metadata;
 pub mod thumbnails;
