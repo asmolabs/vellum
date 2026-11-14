@@ -13,7 +13,7 @@ use super::glossary_manager::GlossaryManager;
 use super::html_parser::{
     build_bilingual_chapter, extract_paragraphs, rebuild_chapter_html, restore_inline_tags,
 };
-use super::llm_client::{LlmTranslationClient, parse_numbered_response};
+use super::llm_client::{parse_numbered_response, LlmTranslationClient};
 use super::qa_validator::QualityAssuranceValidator;
 use super::segment_cache::TranslationSegmentCache;
 
@@ -109,7 +109,9 @@ pub fn translate_epub(
     let mut sample_paragraphs: Vec<String> = Vec::new();
 
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| VellumError::Zip(e.to_string()))?;
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| VellumError::Zip(e.to_string()))?;
         if entry.is_dir() {
             continue;
         }
@@ -158,19 +160,24 @@ pub fn translate_epub(
     // Write mimetype first if present
     if let Some((_, mime_bytes)) = entries.iter().find(|(n, _)| n == "mimetype") {
         let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-        writer.start_file("mimetype", stored).map_err(|e| VellumError::Zip(e.to_string()))?;
+        writer
+            .start_file("mimetype", stored)
+            .map_err(|e| VellumError::Zip(e.to_string()))?;
         writer.write_all(mime_bytes)?;
     }
 
     let deflated = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
-    let lang_re = Regex::new(r"(?is)(<dc:language[^>]*>)(.*?)(</dc:language>)").expect("valid regex");
+    let lang_re =
+        Regex::new(r"(?is)(<dc:language[^>]*>)(.*?)(</dc:language>)").expect("valid regex");
 
     for (name, bytes) in entries {
         if name == "mimetype" {
             continue;
         }
 
-        writer.start_file(&name, deflated).map_err(|e| VellumError::Zip(e.to_string()))?;
+        writer
+            .start_file(&name, deflated)
+            .map_err(|e| VellumError::Zip(e.to_string()))?;
 
         if name.to_lowercase().ends_with(".opf") {
             if let Ok(opf_str) = String::from_utf8(bytes.clone()) {
@@ -257,9 +264,7 @@ pub fn translate_epub(
                  4. Ne rajoute aucun commentaire ni introduction."
             );
 
-            let raw_response = llm
-                .chat(&system_prompt, &batch_prompt)
-                .unwrap_or_default();
+            let raw_response = llm.chat(&system_prompt, &batch_prompt).unwrap_or_default();
             let parsed = parse_numbered_response(&raw_response, batch.len());
 
             for (local_i, &p_idx) in batch.iter().enumerate() {
@@ -310,7 +315,9 @@ pub fn translate_epub(
         writer.write_all(new_html.as_bytes())?;
     }
 
-    writer.finish().map_err(|e| VellumError::Zip(e.to_string()))?;
+    writer
+        .finish()
+        .map_err(|e| VellumError::Zip(e.to_string()))?;
     Ok(stats)
 }
 

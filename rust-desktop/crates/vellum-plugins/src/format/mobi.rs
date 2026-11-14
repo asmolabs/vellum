@@ -132,7 +132,9 @@ impl BookFormatPlugin for MobiFormatPlugin {
         let has_exth = (exth_flags & 0x40) != 0;
         let exth_offset = rec0 + 16 + mobi_header_len;
 
-        if has_exth && exth_offset + 12 <= data.len() && &data[exth_offset..exth_offset + 4] == b"EXTH"
+        if has_exth
+            && exth_offset + 12 <= data.len()
+            && &data[exth_offset..exth_offset + 4] == b"EXTH"
         {
             let exth_len = read_u32(&data, exth_offset + 4) as usize;
             let exth_count = read_u32(&data, exth_offset + 8) as usize;

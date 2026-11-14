@@ -1,9 +1,9 @@
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use chrono::Utc;
 use regex::Regex;
 use roxmltree::Document;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tempfile::NamedTempFile;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
@@ -73,7 +73,9 @@ impl NewsService {
             NewsRecipe {
                 id: "recipe-tech".to_string(),
                 title: "Tech & Hackers Digest".to_string(),
-                description: Some("Le meilleur de l'actualité tech, open-source et développement.".to_string()),
+                description: Some(
+                    "Le meilleur de l'actualité tech, open-source et développement.".to_string(),
+                ),
                 feeds: vec![
                     NewsFeedConfig::new("hn", "Hacker News", "https://news.ycombinator.com/rss"),
                     NewsFeedConfig::new("gh", "GitHub Blog", "https://github.blog/feed/"),
@@ -86,8 +88,16 @@ impl NewsService {
                 title: "Presse & Actualités".to_string(),
                 description: Some("Résumé de la presse francophone du jour.".to_string()),
                 feeds: vec![
-                    NewsFeedConfig::new("lemonde", "Le Monde", "https://www.lemonde.fr/rss/une.xml"),
-                    NewsFeedConfig::new("franceinfo", "France Info", "https://www.francetvinfo.fr/titres.rss"),
+                    NewsFeedConfig::new(
+                        "lemonde",
+                        "Le Monde",
+                        "https://www.lemonde.fr/rss/une.xml",
+                    ),
+                    NewsFeedConfig::new(
+                        "franceinfo",
+                        "France Info",
+                        "https://www.francetvinfo.fr/titres.rss",
+                    ),
                 ],
                 max_articles_per_feed: 8,
                 auto_send_kindle: false,
@@ -96,9 +106,11 @@ impl NewsService {
                 id: "recipe-world".to_string(),
                 title: "International World News".to_string(),
                 description: Some("World news from international media.".to_string()),
-                feeds: vec![
-                    NewsFeedConfig::new("bbc", "BBC World", "http://feeds.bbci.co.uk/news/world/rss.xml"),
-                ],
+                feeds: vec![NewsFeedConfig::new(
+                    "bbc",
+                    "BBC World",
+                    "http://feeds.bbci.co.uk/news/world/rss.xml",
+                )],
                 max_articles_per_feed: 10,
                 auto_send_kindle: false,
             },
@@ -247,11 +259,9 @@ impl NewsService {
             .build()
             .map_err(|e| VellumError::Plugin(format!("Erreur client HTTP: {e}")))?;
 
-        let response = client
-            .get(&feed.url)
-            .send()
-            .await
-            .map_err(|e| VellumError::Plugin(format!("Échec téléchargement flux '{}': {e}", feed.name)))?;
+        let response = client.get(&feed.url).send().await.map_err(|e| {
+            VellumError::Plugin(format!("Échec téléchargement flux '{}': {e}", feed.name))
+        })?;
 
         let xml = response
             .text()
@@ -270,9 +280,16 @@ impl NewsService {
         let mut all_articles = Vec::new();
 
         for feed in &recipe.feeds {
-            match self.fetch_feed_articles(feed, recipe.max_articles_per_feed).await {
+            match self
+                .fetch_feed_articles(feed, recipe.max_articles_per_feed)
+                .await
+            {
                 Ok(mut articles) => {
-                    tracing::info!("Flux '{}' : {} articles récupérés", feed.name, articles.len());
+                    tracing::info!(
+                        "Flux '{}' : {} articles récupérés",
+                        feed.name,
+                        articles.len()
+                    );
                     all_articles.append(&mut articles);
                 }
                 Err(e) => {
@@ -309,8 +326,10 @@ impl NewsService {
         let temp_file = NamedTempFile::new()?;
         let mut zip = ZipWriter::new(temp_file.reopen()?);
 
-        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-        let deflated = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // 1. mimetype (first uncompressed entry)
         map_zip(zip.start_file("mimetype", stored))?;
@@ -521,7 +540,8 @@ impl NewsService {
     <h1>Sommaire</h1>
     <ol>
       <li><a href="cover.xhtml">Couverture</a></li>
-"#.to_string();
+"#
+        .to_string();
 
         for (i, art) in articles.iter().enumerate() {
             nav.push_str(&format!(
@@ -638,7 +658,9 @@ impl NewsService {
                 if let Ok(Some(json)) = self.param_repo.get_value("smtp_config") {
                     if let Ok(smtp_cfg) = serde_json::from_str::<vellum_domain::SmtpConfig>(&json) {
                         if smtp_cfg.enabled && !smtp_cfg.kindle_email.is_empty() {
-                            let _ = mail_svc.send_to_kindle(&saved_book, &smtp_cfg, Some("epub")).await;
+                            let _ = mail_svc
+                                .send_to_kindle(&saved_book, &smtp_cfg, Some("epub"))
+                                .await;
                         }
                     }
                 }
@@ -671,7 +693,13 @@ fn sanitize_article_html(html: &str) -> String {
 
 fn sanitize_slug(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .split('_')
         .filter(|part| !part.is_empty())
@@ -744,13 +772,20 @@ mod tests {
         assert_eq!(articles.len(), 1);
         assert_eq!(articles[0].title, "New Security Features in GitHub");
         assert_eq!(articles[0].author.as_deref(), Some("Security Team"));
-        assert_eq!(articles[0].link.as_deref(), Some("https://github.blog/sec-update"));
+        assert_eq!(
+            articles[0].link.as_deref(),
+            Some("https://github.blog/sec-update")
+        );
     }
 
     #[test]
     fn test_build_news_epub_and_verify_with_inspector() {
         let mut recipe = NewsRecipe::new("tech-digest", "Tech Daily");
-        recipe.feeds.push(NewsFeedConfig::new("hn", "HN", "https://news.ycombinator.com/rss"));
+        recipe.feeds.push(NewsFeedConfig::new(
+            "hn",
+            "HN",
+            "https://news.ycombinator.com/rss",
+        ));
 
         let articles = vec![
             NewsArticle {
@@ -779,7 +814,10 @@ mod tests {
         assert!(diag.is_valid, "Le journal généré doit être un EPUB valide");
         assert_eq!(diag.spine_count, 3); // cover + 2 articles
         assert_eq!(diag.toc_entries_count, 3);
-        assert!(!diag.issues.iter().any(|i| i.severity == vellum_domain::EpubIssueSeverity::Error));
+        assert!(!diag
+            .issues
+            .iter()
+            .any(|i| i.severity == vellum_domain::EpubIssueSeverity::Error));
 
         let toc = EpubEditor::extract_toc(&epub_path).unwrap();
         assert_eq!(toc.len(), 3);

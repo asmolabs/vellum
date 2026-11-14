@@ -150,7 +150,10 @@ impl LlmClient {
             _ => match self.generate_completion("", "Bonjour ! Réponds par le seul mot OK.") {
                 Ok(s) => !s.trim().is_empty(),
                 Err(e) => {
-                    warn!("Test de connexion LLM échoué vers {} : {}", self.base_url, e);
+                    warn!(
+                        "Test de connexion LLM échoué vers {} : {}",
+                        self.base_url, e
+                    );
                     false
                 }
             },
@@ -186,10 +189,7 @@ pub fn clean_model_artifacts(text: &str) -> String {
     if trimmed.starts_with("```") && trimmed.ends_with("```") {
         let fence_start = Regex::new(r"^```[a-zA-Z]*\s*").unwrap();
         let without_start = fence_start.replace(trimmed, "");
-        return without_start
-            .trim_end_matches("```")
-            .trim()
-            .to_string();
+        return without_start.trim_end_matches("```").trim().to_string();
     }
 
     trimmed.to_string()

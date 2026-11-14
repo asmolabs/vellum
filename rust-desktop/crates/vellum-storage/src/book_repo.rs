@@ -87,8 +87,11 @@ impl BookRepository {
         .map_err(|e| VellumError::Database(e.to_string()))?;
 
         // Replace formats
-        tx.execute("DELETE FROM book_formats WHERE book_id = ?1", params![book.id])
-            .map_err(|e| VellumError::Database(e.to_string()))?;
+        tx.execute(
+            "DELETE FROM book_formats WHERE book_id = ?1",
+            params![book.id],
+        )
+        .map_err(|e| VellumError::Database(e.to_string()))?;
         for fmt in &book.formats {
             tx.execute(
                 "INSERT INTO book_formats (id, book_id, format, filename, filepath, filesize)
@@ -335,9 +338,7 @@ impl BookRepository {
 
         // Load tags
         let mut tag_stmt = conn
-            .prepare(
-                "SELECT tag_name FROM book_tags WHERE book_id = ?1 ORDER BY tag_name ASC",
-            )
+            .prepare("SELECT tag_name FROM book_tags WHERE book_id = ?1 ORDER BY tag_name ASC")
             .map_err(|e| VellumError::Database(e.to_string()))?;
         let tags = tag_stmt
             .query_map(params![id], |row| Ok(Tag::new(row.get::<_, String>(0)?)))

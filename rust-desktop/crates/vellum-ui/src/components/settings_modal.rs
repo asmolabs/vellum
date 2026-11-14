@@ -69,7 +69,9 @@ pub fn SettingsModal(
     let mut smtp_from = use_signal(|| smtp_config.from_address.clone());
     let mut smtp_kindle = use_signal(|| smtp_config.kindle_email.clone());
 
-    let (smtp_badge_text, smtp_badge_style) = if *smtp_enabled.read() && !smtp_kindle.read().is_empty() {
+    let (smtp_badge_text, smtp_badge_style) = if *smtp_enabled.read()
+        && !smtp_kindle.read().is_empty()
+    {
         ("CONFIGURÉ", "background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);")
     } else if *smtp_enabled.read() {
         ("INCOMPLET", "background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);")

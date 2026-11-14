@@ -44,7 +44,13 @@ impl BookContentProvider for PdfContentProvider {
         self.total_pages
     }
 
-    fn get_page_html(&self, page_index: usize, theme: &str, font_size: u32, is_serif: bool) -> String {
+    fn get_page_html(
+        &self,
+        page_index: usize,
+        theme: &str,
+        font_size: u32,
+        is_serif: bool,
+    ) -> String {
         if page_index >= self.pages_text.len() {
             return String::new();
         }

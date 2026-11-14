@@ -4,8 +4,8 @@ use vellum_domain::{
     Book, EpubDiagnostics, EpubTocEntry, LibraryHealthReport, VellumError, VellumResult,
 };
 
-use crate::epub_editor::{EpubEditor, PolishOptions, PolishReport};
 use super::BookService;
+use crate::epub_editor::{EpubEditor, PolishOptions, PolishReport};
 
 impl BookService {
     fn resolve_epub_path(&self, book_id: &str) -> VellumResult<(Book, PathBuf)> {
@@ -17,9 +17,14 @@ impl BookService {
         let format_entry = book
             .formats
             .iter()
-            .find(|f| f.format.eq_ignore_ascii_case("epub") || f.format.eq_ignore_ascii_case("kepub"))
+            .find(|f| {
+                f.format.eq_ignore_ascii_case("epub") || f.format.eq_ignore_ascii_case("kepub")
+            })
             .ok_or_else(|| {
-                VellumError::NotFound(format!("Le livre '{}' ne possède aucun format EPUB", book.title))
+                VellumError::NotFound(format!(
+                    "Le livre '{}' ne possède aucun format EPUB",
+                    book.title
+                ))
             })?;
 
         let path = if Path::new(&format_entry.filepath).is_absolute() {
@@ -57,7 +62,10 @@ impl BookService {
     }
 
     /// Automatically generates a fresh Table of Contents based on HTML heading tags
-    pub fn generate_book_toc_from_headings(&self, book_id: &str) -> VellumResult<Vec<EpubTocEntry>> {
+    pub fn generate_book_toc_from_headings(
+        &self,
+        book_id: &str,
+    ) -> VellumResult<Vec<EpubTocEntry>> {
         let (_book, epub_path) = self.resolve_epub_path(book_id)?;
         EpubEditor::generate_toc_from_headings(&epub_path)
     }
@@ -85,7 +93,10 @@ impl BookService {
     /// Réalise un audit complet de santé de la bibliothèque (doublons, fiches incomplètes, fichiers manquants).
     pub fn audit_library(&self) -> VellumResult<LibraryHealthReport> {
         let books = self.book_repo.find_all()?;
-        Ok(crate::library_audit::audit_library(&books, &self.library_path))
+        Ok(crate::library_audit::audit_library(
+            &books,
+            &self.library_path,
+        ))
     }
 
     /// Fusionne intelligemment un livre source dans un livre cible :
@@ -101,14 +112,12 @@ impl BookService {
             ));
         }
 
-        let mut target = self
-            .book_repo
-            .find_by_id(target_book_id)?
-            .ok_or_else(|| VellumError::NotFound(format!("Livre cible introuvable: {target_book_id}")))?;
-        let source = self
-            .book_repo
-            .find_by_id(source_book_id)?
-            .ok_or_else(|| VellumError::NotFound(format!("Livre source introuvable: {source_book_id}")))?;
+        let mut target = self.book_repo.find_by_id(target_book_id)?.ok_or_else(|| {
+            VellumError::NotFound(format!("Livre cible introuvable: {target_book_id}"))
+        })?;
+        let source = self.book_repo.find_by_id(source_book_id)?.ok_or_else(|| {
+            VellumError::NotFound(format!("Livre source introuvable: {source_book_id}"))
+        })?;
 
         // 1. Déplacer / importer les formats du livre source dans la fiche cible
         for s_fmt in &source.formats {
@@ -136,14 +145,24 @@ impl BookService {
 
         // 2. Fusion des tags
         for tag in &source.tags {
-            if !target.tags.iter().any(|t| t.name.eq_ignore_ascii_case(&tag.name)) {
+            if !target
+                .tags
+                .iter()
+                .any(|t| t.name.eq_ignore_ascii_case(&tag.name))
+            {
                 let _ = self.tag_repo.save(tag);
                 target.add_tag(tag.clone());
             }
         }
 
         // 3. Compléter les métadonnées manquantes
-        if target.description.as_deref().unwrap_or("").trim().is_empty() {
+        if target
+            .description
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
+        {
             if let Some(ref desc) = source.description {
                 if !desc.trim().is_empty() {
                     target.description = Some(desc.clone());
@@ -159,7 +178,13 @@ impl BookService {
             }
         }
 
-        if target.publish_date.as_deref().unwrap_or("").trim().is_empty() {
+        if target
+            .publish_date
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
+        {
             if let Some(ref pdate) = source.publish_date {
                 if !pdate.trim().is_empty() {
                     target.publish_date = Some(pdate.clone());

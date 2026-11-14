@@ -79,7 +79,11 @@ impl BookConverterPlugin for EpubToTextConverterPlugin {
             ZipArchive::new(reader).map_err(|e| VellumError::InvalidArgument(e.to_string()))?;
 
         let mut chapter_paths: Vec<String> = (0..zip.len())
-            .filter_map(|i| zip.by_index(i).ok().and_then(|e| e.name().ok().map(|n| n.to_string())))
+            .filter_map(|i| {
+                zip.by_index(i)
+                    .ok()
+                    .and_then(|e| e.name().ok().map(|n| n.to_string()))
+            })
             .filter(|n| n.ends_with(".html") || n.ends_with(".xhtml") || n.ends_with(".htm"))
             .collect();
         chapter_paths.sort();
@@ -106,16 +110,38 @@ impl BookConverterPlugin for EpubToTextConverterPlugin {
 }
 
 pub fn html_to_plain_text(html: &str) -> String {
-    let style_re = Regex::new(r"(?is)<style[^>]*>.*?</style>").unwrap();
-    let script_re = Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap();
-    let head_re = Regex::new(r"(?is)<head[^>]*>.*?</head>").unwrap();
-    let h1_re = Regex::new(r"(?is)<h1[^>]*>(.*?)</h1>").unwrap();
-    let h2_re = Regex::new(r"(?is)<h2[^>]*>(.*?)</h2>").unwrap();
-    let h3_re = Regex::new(r"(?is)<h3[^>]*>(.*?)</h3>").unwrap();
-    let p_re = Regex::new(r"(?i)</?p[^>]*>").unwrap();
-    let br_re = Regex::new(r"(?i)<br\s*/?>").unwrap();
-    let tag_re = Regex::new(r"<[^>]+>").unwrap();
-    let multi_nl = Regex::new(r"\n{3,}").unwrap();
+    use std::sync::LazyLock;
+
+    static STYLE_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<style[^>]*>.*?</style>").expect("valid regex"));
+    static SCRIPT_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<script[^>]*>.*?</script>").expect("valid regex"));
+    static HEAD_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<head[^>]*>.*?</head>").expect("valid regex"));
+    static H1_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<h1[^>]*>(.*?)</h1>").expect("valid regex"));
+    static H2_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<h2[^>]*>(.*?)</h2>").expect("valid regex"));
+    static H3_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?is)<h3[^>]*>(.*?)</h3>").expect("valid regex"));
+    static P_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)</?p[^>]*>").expect("valid regex"));
+    static BR_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)<br\s*/?>").expect("valid regex"));
+    static TAG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]+>").expect("valid regex"));
+    static MULTI_NL_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\n{3,}").expect("valid regex"));
+
+    let style_re = &*STYLE_RE;
+    let script_re = &*SCRIPT_RE;
+    let head_re = &*HEAD_RE;
+    let h1_re = &*H1_RE;
+    let h2_re = &*H2_RE;
+    let h3_re = &*H3_RE;
+    let p_re = &*P_RE;
+    let br_re = &*BR_RE;
+    let tag_re = &*TAG_RE;
+    let multi_nl = &*MULTI_NL_RE;
 
     let s = head_re.replace_all(html, "");
     let s = style_re.replace_all(&s, "");

@@ -3,6 +3,19 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use vellum_domain::{Book, CustomColumnDefinition};
 
+pub type SaveMetadataPayload = (
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<f64>,
+    Vec<String>,
+);
+
 #[component]
 pub fn DetailDrawer(
     book: Book,
@@ -13,18 +26,7 @@ pub fn DetailDrawer(
     on_delete: EventHandler<String>,
     on_convert: EventHandler<(String, String)>,
     on_change_cover: EventHandler<(String, PathBuf)>,
-    on_save_metadata: EventHandler<(
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<f64>,
-        Vec<String>,
-    )>,
+    on_save_metadata: EventHandler<SaveMetadataPayload>,
     on_enrich_metadata: EventHandler<String>,
     on_open_translate: EventHandler<Book>,
     on_export_to_device: EventHandler<(String, vellum_domain::DeviceKind)>,

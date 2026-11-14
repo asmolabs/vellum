@@ -319,21 +319,19 @@ impl SyncService {
                     // Upload des fichiers de formats
                     for fmt in formats {
                         let local_file = self.library_path.join(&fmt.filepath);
-                        if local_file.exists()
-                            && !backend.file_exists(&fmt.filepath)? {
-                                backend.upload_file(&local_file, &fmt.filepath)?;
-                                report.uploaded_books += 1;
-                                info!("Sync: Upload du livre '{}' ({})", fmt.filename, fmt.format);
-                            }
+                        if local_file.exists() && !backend.file_exists(&fmt.filepath)? {
+                            backend.upload_file(&local_file, &fmt.filepath)?;
+                            report.uploaded_books += 1;
+                            info!("Sync: Upload du livre '{}' ({})", fmt.filename, fmt.format);
+                        }
                     }
 
                     // Upload de la couverture si présente
                     if let Some(ref cover_rel) = book.cover_path {
                         let local_cover = self.library_path.join(cover_rel);
-                        if local_cover.exists()
-                            && !backend.file_exists(cover_rel)? {
-                                let _ = backend.upload_file(&local_cover, cover_rel);
-                            }
+                        if local_cover.exists() && !backend.file_exists(cover_rel)? {
+                            let _ = backend.upload_file(&local_cover, cover_rel);
+                        }
                     }
                 }
             }
@@ -434,7 +432,9 @@ impl SyncService {
                         book: updated_book,
                         tags,
                     } => {
-                        if let Ok(Some(mut local_book)) = self.book_repo.find_by_id(&updated_book.id) {
+                        if let Ok(Some(mut local_book)) =
+                            self.book_repo.find_by_id(&updated_book.id)
+                        {
                             local_book.title = updated_book.title;
                             local_book.author = updated_book.author;
                             local_book.publisher = updated_book.publisher;
@@ -453,7 +453,10 @@ impl SyncService {
 
                     SyncAction::BookDeleted { book_id } => {
                         let _ = self.book_repo.delete(&book_id);
-                        info!("Sync: Suppression du livre {} répercutée localement", book_id);
+                        info!(
+                            "Sync: Suppression du livre {} répercutée localement",
+                            book_id
+                        );
                     }
 
                     SyncAction::ProgressUpdated {

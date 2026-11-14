@@ -1,9 +1,17 @@
 use dioxus::prelude::*;
 
+pub type BulkEditPayload = (
+    Option<String>,
+    Option<String>,
+    bool,
+    Vec<String>,
+    Vec<String>,
+);
+
 #[component]
 pub fn BulkEditModal(
     selected_count: usize,
-    on_save: EventHandler<(Option<String>, Option<String>, bool, Vec<String>, Vec<String>)>,
+    on_save: EventHandler<BulkEditPayload>,
     on_close: EventHandler<()>,
 ) -> Element {
     let mut author_input = use_signal(String::new);
@@ -138,4 +146,3 @@ pub fn BulkEditModal(
         }
     }
 }
-

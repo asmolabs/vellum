@@ -136,11 +136,9 @@ impl ReaderSession {
 
     pub fn is_comic(&self) -> bool {
         self.provider.is_fixed_layout()
-            || self
-                .book
-                .formats
-                .iter()
-                .any(|f| f.format.eq_ignore_ascii_case("cbz") || f.format.eq_ignore_ascii_case("cbr"))
+            || self.book.formats.iter().any(|f| {
+                f.format.eq_ignore_ascii_case("cbz") || f.format.eq_ignore_ascii_case("cbr")
+            })
     }
 
     pub fn current_html(&self) -> String {
@@ -203,7 +201,8 @@ impl ReaderSession {
 
     pub fn is_current_bookmarked(&self) -> bool {
         if let Some(info) = self.page_info() {
-            self.user_data.is_bookmarked(info.chapter_index, info.page_in_chapter)
+            self.user_data
+                .is_bookmarked(info.chapter_index, info.page_in_chapter)
         } else {
             self.user_data.is_bookmarked(self.current_page, 0)
         }
@@ -217,7 +216,10 @@ impl ReaderSession {
         };
 
         if self.user_data.is_bookmarked(ch_idx, p_in_ch) {
-            let id = self.user_data.bookmarks.iter()
+            let id = self
+                .user_data
+                .bookmarks
+                .iter()
                 .find(|b| b.chapter_index == ch_idx && b.page_in_chapter == p_in_ch)
                 .map(|b| b.id.clone());
             if let Some(id) = id {
@@ -246,14 +248,7 @@ impl ReaderSession {
         } else {
             (self.current_page, self.current_title())
         };
-        let h = Highlight::new(
-            &self.book.id,
-            ch_idx,
-            &ch_title,
-            color,
-            text,
-            note,
-        );
+        let h = Highlight::new(&self.book.id, ch_idx, &ch_title, color, text, note);
         self.user_data.add_highlight(h);
         self.save_user_data();
     }
@@ -285,7 +280,9 @@ impl ReaderSession {
             if ch == cur_ch {
                 if let Some(info) = self.page_info() {
                     if info.total_in_chapter > 0 {
-                        let remaining_ratio = 1.0 - ((info.page_in_chapter.saturating_sub(1)) as f64 / info.total_in_chapter as f64);
+                        let remaining_ratio = 1.0
+                            - ((info.page_in_chapter.saturating_sub(1)) as f64
+                                / info.total_in_chapter as f64);
                         chapter_words = ((words as f64) * remaining_ratio).round() as usize;
                     } else {
                         chapter_words = words;
@@ -314,4 +311,3 @@ impl ReaderSession {
         )
     }
 }
-

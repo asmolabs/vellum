@@ -105,7 +105,10 @@ pub fn init_services() -> AppServices {
                     }
                 }
             }
-            if let Ok(Some(watch_dir)) = periodic_watch_bs.param_repo().get_value("watch_folder_path") {
+            if let Ok(Some(watch_dir)) = periodic_watch_bs
+                .param_repo()
+                .get_value("watch_folder_path")
+            {
                 let trimmed = watch_dir.trim().to_string();
                 if !trimmed.is_empty() && std::path::Path::new(&trimmed).exists() {
                     let bs_clone = periodic_watch_bs.clone();
@@ -220,7 +223,10 @@ pub fn scan_and_index_library(book_service: &BookService) {
                                                     .to_string_lossy()
                                                     .to_string();
 
-                                                let cover_path = if book_path.join("cover.jpg").exists() {
+                                                let cover_path = if book_path
+                                                    .join("cover.jpg")
+                                                    .exists()
+                                                {
                                                     Some(
                                                         book_path
                                                             .join("cover.jpg")
@@ -234,7 +240,9 @@ pub fn scan_and_index_library(book_service: &BookService) {
                                                         book_path
                                                             .join("cover.jpeg")
                                                             .strip_prefix(library_path)
-                                                            .unwrap_or(&book_path.join("cover.jpeg"))
+                                                            .unwrap_or(
+                                                                &book_path.join("cover.jpeg"),
+                                                            )
                                                             .to_string_lossy()
                                                             .to_string(),
                                                     )
@@ -300,4 +308,3 @@ pub fn define_passage_with_ai(prompt_text: &str) -> Result<String, String> {
         )
         .map_err(|e| e.to_string())
 }
-

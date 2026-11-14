@@ -52,7 +52,11 @@ pub struct ImportRuleOutcome {
 }
 
 /// Évalue et applique une liste de règles d'import sur un livre.
-pub fn apply_import_rules(book: &mut Book, filename: &str, rules: &[ImportRule]) -> ImportRuleOutcome {
+pub fn apply_import_rules(
+    book: &mut Book,
+    filename: &str,
+    rules: &[ImportRule],
+) -> ImportRuleOutcome {
     let mut outcome = ImportRuleOutcome::default();
 
     for rule in rules.iter().filter(|r| r.enabled) {
@@ -88,4 +92,3 @@ pub fn apply_import_rules(book: &mut Book, filename: &str, rules: &[ImportRule])
 
     outcome
 }
-

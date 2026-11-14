@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use lettre::message::{header::ContentType, Attachment, MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
-use lettre::message::{header::ContentType, Attachment, MultiPart, SinglePart};
+use std::path::{Path, PathBuf};
 use vellum_domain::{Book, SmtpConfig, VellumError, VellumResult};
 
 #[derive(Clone)]
@@ -17,10 +17,14 @@ impl MailService {
     /// Test SMTP connection by establishing TLS handshake and authenticating
     pub async fn test_connection(&self, config: &SmtpConfig) -> VellumResult<()> {
         if config.host.trim().is_empty() {
-            return Err(VellumError::InvalidArgument("L'hôte SMTP ne peut pas être vide".into()));
+            return Err(VellumError::InvalidArgument(
+                "L'hôte SMTP ne peut pas être vide".into(),
+            ));
         }
         if config.username.trim().is_empty() {
-            return Err(VellumError::InvalidArgument("Le nom d'utilisateur SMTP ne peut pas être vide".into()));
+            return Err(VellumError::InvalidArgument(
+                "Le nom d'utilisateur SMTP ne peut pas être vide".into(),
+            ));
         }
 
         let creds = Credentials::new(config.username.clone(), config.password.clone());
@@ -124,8 +128,12 @@ impl MailService {
             _ => ContentType::parse("application/octet-stream").unwrap(),
         };
 
-        let safe_author = book.author.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
-        let safe_title = book.title.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
+        let safe_author = book
+            .author
+            .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
+        let safe_title = book
+            .title
+            .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
         let attachment_filename = format!("{safe_author} - {safe_title}.{ext}");
 
         let attachment = Attachment::new(attachment_filename).body(file_bytes, content_type);
@@ -159,7 +167,9 @@ impl MailService {
 
         let mailer: AsyncSmtpTransport<Tokio1Executor> = if config.port == 465 {
             AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
-                .map_err(|e| VellumError::System(format!("Erreur configuration relais SMTP : {e}")))?
+                .map_err(|e| {
+                    VellumError::System(format!("Erreur configuration relais SMTP : {e}"))
+                })?
                 .credentials(creds)
                 .port(config.port)
                 .build()

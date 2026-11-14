@@ -1,6 +1,6 @@
+use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use serde_json::Value;
 
 use vellum_domain::{
     Book, ConfigField, DeviceAnnotation, DeviceBookInfo, DeviceKind, DeviceReadingProgress,
@@ -134,19 +134,20 @@ impl DeviceSyncPlugin for KindleSyncPlugin {
         if let Some(custom) = custom_mount {
             if custom.exists()
                 && custom.join("documents").exists()
-                && (custom.join("system").exists() || custom.file_name().and_then(|n| n.to_str()).unwrap_or("").contains("Kindle"))
+                && (custom.join("system").exists()
+                    || custom
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .contains("Kindle"))
             {
                 return Some(custom.to_path_buf());
             }
         }
 
-        for p in self.default_mount_paths() {
-            if p.exists() && p.join("documents").exists() {
-                return Some(p);
-            }
-        }
-
-        None
+        self.default_mount_paths()
+            .into_iter()
+            .find(|p| p.exists() && p.join("documents").exists())
     }
 
     fn list_books(&self, mount_point: &Path) -> VellumResult<Vec<DeviceBookInfo>> {
@@ -188,7 +189,8 @@ impl DeviceSyncPlugin for KindleSyncPlugin {
             .unwrap_or("mobi")
             .to_lowercase();
 
-        let relative_dest = vellum_domain::NamingTemplate::format_filename(book, template_str, &src_ext);
+        let relative_dest =
+            vellum_domain::NamingTemplate::format_filename(book, template_str, &src_ext);
         let dest_file = mount_point.join(target_dir_name).join(relative_dest);
 
         if let Some(parent) = dest_file.parent() {
@@ -213,7 +215,8 @@ impl DeviceSyncPlugin for KindleSyncPlugin {
 
                     // Kindle searches thumbnails by hash/ASIN: thumbnail_<UUID>_EBOK_portrait.jpg
                     let asin_or_uuid = &book.id;
-                    let thumb_dest = thumbs_dir.join(format!("thumbnail_{asin_or_uuid}_EBOK_portrait.jpg"));
+                    let thumb_dest =
+                        thumbs_dir.join(format!("thumbnail_{asin_or_uuid}_EBOK_portrait.jpg"));
                     let _ = std::fs::copy(cov_path, thumb_dest);
                 }
             }
@@ -233,9 +236,12 @@ impl DeviceSyncPlugin for KindleSyncPlugin {
         let content = std::fs::read_to_string(&clippings_file).unwrap_or_default();
         let annotations = clippings::parse_kindle_clippings(&content);
 
-        let mut map: HashMap<String, (Option<String>, Option<chrono::DateTime<chrono::Utc>>)> = HashMap::new();
+        let mut map: HashMap<String, (Option<String>, Option<chrono::DateTime<chrono::Utc>>)> =
+            HashMap::new();
         for ann in annotations {
-            let entry = map.entry(ann.book_title.clone()).or_insert((ann.book_author, ann.created_at));
+            let entry = map
+                .entry(ann.book_title.clone())
+                .or_insert((ann.book_author, ann.created_at));
             if ann.created_at.is_some() && ann.created_at > entry.1 {
                 entry.1 = ann.created_at;
             }
@@ -262,9 +268,8 @@ impl DeviceSyncPlugin for KindleSyncPlugin {
             return Ok(Vec::new());
         }
 
-        let content = std::fs::read_to_string(&clippings_file).map_err(|e| {
-            VellumError::Plugin(format!("Erreur lecture My Clippings.txt: {e}"))
-        })?;
+        let content = std::fs::read_to_string(&clippings_file)
+            .map_err(|e| VellumError::Plugin(format!("Erreur lecture My Clippings.txt: {e}")))?;
 
         Ok(clippings::parse_kindle_clippings(&content))
     }
@@ -310,7 +315,6 @@ impl KindleSyncPlugin {
                             .to_string();
                         let size = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
                         let rel = p.strip_prefix(mount).unwrap_or(&p).to_path_buf();
-
 
                         out.push(DeviceBookInfo {
                             title: stem,

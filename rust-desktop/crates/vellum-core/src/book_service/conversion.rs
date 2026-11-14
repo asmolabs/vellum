@@ -26,7 +26,10 @@ impl BookService {
             .collect();
 
         for fmt in &book.formats {
-            for target in self.conversion_service.available_target_formats(&fmt.format) {
+            for target in self
+                .conversion_service
+                .available_target_formats(&fmt.format)
+            {
                 if !existing.contains(&target) {
                     available.insert(target);
                 }
@@ -52,9 +55,7 @@ impl BookService {
 
         for book_id in book_ids {
             let Ok(Some(book)) = self.book_repo.find_by_id(book_id) else {
-                report
-                    .errors
-                    .push(format!("{book_id} : livre introuvable"));
+                report.errors.push(format!("{book_id} : livre introuvable"));
                 continue;
             };
             if book
@@ -74,11 +75,7 @@ impl BookService {
         report
     }
 
-    pub fn convert_book_to_format(
-        &self,
-        book_id: &str,
-        target_format: &str,
-    ) -> VellumResult<Book> {
+    pub fn convert_book_to_format(&self, book_id: &str, target_format: &str) -> VellumResult<Book> {
         let mut book = self
             .book_repo
             .find_by_id(book_id)?
@@ -178,7 +175,6 @@ impl BookService {
         Ok(saved)
     }
 
-
     pub fn translate_book(&self, req: TranslateBookRequest<'_>) -> VellumResult<Book> {
         let book = self
             .book_repo
@@ -200,8 +196,13 @@ impl BookService {
                 .tempfile()?;
             let temp_path = temp_epub.path().to_path_buf();
             _temp_guard = Some(temp_epub);
-            self.conversion_service
-                .convert_file(&first_fmt.format, "epub", &src_file, &temp_path, None)?;
+            self.conversion_service.convert_file(
+                &first_fmt.format,
+                "epub",
+                &src_file,
+                &temp_path,
+                None,
+            )?;
             temp_path
         } else {
             return Err(VellumError::NotFound(
@@ -271,7 +272,12 @@ impl BookService {
             .unwrap_or(&dest_abs)
             .to_string_lossy()
             .to_string();
-        let fmt = BookFormat::new("epub".to_string(), target_filename, dest_file_rel, file_size);
+        let fmt = BookFormat::new(
+            "epub".to_string(),
+            target_filename,
+            dest_file_rel,
+            file_size,
+        );
         new_book.add_format(fmt);
 
         self.book_repo.save(&new_book)?;
@@ -305,14 +311,18 @@ impl BookService {
             .ok_or_else(|| VellumError::NotFound(format!("Livre introuvable: {book_id}")))?;
 
         let format_entry = if let Some(pref) = preferred_format {
-            book.formats.iter().find(|f| f.format.eq_ignore_ascii_case(pref))
+            book.formats
+                .iter()
+                .find(|f| f.format.eq_ignore_ascii_case(pref))
         } else {
             book.formats
                 .iter()
                 .find(|f| f.format.eq_ignore_ascii_case("epub"))
                 .or_else(|| book.formats.first())
         }
-        .ok_or_else(|| VellumError::NotFound(format!("Aucun format disponible pour {}", book.title)))?;
+        .ok_or_else(|| {
+            VellumError::NotFound(format!("Aucun format disponible pour {}", book.title))
+        })?;
 
         let source_path = if Path::new(&format_entry.filepath).is_absolute() {
             PathBuf::from(&format_entry.filepath)
@@ -321,11 +331,15 @@ impl BookService {
         };
 
         if !source_path.exists() {
-            return Err(VellumError::NotFound(format!("Fichier source introuvable: {:?}", source_path)));
+            return Err(VellumError::NotFound(format!(
+                "Fichier source introuvable: {:?}",
+                source_path
+            )));
         }
 
         let tmpl = template.unwrap_or(vellum_domain::DEFAULT_NAMING_TEMPLATE);
-        let relative_path = vellum_domain::NamingTemplate::format_filename(&book, tmpl, &format_entry.format);
+        let relative_path =
+            vellum_domain::NamingTemplate::format_filename(&book, tmpl, &format_entry.format);
         let dest_path = target_dir.join(relative_path);
 
         if let Some(parent) = dest_path.parent() {
@@ -333,7 +347,11 @@ impl BookService {
         }
 
         fs::copy(&source_path, &dest_path)?;
-        tracing::info!("Livre '{}' exporté avec succès vers {:?}", book.title, dest_path);
+        tracing::info!(
+            "Livre '{}' exporté avec succès vers {:?}",
+            book.title,
+            dest_path
+        );
 
         Ok(dest_path)
     }

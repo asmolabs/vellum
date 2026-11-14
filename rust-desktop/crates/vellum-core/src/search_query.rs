@@ -16,11 +16,19 @@ impl SearchToken {
         match self {
             SearchToken::Author(val, negated) => {
                 let m = book.author.to_lowercase().contains(val);
-                if *negated { !m } else { m }
+                if *negated {
+                    !m
+                } else {
+                    m
+                }
             }
             SearchToken::Title(val, negated) => {
                 let m = book.title.to_lowercase().contains(val);
-                if *negated { !m } else { m }
+                if *negated {
+                    !m
+                } else {
+                    m
+                }
             }
             SearchToken::Series(val, negated) => {
                 let m = book
@@ -28,30 +36,50 @@ impl SearchToken {
                     .as_deref()
                     .map(|s| s.to_lowercase().contains(val))
                     .unwrap_or(false);
-                if *negated { !m } else { m }
+                if *negated {
+                    !m
+                } else {
+                    m
+                }
             }
             SearchToken::Tag(val, negated) => {
                 let m = book
                     .tags
                     .iter()
                     .any(|t| t.name.to_lowercase().contains(val));
-                if *negated { !m } else { m }
+                if *negated {
+                    !m
+                } else {
+                    m
+                }
             }
             SearchToken::Format(val, negated) => {
                 let m = book
                     .formats
                     .iter()
                     .any(|f| f.format.to_lowercase().contains(val));
-                if *negated { !m } else { m }
+                if *negated {
+                    !m
+                } else {
+                    m
+                }
             }
             SearchToken::Status(val, negated) => {
                 let m = match val.as_str() {
                     "finished" | "lu" | "termine" | "terminé" => book.is_finished,
-                    "reading" | "en cours" | "cours" => book.progress_percent > 0.0 && !book.is_finished,
-                    "toread" | "a lire" | "à lire" | "unread" => book.progress_percent == 0.0 && !book.is_finished,
+                    "reading" | "en cours" | "cours" => {
+                        book.progress_percent > 0.0 && !book.is_finished
+                    }
+                    "toread" | "a lire" | "à lire" | "unread" => {
+                        book.progress_percent == 0.0 && !book.is_finished
+                    }
                     _ => true,
                 };
-                if *negated { !m } else { m }
+                if *negated {
+                    !m
+                } else {
+                    m
+                }
             }
             SearchToken::Text(val, negated) => {
                 let in_title = book.title.to_lowercase().contains(val);
@@ -66,7 +94,11 @@ impl SearchToken {
                     .iter()
                     .any(|t| t.name.to_lowercase().contains(val));
                 let m = in_title || in_author || in_series || in_tags;
-                if *negated { !m } else { m }
+                if *negated {
+                    !m
+                } else {
+                    m
+                }
             }
         }
     }
@@ -195,7 +227,12 @@ mod tests {
         b.series_index = Some(2.0);
         b.tags.push(Tag::new("Science Fiction"));
         b.tags.push(Tag::new("Classic"));
-        b.formats.push(BookFormat::new("epub", "dune2.epub", "path/to/dune2.epub", 12345));
+        b.formats.push(BookFormat::new(
+            "epub",
+            "dune2.epub",
+            "path/to/dune2.epub",
+            12345,
+        ));
         b.progress_percent = 45.0;
         b.is_finished = false;
         b
@@ -250,4 +287,3 @@ mod tests {
         assert!(!q2.matches(&b));
     }
 }
-

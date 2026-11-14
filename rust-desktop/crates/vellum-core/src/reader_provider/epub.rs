@@ -49,11 +49,14 @@ impl EpubContentProvider {
                         if let Some(mime_type) = mime {
                             let mut bytes = Vec::new();
                             if f.read_to_end(&mut bytes).is_ok() && !bytes.is_empty() {
-                                let data_uri = format!("data:{};base64,{}", mime_type, BASE64.encode(&bytes));
+                                let data_uri =
+                                    format!("data:{};base64,{}", mime_type, BASE64.encode(&bytes));
                                 image_map.insert(name.clone(), data_uri.clone());
                                 image_map.insert(lower.clone(), data_uri.clone());
 
-                                if let Some(file_name) = Path::new(&name).file_name().and_then(|fn_| fn_.to_str()) {
+                                if let Some(file_name) =
+                                    Path::new(&name).file_name().and_then(|fn_| fn_.to_str())
+                                {
                                     image_map.insert(file_name.to_string(), data_uri.clone());
                                     image_map.insert(file_name.to_lowercase(), data_uri.clone());
                                 }
@@ -75,7 +78,8 @@ impl EpubContentProvider {
                     if let Ok(mut container) = archive.by_name("META-INF/container.xml") {
                         let mut content = String::new();
                         if container.read_to_string(&mut content).is_ok() {
-                            let re_root = Regex::new(r#"<rootfile[^>]+full-path=["']([^"']+)["']"#).unwrap();
+                            let re_root =
+                                Regex::new(r#"<rootfile[^>]+full-path=["']([^"']+)["']"#).unwrap();
                             if let Some(caps) = re_root.captures(&content) {
                                 p = Some(caps[1].to_string());
                             }
@@ -113,7 +117,9 @@ impl EpubContentProvider {
 
                             for mat in re_item.find_iter(&opf_xml) {
                                 let item_tag = mat.as_str();
-                                if let (Some(id_caps), Some(href_caps)) = (re_id.captures(item_tag), re_href.captures(item_tag)) {
+                                if let (Some(id_caps), Some(href_caps)) =
+                                    (re_id.captures(item_tag), re_href.captures(item_tag))
+                                {
                                     let id = id_caps[1].to_string();
                                     let href = href_caps[1].to_string();
                                     let full_path = normalize_zip_path(opf_dir, &href);
@@ -124,12 +130,17 @@ impl EpubContentProvider {
                             let re_spine = Regex::new(r#"(?s)<spine[^>]*>(.*?)</spine>"#).unwrap();
                             if let Some(spine_caps) = re_spine.captures(&opf_xml) {
                                 let spine_content = &spine_caps[1];
-                                let re_itemref = Regex::new(r#"<itemref\s+[^>]*idref=["']([^"']+)["']"#).unwrap();
+                                let re_itemref =
+                                    Regex::new(r#"<itemref\s+[^>]*idref=["']([^"']+)["']"#)
+                                        .unwrap();
                                 for caps in re_itemref.captures_iter(spine_content) {
                                     let idref = &caps[1];
                                     if let Some(target_file) = manifest.get(idref) {
                                         let lower = target_file.to_lowercase();
-                                        if lower.ends_with(".xhtml") || lower.ends_with(".html") || lower.ends_with(".htm") {
+                                        if lower.ends_with(".xhtml")
+                                            || lower.ends_with(".html")
+                                            || lower.ends_with(".htm")
+                                        {
                                             ordered_chapter_names.push(target_file.clone());
                                         }
                                     }
@@ -146,7 +157,9 @@ impl EpubContentProvider {
                         if let Ok(file) = archive.by_index(i) {
                             let name = file.name().map(|n| n.to_string()).unwrap_or_default();
                             let lower = name.to_lowercase();
-                            if (lower.ends_with(".xhtml") || lower.ends_with(".html") || lower.ends_with(".htm"))
+                            if (lower.ends_with(".xhtml")
+                                || lower.ends_with(".html")
+                                || lower.ends_with(".htm"))
                                 && !lower.contains("toc")
                                 && !lower.contains("cover")
                             {
@@ -162,8 +175,11 @@ impl EpubContentProvider {
                 for name in ordered_chapter_names {
                     if let Ok(mut ch_file) = archive.by_name(&name) {
                         let mut raw_content = String::new();
-                        if ch_file.read_to_string(&mut raw_content).is_ok() && !raw_content.trim().is_empty() {
-                            let processed_html = replace_image_sources(&raw_content, &name, &image_map);
+                        if ch_file.read_to_string(&mut raw_content).is_ok()
+                            && !raw_content.trim().is_empty()
+                        {
+                            let processed_html =
+                                replace_image_sources(&raw_content, &name, &image_map);
                             let title = extract_chapter_title(&processed_html, raw_chapters.len());
                             raw_chapters.push((title, processed_html));
                         }
@@ -199,7 +215,11 @@ impl EpubContentProvider {
             }
         }
 
-        Self { pages, toc, chapters }
+        Self {
+            pages,
+            toc,
+            chapters,
+        }
     }
 }
 
@@ -208,7 +228,13 @@ impl BookContentProvider for EpubContentProvider {
         self.pages.len()
     }
 
-    fn get_page_html(&self, page_index: usize, theme: &str, font_size: u32, is_serif: bool) -> String {
+    fn get_page_html(
+        &self,
+        page_index: usize,
+        theme: &str,
+        font_size: u32,
+        is_serif: bool,
+    ) -> String {
         if page_index >= self.pages.len() {
             return String::new();
         }
@@ -218,7 +244,10 @@ impl BookContentProvider for EpubContentProvider {
     fn get_section_title(&self, page_index: usize) -> Option<String> {
         self.pages.get(page_index).map(|p| {
             if p.total_in_chapter > 1 {
-                format!("{} ({}/{})", p.chapter_title, p.page_in_chapter, p.total_in_chapter)
+                format!(
+                    "{} ({}/{})",
+                    p.chapter_title, p.page_in_chapter, p.total_in_chapter
+                )
             } else {
                 p.chapter_title.clone()
             }

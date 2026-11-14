@@ -93,4 +93,3 @@ impl NotesExporter {
 fn escape_yaml(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
-

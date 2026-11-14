@@ -17,10 +17,10 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BooksTable, BulkConvertModal, BulkEditModal, BulkRegexModal, CommandPalette, ContentSearchModal,
-    DetailDrawer, EpubEditorModal, Header, ImportRulesModal, KanbanBoard, KanbanTargetStatus,
-    LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal, ReadingStatsModal,
-    SettingsModal, Sidebar, TranslateModal, TranslationRequest,
+    BookCard, BooksTable, BulkConvertModal, BulkEditModal, BulkRegexModal, CommandPalette,
+    ContentSearchModal, DetailDrawer, EpubEditorModal, Header, ImportRulesModal, KanbanBoard,
+    KanbanTargetStatus, LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal,
+    ReadingStatsModal, SettingsModal, Sidebar, TranslateModal, TranslationRequest,
 };
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -61,7 +61,8 @@ fn App() -> Element {
     let mut books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
     let mut virtual_libraries = use_signal(|| virtual_library_service.list().unwrap_or_default());
     let mut active_virtual_library_id = use_signal(|| None::<String>);
-    let mut custom_columns = use_signal(|| custom_column_service.list_columns().unwrap_or_default());
+    let mut custom_columns =
+        use_signal(|| custom_column_service.list_columns().unwrap_or_default());
     let mut watch_folder_path = use_signal(|| {
         book_service
             .param_repo()
@@ -160,7 +161,13 @@ fn App() -> Element {
         let active_vl_query = active_virtual_library_id
             .read()
             .as_ref()
-            .and_then(|id| virtual_libraries.read().iter().find(|vl| &vl.id == id).cloned())
+            .and_then(|id| {
+                virtual_libraries
+                    .read()
+                    .iter()
+                    .find(|vl| &vl.id == id)
+                    .cloned()
+            })
             .map(|vl| SearchQuery::parse(&vl.query));
 
         let mut list: Vec<Book> = all
@@ -479,18 +486,7 @@ fn App() -> Element {
     let handle_save_metadata = {
         let bs = book_service.clone();
         let mut refresh = refresh_library.clone();
-        move |(b_id, title, author, publ, desc, isbn, pdate, series, series_idx, tags): (
-            String,
-            String,
-            String,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<f64>,
-            Vec<String>,
-        )| {
+        move |(b_id, title, author, publ, desc, isbn, pdate, series, series_idx, tags): components::detail_drawer::SaveMetadataPayload| {
             match bs.update_book_metadata_full(vellum_core::UpdateMetadataRequest {
                 book_id: &b_id,
                 title: &title,

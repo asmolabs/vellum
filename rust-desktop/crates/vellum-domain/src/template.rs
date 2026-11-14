@@ -1,7 +1,8 @@
-use std::path::PathBuf;
 use crate::entity::Book;
+use std::path::PathBuf;
 
-pub const DEFAULT_NAMING_TEMPLATE: &str = "{author}/{if_series:{series}/T.{series_index:02} - }{title}";
+pub const DEFAULT_NAMING_TEMPLATE: &str =
+    "{author}/{if_series:{series}/T.{series_index:02} - }{title}";
 
 /// Evaluates a book against a naming template and produces a relative PathBuf.
 /// Supported tokens:

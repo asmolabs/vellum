@@ -38,12 +38,10 @@ pub fn KanbanBoard(
         .iter()
         .filter(|b| {
             b.rating.unwrap_or(0) >= 4
-                || b.tags
-                    .iter()
-                    .any(|t| {
-                        let n = t.name.to_lowercase();
-                        n.contains("coup de c") || n.contains("favori")
-                    })
+                || b.tags.iter().any(|t| {
+                    let n = t.name.to_lowercase();
+                    n.contains("coup de c") || n.contains("favori")
+                })
         })
         .cloned()
         .collect();

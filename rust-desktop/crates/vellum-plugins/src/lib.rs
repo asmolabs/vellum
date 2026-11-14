@@ -81,4 +81,3 @@ pub fn builtin_plugins() -> Vec<Arc<dyn VellumPlugin>> {
         Arc::new(ereader::KindleSyncPlugin::new()),
     ]
 }
-

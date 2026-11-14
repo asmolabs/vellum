@@ -29,7 +29,11 @@ impl BookService {
                     }
                 }
                 if let Some(s) = series {
-                    book.series = if s.trim().is_empty() { None } else { Some(s.trim().to_string()) };
+                    book.series = if s.trim().is_empty() {
+                        None
+                    } else {
+                        Some(s.trim().to_string())
+                    };
                 }
                 if auto_index_series && book.series.is_some() {
                     book.series_index = Some((idx + 1) as f64);
@@ -110,13 +114,25 @@ impl BookService {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
         if let Some(i) = req.isbn {
-            book.isbn = if i.trim().is_empty() { None } else { Some(i.trim().to_string()) };
+            book.isbn = if i.trim().is_empty() {
+                None
+            } else {
+                Some(i.trim().to_string())
+            };
         }
         if let Some(pd) = req.publish_date {
-            book.publish_date = if pd.trim().is_empty() { None } else { Some(pd.trim().to_string()) };
+            book.publish_date = if pd.trim().is_empty() {
+                None
+            } else {
+                Some(pd.trim().to_string())
+            };
         }
         if let Some(s) = req.series {
-            book.series = if s.trim().is_empty() { None } else { Some(s.trim().to_string()) };
+            book.series = if s.trim().is_empty() {
+                None
+            } else {
+                Some(s.trim().to_string())
+            };
         }
         book.series_index = req.series_index;
 
@@ -170,7 +186,10 @@ impl BookService {
         let current_tags: Vec<String> = book.tags.iter().map(|t| t.name.clone()).collect();
         input_meta.insert("tags".to_string(), serde_json::json!(current_tags));
 
-        let source_file = book.formats.first().map(|f| self.library_path.join(&f.filepath));
+        let source_file = book
+            .formats
+            .first()
+            .map(|f| self.library_path.join(&f.filepath));
 
         let enriched = self
             .plugin_service
@@ -224,16 +243,25 @@ impl BookService {
             use base64::Engine;
             if let Ok(cover_bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
                 if cover_bytes.len() > 500 {
-                    let ext = enriched.get("coverExt").and_then(|v| v.as_str()).unwrap_or(".jpg");
+                    let ext = enriched
+                        .get("coverExt")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(".jpg");
                     let clean_author = Self::sanitize_filename(&book.author);
                     let clean_title = Self::sanitize_filename(&book.title);
-                    let book_dir_rel = PathBuf::from(&clean_author).join(format!("{clean_title} ({})", book.id));
+                    let book_dir_rel =
+                        PathBuf::from(&clean_author).join(format!("{clean_title} ({})", book.id));
                     let book_dir_abs = self.library_path.join(&book_dir_rel);
                     let _ = fs::create_dir_all(&book_dir_abs);
                     let cover_filename = format!("cover{ext}");
                     let cover_abs = book_dir_abs.join(&cover_filename);
                     if fs::write(&cover_abs, cover_bytes).is_ok() {
-                        book.cover_path = Some(book_dir_rel.join(&cover_filename).to_string_lossy().to_string());
+                        book.cover_path = Some(
+                            book_dir_rel
+                                .join(&cover_filename)
+                                .to_string_lossy()
+                                .to_string(),
+                        );
                     }
                 }
             }
@@ -310,6 +338,4 @@ impl BookService {
 
         Ok(saved)
     }
-
-
 }

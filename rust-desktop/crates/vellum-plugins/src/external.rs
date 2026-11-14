@@ -80,7 +80,9 @@ impl ExternalPluginLoader {
             if manifest_path.exists() {
                 if let Ok(raw) = fs::read_to_string(&manifest_path) {
                     if let Ok(manifest) = serde_json::from_str::<ExternalPluginManifest>(&raw) {
-                        if let Some(plugin) = ExternalScriptPlugin::from_manifest(dir.clone(), manifest) {
+                        if let Some(plugin) =
+                            ExternalScriptPlugin::from_manifest(dir.clone(), manifest)
+                        {
                             loaded.push(plugin);
                         }
                     }
@@ -206,9 +208,10 @@ impl ExternalScriptPlugin {
             PluginType::Format => LibraryPlugin::Format(instance),
             PluginType::Conversion => LibraryPlugin::Converter(instance),
             PluginType::Import => LibraryPlugin::Enricher(instance),
-            PluginType::Transformation | PluginType::Device => LibraryPlugin::Transformation(instance),
+            PluginType::Transformation | PluginType::Device => {
+                LibraryPlugin::Transformation(instance)
+            }
         })
-
     }
 
     fn execute_command(
@@ -339,7 +342,9 @@ impl ExternalScriptPlugin {
                 }
                 if let Ok(status) = Command::new("which").arg(bin).status() {
                     if status.success() {
-                        return TestResult::ok(format!("Exécutable '{bin}' disponible dans le PATH"));
+                        return TestResult::ok(format!(
+                            "Exécutable '{bin}' disponible dans le PATH"
+                        ));
                     }
                 }
                 TestResult::fail(format!(
@@ -417,17 +422,11 @@ impl BookFormatPlugin for ExternalScriptPlugin {
 
 impl BookConverterPlugin for ExternalScriptPlugin {
     fn source_format(&self) -> &str {
-        self.descriptor
-            .source_format
-            .as_deref()
-            .unwrap_or("EPUB")
+        self.descriptor.source_format.as_deref().unwrap_or("EPUB")
     }
 
     fn target_format(&self) -> &str {
-        self.descriptor
-            .target_format
-            .as_deref()
-            .unwrap_or("EPUB")
+        self.descriptor.target_format.as_deref().unwrap_or("EPUB")
     }
 
     fn convert(
@@ -699,12 +698,16 @@ mod tests {
 
         let mut meta = HashMap::new();
         meta.insert("title".to_string(), Value::String("Dune".to_string()));
-        meta.insert("author".to_string(), Value::String("Frank Herbert".to_string()));
+        meta.insert(
+            "author".to_string(),
+            Value::String("Frank Herbert".to_string()),
+        );
         if let LibraryPlugin::Enricher(p) = wasm_plugin {
-            let enriched = p
-                .as_enricher_plugin()
-                .unwrap()
-                .enrich_metadata(Path::new("dune.epub"), meta, &HashMap::new());
+            let enriched = p.as_enricher_plugin().unwrap().enrich_metadata(
+                Path::new("dune.epub"),
+                meta,
+                &HashMap::new(),
+            );
             assert_eq!(enriched.get("title").and_then(|v| v.as_str()), Some("Dune"));
         }
     }

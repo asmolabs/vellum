@@ -37,4 +37,3 @@ pub use reading_stats_modal::ReadingStatsModal;
 pub use settings_modal::SettingsModal;
 pub use sidebar::Sidebar;
 pub use translate_modal::{TranslateModal, TranslationRequest};
-

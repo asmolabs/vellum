@@ -75,7 +75,13 @@ fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, St
             let mut lines = vec![format!("{} livre(s) :", books.len())];
             for b in books {
                 let fmts: Vec<&str> = b.formats.iter().map(|f| f.format.as_str()).collect();
-                lines.push(format!("- [{}] {} — {} ({})", b.id, b.title, b.author, fmts.join(", ")));
+                lines.push(format!(
+                    "- [{}] {} — {} ({})",
+                    b.id,
+                    b.title,
+                    b.author,
+                    fmts.join(", ")
+                ));
             }
             Ok(lines.join("\n"))
         }
@@ -86,7 +92,10 @@ fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, St
             let book = bs
                 .import_book(Path::new(path))
                 .map_err(|e| format!("Erreur import : {e}"))?;
-            Ok(format!("Importé : [{}] {} — {}", book.id, book.title, book.author))
+            Ok(format!(
+                "Importé : [{}] {} — {}",
+                book.id, book.title, book.author
+            ))
         }
         "polish" => {
             let book_id = args
@@ -97,7 +106,11 @@ fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, St
                 .map_err(|e| format!("Erreur polish : {e}"))?;
             Ok(format!(
                 "Polish terminé : metadata={}, cover={}, chapitres={}, toc={}, repaired={}",
-                r.metadata_updated, r.cover_embedded, r.chapters_smartened, r.toc_rebuilt, r.repaired
+                r.metadata_updated,
+                r.cover_embedded,
+                r.chapters_smartened,
+                r.toc_rebuilt,
+                r.repaired
             ))
         }
         "convert" => {
@@ -145,7 +158,9 @@ fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, St
         }
         "export" => {
             if args.len() < 3 {
-                return Err("Usage: vellum-cli export <csv|json|bibtex> <fichier_sortie>".to_string());
+                return Err(
+                    "Usage: vellum-cli export <csv|json|bibtex> <fichier_sortie>".to_string(),
+                );
             }
             let fmt = match args[1].to_lowercase().as_str() {
                 "csv" => CatalogFormat::Csv,
@@ -160,7 +175,11 @@ fn dispatch_sync_command(args: &[String], bs: &BookService) -> Result<String, St
             let books = bs.get_books(None, None).unwrap_or_default();
             CatalogExporter::export_to_file(&books, fmt, Path::new(&args[2]))
                 .map_err(|e| format!("Erreur export : {e}"))?;
-            Ok(format!("Catalogue exporté ({} livres) -> {}", books.len(), args[2]))
+            Ok(format!(
+                "Catalogue exporté ({} livres) -> {}",
+                books.len(),
+                args[2]
+            ))
         }
         "watch" => {
             let dir = args
@@ -245,7 +264,8 @@ mod tests {
         let book_repo = BookRepository::new(db.clone());
         let param_repo = ParamRepository::new(db.clone());
         let tag_repo = TagRepository::new(db);
-        let plugin_service = PluginService::new(param_repo.clone(), Some(tmp.path().join("plugins")));
+        let plugin_service =
+            PluginService::new(param_repo.clone(), Some(tmp.path().join("plugins")));
         let metadata_service = MetadataService::new(plugin_service.clone());
         let conversion_service = ConversionService::new(plugin_service.clone());
         let bs = BookService::new(
@@ -311,15 +331,12 @@ mod tests {
         let books = bs.get_books(None, None).unwrap();
         let book_id = books[0].id.clone();
 
-        let idx_out =
-            dispatch_sync_command(&["index".to_string(), book_id], &bs).expect("index");
+        let idx_out = dispatch_sync_command(&["index".to_string(), book_id], &bs).expect("index");
         assert!(idx_out.contains("Indexé 1 chapitre(s)"));
 
-        let search_out = dispatch_sync_command(
-            &["search-content".to_string(), "Arrakis".to_string()],
-            &bs,
-        )
-        .expect("search-content");
+        let search_out =
+            dispatch_sync_command(&["search-content".to_string(), "Arrakis".to_string()], &bs)
+                .expect("search-content");
         assert!(search_out.contains("1 résultat(s) :"));
         assert!(search_out.contains("Arrakis"));
     }
@@ -354,7 +371,11 @@ mod tests {
         .unwrap();
 
         let out = dispatch_sync_command(
-            &["convert".to_string(), "epub".to_string(), "--all".to_string()],
+            &[
+                "convert".to_string(),
+                "epub".to_string(),
+                "--all".to_string(),
+            ],
             &bs,
         )
         .expect("bulk convert");
@@ -362,7 +383,11 @@ mod tests {
 
         // Second pass must skip both since EPUB already exists
         let out2 = dispatch_sync_command(
-            &["convert".to_string(), "epub".to_string(), "--all".to_string()],
+            &[
+                "convert".to_string(),
+                "epub".to_string(),
+                "--all".to_string(),
+            ],
             &bs,
         )
         .expect("bulk convert second pass");
@@ -370,15 +395,22 @@ mod tests {
 
         // Convert both to KEPUB
         let out_kepub = dispatch_sync_command(
-            &["convert".to_string(), "kepub".to_string(), "--all".to_string()],
+            &[
+                "convert".to_string(),
+                "kepub".to_string(),
+                "--all".to_string(),
+            ],
             &bs,
         )
         .expect("bulk convert to kepub");
         assert!(out_kepub.contains("2 converti(s), 0 ignoré(s), 0 erreur(s)"));
         let books = bs.get_books(None, None).unwrap();
-        assert!(books[0]
-            .formats
-            .iter()
-            .any(|f| f.format.eq_ignore_ascii_case("kepub") && f.filename.ends_with(".kepub.epub")));
+        assert!(
+            books[0]
+                .formats
+                .iter()
+                .any(|f| f.format.eq_ignore_ascii_case("kepub")
+                    && f.filename.ends_with(".kepub.epub"))
+        );
     }
 }

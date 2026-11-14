@@ -44,8 +44,8 @@ pub use mobi::MobiContentProvider;
 pub use pdf::PdfContentProvider;
 pub use txt::TextContentProvider;
 
-use std::path::Path;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReaderSection {
@@ -85,7 +85,13 @@ pub struct ReaderContent {
 
 pub trait BookContentProvider: Send + Sync {
     fn total_pages(&self) -> usize;
-    fn get_page_html(&self, page_index: usize, theme: &str, font_size: u32, is_serif: bool) -> String;
+    fn get_page_html(
+        &self,
+        page_index: usize,
+        theme: &str,
+        font_size: u32,
+        is_serif: bool,
+    ) -> String;
     fn get_section_title(&self, _page_index: usize) -> Option<String> {
         None
     }
@@ -143,7 +149,7 @@ pub trait BookContentProvider: Send + Sync {
     }
 }
 
-/// Converts HTML to whitespace-collapsed plain text with basic entity decoding.
+// Converts HTML to whitespace-collapsed plain text with basic entity decoding.
 
 pub struct EmptyContentProvider;
 
@@ -152,7 +158,13 @@ impl BookContentProvider for EmptyContentProvider {
         0
     }
 
-    fn get_page_html(&self, _page_index: usize, _theme: &str, _font_size: u32, _is_serif: bool) -> String {
+    fn get_page_html(
+        &self,
+        _page_index: usize,
+        _theme: &str,
+        _font_size: u32,
+        _is_serif: bool,
+    ) -> String {
         "<html><body><p>Aucun contenu disponible pour ce livre.</p></body></html>".to_string()
     }
 }

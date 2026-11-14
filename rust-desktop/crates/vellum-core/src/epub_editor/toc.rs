@@ -1,9 +1,9 @@
+use regex::Regex;
+use roxmltree::Document;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
-use regex::Regex;
-use roxmltree::Document;
 use tempfile::NamedTempFile;
 use vellum_domain::{EpubTocEntry, VellumError, VellumResult};
 use zip::write::SimpleFileOptions;
@@ -26,9 +26,9 @@ impl EpubEditor {
 
         let mut opf_xml = String::new();
         {
-            let mut f = zip.by_name(&opf_path).map_err(|_| {
-                VellumError::NotFound(format!("OPF introuvable: {opf_path}"))
-            })?;
+            let mut f = zip
+                .by_name(&opf_path)
+                .map_err(|_| VellumError::NotFound(format!("OPF introuvable: {opf_path}")))?;
             f.read_to_string(&mut opf_xml)?;
         }
 
@@ -123,9 +123,9 @@ impl EpubEditor {
 
         let mut opf_xml = String::new();
         {
-            let mut f = zip_in.by_name(&opf_path).map_err(|_| {
-                VellumError::NotFound(format!("OPF introuvable: {opf_path}"))
-            })?;
+            let mut f = zip_in
+                .by_name(&opf_path)
+                .map_err(|_| VellumError::NotFound(format!("OPF introuvable: {opf_path}")))?;
             f.read_to_string(&mut opf_xml)?;
         }
 
@@ -156,14 +156,20 @@ impl EpubEditor {
         // Update OPF if NCX was not registered in it
         let mut updated_opf_xml = None;
         if !opf_xml.contains("application/x-dtbncx+xml") && !opf_xml.contains(".ncx") {
-            let relative_ncx_href = if !opf_dir.is_empty() && ncx_full_path.starts_with(&format!("{opf_dir}/")) {
-                ncx_full_path.trim_start_matches(&format!("{opf_dir}/")).to_string()
-            } else {
-                ncx_full_path.clone()
-            };
+            let relative_ncx_href =
+                if !opf_dir.is_empty() && ncx_full_path.starts_with(&format!("{opf_dir}/")) {
+                    ncx_full_path
+                        .trim_start_matches(&format!("{opf_dir}/"))
+                        .to_string()
+                } else {
+                    ncx_full_path.clone()
+                };
 
-            let item_decl = format!(r#"<item id="ncx" href="{relative_ncx_href}" media-type="application/x-dtbncx+xml"/>"#);
-            let mut modified_opf = opf_xml.replacen("</manifest>", &format!("  {item_decl}\n  </manifest>"), 1);
+            let item_decl = format!(
+                r#"<item id="ncx" href="{relative_ncx_href}" media-type="application/x-dtbncx+xml"/>"#
+            );
+            let mut modified_opf =
+                opf_xml.replacen("</manifest>", &format!("  {item_decl}\n  </manifest>"), 1);
             if modified_opf.contains("<spine") && !modified_opf.contains("toc=") {
                 modified_opf = modified_opf.replacen("<spine", r#"<spine toc="ncx""#, 1);
             }
@@ -277,11 +283,14 @@ impl EpubEditor {
                 continue;
             }
 
-            let relative_href = if !opf_dir.is_empty() && file_path.starts_with(&format!("{opf_dir}/")) {
-                file_path.trim_start_matches(&format!("{opf_dir}/")).to_string()
-            } else {
-                file_path.clone()
-            };
+            let relative_href =
+                if !opf_dir.is_empty() && file_path.starts_with(&format!("{opf_dir}/")) {
+                    file_path
+                        .trim_start_matches(&format!("{opf_dir}/"))
+                        .to_string()
+                } else {
+                    file_path.clone()
+                };
 
             let mut file_headings = Vec::new();
             for cap in heading_re.captures_iter(&content) {
@@ -313,7 +322,10 @@ impl EpubEditor {
                 }
             } else {
                 // Fallback to title tag or filename
-                let title_re = Regex::new(r#"(?is)<title[^>]*>(.*?)</title>"#).unwrap();
+                static TITLE_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+                    Regex::new(r#"(?is)<title[^>]*>(.*?)</title>"#).expect("valid title regex")
+                });
+                let title_re = &*TITLE_RE;
                 let title = title_re
                     .captures(&content)
                     .map(|c| strip_html_tags(&c[1]))

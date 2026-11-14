@@ -106,14 +106,29 @@ fn clean_epub(
     remove_para: bool,
     replacement: &str,
 ) -> VellumResult<()> {
-    let link_re =
-        Regex::new(r#"(?is)<a[^>]*href=["'][^"']*oceanofpdf[^"']*["'][^>]*>.*?</a>"#).unwrap();
-    let url_re = Regex::new(r#"(?i)https?://(?:www\.)?oceanofpdf\.com[^\s<"'\]]*"#).unwrap();
-    let para_re = Regex::new(r"(?is)<p[^>]*>[^<]*oceanofpdf[^<]*</p>").unwrap();
-    let mention_re = Regex::new(
-        r"(?i)\s*[-|–—:]\s*oceanofpdf(?:\.com)?|oceanofpdf(?:\.com)?\s*[-|–—:]\s*|oceanofpdf(?:\.com)?",
-    )
-    .unwrap();
+    use std::sync::LazyLock;
+
+    static LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"(?is)<a[^>]*href=["'][^"']*oceanofpdf[^"']*["'][^>]*>.*?</a>"#)
+            .expect("valid regex")
+    });
+    static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"(?i)https?://(?:www\.)?oceanofpdf\.com[^\s<"'\]]*"#).expect("valid regex")
+    });
+    static PARA_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?is)<p[^>]*>[^<]*oceanofpdf[^<]*</p>").expect("valid regex")
+    });
+    static MENTION_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"(?i)\s*[-|–—:]\s*oceanofpdf(?:\.com)?|oceanofpdf(?:\.com)?\s*[-|–—:]\s*|oceanofpdf(?:\.com)?",
+        )
+        .expect("valid regex")
+    });
+
+    let link_re = &*LINK_RE;
+    let url_re = &*URL_RE;
+    let para_re = &*PARA_RE;
+    let mention_re = &*MENTION_RE;
 
     let reader = File::open(input_epub)?;
     let mut zip_in =

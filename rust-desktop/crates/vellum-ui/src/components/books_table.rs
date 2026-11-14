@@ -1,6 +1,6 @@
-use std::collections::HashSet;
 use base64::Engine;
 use dioxus::prelude::*;
+use std::collections::HashSet;
 use vellum_domain::Book;
 
 fn resolve_cover_src(cover_path: Option<&str>) -> Option<String> {

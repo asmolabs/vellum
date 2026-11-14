@@ -20,7 +20,8 @@ impl TextContentProvider {
         let mut chapters: Vec<(String, String)> = Vec::new();
 
         if let Ok(content) = std::fs::read_to_string(path) {
-            let re = Regex::new(r"(?m)(?:^#{1,3}\s+.*$|^(?:Chapitre|Chapter)\s+\d+.*$|\f|\n{3,})").unwrap();
+            let re = Regex::new(r"(?m)(?:^#{1,3}\s+.*$|^(?:Chapitre|Chapter)\s+\d+.*$|\f|\n{3,})")
+                .unwrap();
             let mut split_points: Vec<usize> = re.find_iter(&content).map(|m| m.start()).collect();
             if split_points.is_empty() || split_points[0] != 0 {
                 split_points.insert(0, 0);
@@ -34,7 +35,9 @@ impl TextContentProvider {
                 let section_text = content[start..end].trim();
                 if !section_text.is_empty() {
                     let first_line = section_text.lines().next().unwrap_or("").trim();
-                    let title = if first_line.starts_with('#') || first_line.to_lowercase().starts_with("chap") {
+                    let title = if first_line.starts_with('#')
+                        || first_line.to_lowercase().starts_with("chap")
+                    {
                         first_line.trim_start_matches('#').trim().to_string()
                     } else {
                         format!("Section {}", sec_idx + 1)
@@ -87,17 +90,26 @@ impl TextContentProvider {
             chapters.push(("Début".to_string(), pages[0].html.clone()));
         }
 
-        Self { pages, toc, chapters }
+        Self {
+            pages,
+            toc,
+            chapters,
+        }
     }
 }
-
 
 impl BookContentProvider for TextContentProvider {
     fn total_pages(&self) -> usize {
         self.pages.len()
     }
 
-    fn get_page_html(&self, page_index: usize, theme: &str, font_size: u32, is_serif: bool) -> String {
+    fn get_page_html(
+        &self,
+        page_index: usize,
+        theme: &str,
+        font_size: u32,
+        is_serif: bool,
+    ) -> String {
         if page_index >= self.pages.len() {
             return String::new();
         }
@@ -107,7 +119,10 @@ impl BookContentProvider for TextContentProvider {
     fn get_section_title(&self, page_index: usize) -> Option<String> {
         self.pages.get(page_index).map(|p| {
             if p.total_in_chapter > 1 {
-                format!("{} ({}/{})", p.chapter_title, p.page_in_chapter, p.total_in_chapter)
+                format!(
+                    "{} ({}/{})",
+                    p.chapter_title, p.page_in_chapter, p.total_in_chapter
+                )
             } else {
                 p.chapter_title.clone()
             }

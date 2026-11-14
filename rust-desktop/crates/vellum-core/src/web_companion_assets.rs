@@ -1,4 +1,4 @@
-/// HTML and assets for the Vellum Web Companion & Mobile Reader
+//! HTML and assets for the Vellum Web Companion & Mobile Reader
 
 pub fn library_page_html() -> &'static str {
     r#"<!DOCTYPE html>
@@ -792,4 +792,3 @@ pub fn reader_page_html() -> &'static str {
 </body>
 </html>"#
 }
-

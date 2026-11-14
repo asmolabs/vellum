@@ -80,9 +80,7 @@ async fn test_book_service_import_and_lifecycle() {
     }
 
     // 1. Import book
-    let book = book_service
-        .import_book(&epub_path)
-        .expect("import book");
+    let book = book_service.import_book(&epub_path).expect("import book");
     assert_eq!(book.title, "Foundation");
     assert_eq!(book.author, "Isaac Asimov");
     assert_eq!(book.formats.len(), 1);
@@ -90,7 +88,11 @@ async fn test_book_service_import_and_lifecycle() {
 
     // 2. Add an additional format (e.g. PDF)
     let pdf_path = incoming_dir.join("Foundation.pdf");
-    std::fs::write(&pdf_path, b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF").unwrap();
+    std::fs::write(
+        &pdf_path,
+        b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF",
+    )
+    .unwrap();
     let updated_book = book_service
         .add_format_to_book(&book.id, &pdf_path)
         .expect("attach format");
@@ -118,8 +120,13 @@ async fn test_book_service_import_and_lifecycle() {
     assert_eq!(book_after_remove.formats[0].format, "epub");
 
     // 6. Delete book
-    book_service.delete_book(&book.id, true).expect("delete book");
-    assert!(book_service.get_book_by_id(&book.id).expect("find").is_none());
+    book_service
+        .delete_book(&book.id, true)
+        .expect("delete book");
+    assert!(book_service
+        .get_book_by_id(&book.id)
+        .expect("find")
+        .is_none());
 }
 
 #[test]
@@ -260,7 +267,8 @@ async fn test_reader_provider_txt_and_cbz() {
               <h2>Deuxième Chapitre</h2>
               <p>Fin du récit.</p>
             </body>
-            </html>"#.as_bytes(),
+            </html>"#
+                .as_bytes(),
         )
         .unwrap();
 
@@ -269,8 +277,14 @@ async fn test_reader_provider_txt_and_cbz() {
 
     let epub_provider = create_content_provider(&epub_path);
     assert_eq!(epub_provider.total_pages(), 2);
-    assert_eq!(epub_provider.get_section_title(0), Some("Premier Pas".to_string()));
-    assert_eq!(epub_provider.get_section_title(1), Some("Deuxième Chapitre".to_string()));
+    assert_eq!(
+        epub_provider.get_section_title(0),
+        Some("Premier Pas".to_string())
+    );
+    assert_eq!(
+        epub_provider.get_section_title(1),
+        Some("Deuxième Chapitre".to_string())
+    );
 
     let page1_html = epub_provider.get_page_html(0, "dark", 18, false);
     assert!(page1_html.contains("data:image/png;base64,"));
@@ -300,18 +314,28 @@ async fn test_pivot_format_transitive_conversion() {
 
     // 2. Perform end-to-end 2-step conversion via pivot: TEXT -> (EPUB) -> PDF
     let txt_path = temp.path().join("input.txt");
-    std::fs::write(&txt_path, "Chapitre 1\nCeci est un test de conversion transitive via le format pivot EPUB.").unwrap();
+    std::fs::write(
+        &txt_path,
+        "Chapitre 1\nCeci est un test de conversion transitive via le format pivot EPUB.",
+    )
+    .unwrap();
 
     let pdf_out = temp.path().join("output.pdf");
     let result = conversion_svc.convert_file("text", "pdf", &txt_path, &pdf_out, None);
     if let Err(ref e) = result {
         println!("Error during convert_file: {:?}", e);
     }
-    assert!(result.is_ok(), "Conversion TEXT -> PDF via pivot EPUB should succeed");
+    assert!(
+        result.is_ok(),
+        "Conversion TEXT -> PDF via pivot EPUB should succeed"
+    );
     assert!(pdf_out.exists(), "Output PDF must exist");
 
     let pdf_bytes = std::fs::read(&pdf_out).unwrap();
-    assert!(pdf_bytes.starts_with(b"%PDF"), "Output file must be a valid PDF");
+    assert!(
+        pdf_bytes.starts_with(b"%PDF"),
+        "Output file must be a valid PDF"
+    );
 
     // 3. Test convert_book_to_format on BookService
     let incoming = temp.path().join("mon_livre.txt");
@@ -319,9 +343,14 @@ async fn test_pivot_format_transitive_conversion() {
     let book = book_service.import_book(&incoming).unwrap();
     assert_eq!(book.formats.len(), 1);
 
-    let updated_book = book_service.convert_book_to_format(&book.id, "pdf").unwrap();
+    let updated_book = book_service
+        .convert_book_to_format(&book.id, "pdf")
+        .unwrap();
     assert_eq!(updated_book.formats.len(), 2);
-    assert!(updated_book.formats.iter().any(|f| f.format.eq_ignore_ascii_case("pdf")));
+    assert!(updated_book
+        .formats
+        .iter()
+        .any(|f| f.format.eq_ignore_ascii_case("pdf")));
 }
 
 #[tokio::test]
@@ -348,13 +377,20 @@ async fn test_update_book_metadata_and_cover() {
     assert_eq!(updated.title, "Le Nouveau Titre");
     assert_eq!(updated.author, "Auteur Célèbre");
     assert_eq!(updated.publisher.as_deref(), Some("Éditions Galaxie"));
-    assert_eq!(updated.description.as_deref(), Some("Un synopsis incroyable."));
+    assert_eq!(
+        updated.description.as_deref(),
+        Some("Un synopsis incroyable.")
+    );
     assert_eq!(updated.tags.len(), 2);
     assert!(updated.tags.iter().any(|t| t.name == "Space Opera"));
     assert!(updated.tags.iter().any(|t| t.name == "Chef-d'œuvre"));
 
     // Verify persistence
-    let fetched = book_service.book_repo().find_by_id(&book.id).unwrap().unwrap();
+    let fetched = book_service
+        .book_repo()
+        .find_by_id(&book.id)
+        .unwrap()
+        .unwrap();
     assert_eq!(fetched.title, "Le Nouveau Titre");
     assert_eq!(fetched.author, "Auteur Célèbre");
 
@@ -362,14 +398,19 @@ async fn test_update_book_metadata_and_cover() {
     let cover_img = temp.path().join("new_cover.jpg");
     std::fs::write(&cover_img, b"fake_jpeg_header_content").unwrap();
 
-    let with_cover = book_service.update_book_cover(&book.id, &cover_img).unwrap();
+    let with_cover = book_service
+        .update_book_cover(&book.id, &cover_img)
+        .unwrap();
     assert!(with_cover.cover_path.is_some());
     let cov_rel = with_cover.cover_path.unwrap();
     assert!(cov_rel.ends_with(".jpg"));
 
     let full_cov = book_service.library_path().join(&cov_rel);
     assert!(full_cov.exists());
-    assert_eq!(std::fs::read(&full_cov).unwrap(), b"fake_jpeg_header_content");
+    assert_eq!(
+        std::fs::read(&full_cov).unwrap(),
+        b"fake_jpeg_header_content"
+    );
 
     // 3. Update metadata with ISBN, Series & Publish date
     let with_isbn = book_service
@@ -432,7 +473,6 @@ async fn test_device_service_kobo_and_kindle_integration() {
     std::fs::create_dir_all(&sys_dir).unwrap();
     std::fs::write(sys_dir.join("version"), b"Kindle 5.16").unwrap();
 
-
     // Put a book on Kindle to test importing into Vellum
     let incoming_kindle_book = docs_dir.join("Neuromancer.txt");
     std::fs::write(&incoming_kindle_book, "Neuromancer par William Gibson.").unwrap();
@@ -444,7 +484,10 @@ async fn test_device_service_kobo_and_kindle_integration() {
     assert_eq!(imported[0].title, "Neuromancer");
 
     // Verify Neuromancer is now in Vellum library
-    let in_db = book_service.book_repo().find_by_id(&imported[0].id).unwrap();
+    let in_db = book_service
+        .book_repo()
+        .find_by_id(&imported[0].id)
+        .unwrap();
     assert!(in_db.is_some());
 }
 
@@ -487,7 +530,8 @@ async fn test_ereader_pagination_and_navigation() {
         .unwrap();
 
         // Chapter 1: 5 paragraphs of 700 chars each = ~3500 chars -> should split into 3 pages
-        let p_text = "L'espace d'un instant, le ciel s'illumina d'un éclat bleuté et froid. ".repeat(10);
+        let p_text =
+            "L'espace d'un instant, le ciel s'illumina d'un éclat bleuté et froid. ".repeat(10);
         let ch1_content = format!(
             r#"<html><head><title>L'Aube Sombre</title></head><body>
             <h1>L'Aube Sombre</h1>
@@ -515,7 +559,7 @@ async fn test_ereader_pagination_and_navigation() {
     let provider = create_content_provider(&epub_path);
     // Chapter 1 has ~3 pages, Chapter 2 has 1 page -> total 4 pages
     assert!(provider.total_pages() >= 3);
-    
+
     // Page 0 info
     let info0 = provider.get_page_info(0).expect("page 0 info");
     assert_eq!(info0.chapter_title, "L'Aube Sombre");
@@ -619,11 +663,13 @@ async fn test_two_clients_sync_via_google_drive_folder() {
     let client_a_tags = vellum_storage::TagRepository::new(client_a_db.clone());
     let client_a_sync_repo = vellum_storage::SyncRepository::new(client_a_db.clone());
 
-    let mut cfg_a = vellum_domain::CloudSyncConfig::default();
-    cfg_a.client_id = "client-macbook-a".to_string();
-    cfg_a.sync_folder_path = Some(gdrive_folder.clone());
-    cfg_a.enabled = true;
-    cfg_a.auto_download_books = true;
+    let cfg_a = vellum_domain::CloudSyncConfig {
+        client_id: "client-macbook-a".to_string(),
+        sync_folder_path: Some(gdrive_folder.clone()),
+        enabled: true,
+        auto_download_books: true,
+        ..Default::default()
+    };
 
     let sync_service_a = vellum_core::SyncService::new(
         cfg_a,
@@ -641,11 +687,13 @@ async fn test_two_clients_sync_via_google_drive_folder() {
     let client_b_tags = vellum_storage::TagRepository::new(client_b_db.clone());
     let client_b_sync_repo = vellum_storage::SyncRepository::new(client_b_db.clone());
 
-    let mut cfg_b = vellum_domain::CloudSyncConfig::default();
-    cfg_b.client_id = "client-imac-b".to_string();
-    cfg_b.sync_folder_path = Some(gdrive_folder.clone());
-    cfg_b.enabled = true;
-    cfg_b.auto_download_books = true;
+    let cfg_b = vellum_domain::CloudSyncConfig {
+        client_id: "client-imac-b".to_string(),
+        sync_folder_path: Some(gdrive_folder.clone()),
+        enabled: true,
+        auto_download_books: true,
+        ..Default::default()
+    };
 
     let sync_service_b = vellum_core::SyncService::new(
         cfg_b,
@@ -777,14 +825,7 @@ async fn test_bulk_update_and_bulk_delete_books() {
 
     // 2. Bulk remove tag
     let updated_no_tag = book_service
-        .bulk_update_books(
-            &book_ids,
-            None,
-            None,
-            false,
-            &[],
-            &["Classic".to_string()],
-        )
+        .bulk_update_books(&book_ids, None, None, false, &[], &["Classic".to_string()])
         .expect("bulk update remove tag");
 
     for b in updated_no_tag {
@@ -812,8 +853,10 @@ async fn test_mail_service_validation() {
     let temp = TempDir::new().expect("tempdir");
     let mail_service = MailService::new(temp.path().to_path_buf());
 
-    let mut cfg = SmtpConfig::default();
-    cfg.enabled = false;
+    let mut cfg = SmtpConfig {
+        enabled: false,
+        ..Default::default()
+    };
 
     let book = Book::new("Dune", "Frank Herbert");
     let res = mail_service.send_to_kindle(&book, &cfg, None).await;
@@ -851,8 +894,8 @@ async fn test_mail_service_validation() {
 
 #[tokio::test]
 async fn test_calibre_library_import() {
-    use vellum_core::CalibreImporter;
     use rusqlite::Connection;
+    use vellum_core::CalibreImporter;
 
     let temp_calibre = TempDir::new().expect("temp calibre dir");
     let calibre_root = temp_calibre.path();
@@ -962,8 +1005,10 @@ async fn test_epub_inspector_and_toc_editor() {
     {
         let f = File::create(&epub_path).unwrap();
         let mut zip = ZipWriter::new(f);
-        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-        let deflated = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         zip.start_file("mimetype", stored).unwrap();
         zip.write_all(b"application/epub+zip").unwrap();
@@ -1013,7 +1058,9 @@ async fn test_epub_inspector_and_toc_editor() {
     let book = book_service.import_book(&epub_path).expect("import book");
 
     // 1. Inspect EPUB
-    let diag = book_service.inspect_book_epub(&book.id).expect("inspect epub");
+    let diag = book_service
+        .inspect_book_epub(&book.id)
+        .expect("inspect epub");
     assert_eq!(diag.epub_version, "2.0");
     assert_eq!(diag.spine_count, 1);
     assert_eq!(diag.toc_entries_count, 0); // Missing TOC detected
@@ -1038,8 +1085,13 @@ async fn test_epub_inspector_and_toc_editor() {
     assert_eq!(retrieved_toc[0].label, "Chapitre Premier : Arrakis");
 
     // 5. Clean & repair
-    let diag_after = book_service.repair_book_epub(&book.id).expect("repair epub");
-    assert!(!diag_after.issues.iter().any(|i| i.code == "ORPHAN_ZIP_FILE"));
+    let diag_after = book_service
+        .repair_book_epub(&book.id)
+        .expect("repair epub");
+    assert!(!diag_after
+        .issues
+        .iter()
+        .any(|i| i.code == "ORPHAN_ZIP_FILE"));
     assert!(diag_after.toc_entries_count >= 1);
     assert!(diag_after.is_valid);
 }
@@ -1057,8 +1109,10 @@ async fn test_web_companion_server_and_api() {
     {
         let f = File::create(&epub_path).unwrap();
         let mut zip = ZipWriter::new(f);
-        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-        let deflated = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         zip.start_file("mimetype", stored).unwrap();
         zip.write_all(b"application/epub+zip").unwrap();
@@ -1269,7 +1323,8 @@ async fn test_news_recipe_generation_and_library_import() {
         axum::serve(listener, app).await.unwrap();
     });
 
-    let param_repo = vellum_storage::ParamRepository::new(vellum_storage::Database::open_in_memory().unwrap());
+    let param_repo =
+        vellum_storage::ParamRepository::new(vellum_storage::Database::open_in_memory().unwrap());
     let news_service = vellum_core::NewsService::new(book_service.clone(), param_repo, None);
 
     let mut recipe = vellum_domain::NewsRecipe::new("custom-tech", "Echo Tech");
@@ -1279,7 +1334,9 @@ async fn test_news_recipe_generation_and_library_import() {
         format!("http://127.0.0.1:{port}/feed.xml"),
     ));
 
-    news_service.save_recipes(&[recipe.clone()]).expect("save recipe");
+    news_service
+        .save_recipes(&[recipe.clone()])
+        .expect("save recipe");
 
     // Run recipe and import into library
     let imported_book = news_service
@@ -1299,7 +1356,9 @@ async fn test_news_recipe_generation_and_library_import() {
     assert!(file_path.exists());
     let provider = vellum_core::reader_provider::create_content_provider(&file_path);
     assert!(provider.chapter_count() >= 2); // Cover + Article
-    assert!(provider.chapter_html(1).contains("Antigravity 2.0 Unveiled"));
+    assert!(provider
+        .chapter_html(1)
+        .contains("Antigravity 2.0 Unveiled"));
 }
 
 #[tokio::test]
@@ -1343,15 +1402,22 @@ async fn test_library_health_audit_and_merge_books() {
     b1.isbn = Some("9782070409228".to_string());
     b1.progress_percent = 25.0;
     b1.add_tag(vellum_domain::Tag::new("Classique"));
-    let _ = book_service.tag_repo().save(&vellum_domain::Tag::new("Classique"));
+    let _ = book_service
+        .tag_repo()
+        .save(&vellum_domain::Tag::new("Classique"));
     let b1 = book_service.book_repo().save(&b1).unwrap();
-    let b1 = book_service.add_format_to_book(&b1.id, &dummy_epub).unwrap();
+    let b1 = book_service
+        .add_format_to_book(&b1.id, &dummy_epub)
+        .unwrap();
 
     // Create Book 2: Duplicate with slight title variation and author inversion, in PDF format
-    let mut b2 = vellum_domain::Book::new("Les Misérables - Tome 1 (Édition Collector)", "Hugo Victor");
+    let mut b2 =
+        vellum_domain::Book::new("Les Misérables - Tome 1 (Édition Collector)", "Hugo Victor");
     b2.progress_percent = 60.0;
     b2.add_tag(vellum_domain::Tag::new("Roman"));
-    let _ = book_service.tag_repo().save(&vellum_domain::Tag::new("Roman"));
+    let _ = book_service
+        .tag_repo()
+        .save(&vellum_domain::Tag::new("Roman"));
     let b2 = book_service.book_repo().save(&b2).unwrap();
     let b2 = book_service.add_format_to_book(&b2.id, &dummy_pdf).unwrap();
 
@@ -1363,7 +1429,9 @@ async fn test_library_health_audit_and_merge_books() {
     assert_eq!(audit1.total_formats, 2);
 
     // 2. Merge Book 2 into Book 1
-    let merged = book_service.merge_books(&b1.id, &b2.id).expect("merge books");
+    let merged = book_service
+        .merge_books(&b1.id, &b2.id)
+        .expect("merge books");
 
     // Verify merged result
     assert_eq!(merged.id, b1.id);
@@ -1379,7 +1447,11 @@ async fn test_library_health_audit_and_merge_books() {
     // Reading progress: took the highest (60%)
     assert_eq!(merged.progress_percent, 60.0);
     // Description preserved
-    assert!(merged.description.as_ref().unwrap().contains("roman social"));
+    assert!(merged
+        .description
+        .as_ref()
+        .unwrap()
+        .contains("roman social"));
 
     // Verify Book 2 was deleted from repository
     let b2_check = book_service.book_repo().find_by_id(&b2.id).unwrap();
@@ -1485,7 +1557,8 @@ fn test_watch_folder_auto_add_and_deduplication() {
     let write_sample_epub = |dest: &std::path::Path| {
         let f = File::create(dest).unwrap();
         let mut zip = ZipWriter::new(f);
-        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
         let deflated =
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         zip.start_file("mimetype", stored).unwrap();
@@ -1499,7 +1572,8 @@ fn test_watch_folder_auto_add_and_deduplication() {
             br#"<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Zzxq Watch Book</dc:title><dc:creator>Zzxq Author</dc:creator></metadata><manifest><item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="c1"/></spine></package>"#,
         ).unwrap();
         zip.start_file("ch1.xhtml", deflated).unwrap();
-        zip.write_all(b"<html><body><p>Hello</p></body></html>").unwrap();
+        zip.write_all(b"<html><body><p>Hello</p></body></html>")
+            .unwrap();
         zip.finish().unwrap();
     };
 
@@ -1534,7 +1608,11 @@ fn test_virtual_library_crud_and_query_filtering() {
     assert!(service.create("SF", "   ", None).is_err());
 
     let vl = service
-        .create("SF à lire", "tag:sf -status:finished", Some("#6366f1".into()))
+        .create(
+            "SF à lire",
+            "tag:sf -status:finished",
+            Some("#6366f1".into()),
+        )
         .unwrap();
     assert_eq!(vl.name, "SF à lire");
     assert_eq!(service.list().unwrap().len(), 1);
@@ -1576,18 +1654,34 @@ fn test_custom_columns_definition_validation_and_values() {
 
     // Define columns of different types
     let mood = service
-        .define_column("Reading Mood", "Humeur", vellum_domain::CustomColumnType::Text)
+        .define_column(
+            "Reading Mood",
+            "Humeur",
+            vellum_domain::CustomColumnType::Text,
+        )
         .unwrap();
     assert_eq!(mood.key, "reading_mood");
 
     let pages = service
-        .define_column("pages", "Nombre de pages", vellum_domain::CustomColumnType::Number)
+        .define_column(
+            "pages",
+            "Nombre de pages",
+            vellum_domain::CustomColumnType::Number,
+        )
         .unwrap();
     let owned = service
-        .define_column("owned", "Possédé papier", vellum_domain::CustomColumnType::Boolean)
+        .define_column(
+            "owned",
+            "Possédé papier",
+            vellum_domain::CustomColumnType::Boolean,
+        )
         .unwrap();
     let note = service
-        .define_column("personal_rating", "Note perso", vellum_domain::CustomColumnType::Rating)
+        .define_column(
+            "personal_rating",
+            "Note perso",
+            vellum_domain::CustomColumnType::Rating,
+        )
         .unwrap();
 
     // Duplicate key rejected
@@ -1596,25 +1690,41 @@ fn test_custom_columns_definition_validation_and_values() {
         .is_err());
 
     // Type validation errors
-    assert!(service.set_book_value(&book.id, "pages", "not-a-number").is_err());
+    assert!(service
+        .set_book_value(&book.id, "pages", "not-a-number")
+        .is_err());
     assert!(service.set_book_value(&book.id, "owned", "maybe").is_err());
-    assert!(service.set_book_value(&book.id, "personal_rating", "9").is_err());
+    assert!(service
+        .set_book_value(&book.id, "personal_rating", "9")
+        .is_err());
 
     // Valid values
-    service.set_book_value(&book.id, "reading_mood", "Épique").unwrap();
+    service
+        .set_book_value(&book.id, "reading_mood", "Épique")
+        .unwrap();
     service.set_book_value(&book.id, "pages", "512").unwrap();
     service.set_book_value(&book.id, "owned", "oui").unwrap();
-    service.set_book_value(&book.id, "personal_rating", "5").unwrap();
+    service
+        .set_book_value(&book.id, "personal_rating", "5")
+        .unwrap();
 
     let values = service.get_book_values(&book.id).unwrap();
-    assert_eq!(values.get("reading_mood").map(String::as_str), Some("Épique"));
+    assert_eq!(
+        values.get("reading_mood").map(String::as_str),
+        Some("Épique")
+    );
     assert_eq!(values.get("pages").map(String::as_str), Some("512"));
     assert_eq!(values.get("owned").map(String::as_str), Some("true"));
     assert_eq!(values.get("personal_rating").map(String::as_str), Some("5"));
 
     // Clear a value with empty string
-    service.set_book_value(&book.id, "reading_mood", "   ").unwrap();
-    assert!(!service.get_book_values(&book.id).unwrap().contains_key("reading_mood"));
+    service
+        .set_book_value(&book.id, "reading_mood", "   ")
+        .unwrap();
+    assert!(!service
+        .get_book_values(&book.id)
+        .unwrap()
+        .contains_key("reading_mood"));
 
     // Delete column definition cascades to values
     assert!(service.delete_column(&pages.id).unwrap());
@@ -1635,8 +1745,8 @@ fn test_polish_book_metadata_cover_and_toc() {
     {
         let f = std::fs::File::create(&epub_path).unwrap();
         let mut zip = zip::ZipWriter::new(f);
-        let stored =
-            zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
         let deflated = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated);
 
@@ -1734,9 +1844,12 @@ async fn test_api_export_catalog_csv_json_bibtex() {
     assert_eq!(bib_res.status(), 200);
     assert!(bib_res.text().await.unwrap().contains("@book{"));
 
-    let notes_res = reqwest::get(format!("http://127.0.0.1:{port}/api/books/{}/notes", book.id))
-        .await
-        .unwrap();
+    let notes_res = reqwest::get(format!(
+        "http://127.0.0.1:{port}/api/books/{}/notes",
+        book.id
+    ))
+    .await
+    .unwrap();
     assert_eq!(notes_res.status(), 200);
     assert!(notes_res.text().await.unwrap().contains("Les Misérables"));
 
@@ -1807,7 +1920,11 @@ fn test_notes_export_markdown_and_bulk_regex_and_import_rules() {
         .unwrap();
     assert_eq!(applied.updated_count, 1);
     assert_eq!(
-        book_service.get_book_by_id(&saved.id).unwrap().unwrap().author,
+        book_service
+            .get_book_by_id(&saved.id)
+            .unwrap()
+            .unwrap()
+            .author,
         "Frank Herbert"
     );
 
@@ -1856,15 +1973,3 @@ fn test_full_text_search_inside_books() {
     assert_eq!(hits[0].book_id, imported.id);
     assert!(hits[0].snippet.contains("épice"));
 }
-
-
-
-
-
-
-
-
-
-
-
-

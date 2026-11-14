@@ -41,10 +41,9 @@ impl MobiContentProvider {
                     if first_offset + 10 <= bytes.len() {
                         let compression =
                             u16::from_be_bytes([bytes[first_offset], bytes[first_offset + 1]]);
-                        let text_records = u16::from_be_bytes([
-                            bytes[first_offset + 8],
-                            bytes[first_offset + 9],
-                        ]) as usize;
+                        let text_records =
+                            u16::from_be_bytes([bytes[first_offset + 8], bytes[first_offset + 9]])
+                                as usize;
 
                         let mut text_bytes = Vec::new();
                         let limit = (text_records + 1).min(num_records);
@@ -118,7 +117,11 @@ impl MobiContentProvider {
             chapters.push(("Début".to_string(), pages[0].html.clone()));
         }
 
-        Self { pages, toc, chapters }
+        Self {
+            pages,
+            toc,
+            chapters,
+        }
     }
 }
 
@@ -127,7 +130,13 @@ impl BookContentProvider for MobiContentProvider {
         self.pages.len()
     }
 
-    fn get_page_html(&self, page_index: usize, theme: &str, font_size: u32, is_serif: bool) -> String {
+    fn get_page_html(
+        &self,
+        page_index: usize,
+        theme: &str,
+        font_size: u32,
+        is_serif: bool,
+    ) -> String {
         if page_index >= self.pages.len() {
             return String::new();
         }
@@ -137,7 +146,10 @@ impl BookContentProvider for MobiContentProvider {
     fn get_section_title(&self, page_index: usize) -> Option<String> {
         self.pages.get(page_index).map(|p| {
             if p.total_in_chapter > 1 {
-                format!("{} ({}/{})", p.chapter_title, p.page_in_chapter, p.total_in_chapter)
+                format!(
+                    "{} ({}/{})",
+                    p.chapter_title, p.page_in_chapter, p.total_in_chapter
+                )
             } else {
                 p.chapter_title.clone()
             }

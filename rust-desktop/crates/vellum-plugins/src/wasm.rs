@@ -174,14 +174,10 @@ impl WasmPluginRunner {
             .ok_or_else(|| VellumError::Plugin("WASM export 'memory' not found".to_string()))?;
         let alloc = instance
             .get_typed_func::<i32, i32>(&store, alloc_fn)
-            .map_err(|e| {
-                VellumError::Plugin(format!("WASM export '{alloc_fn}' not found: {e}"))
-            })?;
+            .map_err(|e| VellumError::Plugin(format!("WASM export '{alloc_fn}' not found: {e}")))?;
         let hook = instance
             .get_typed_func::<(i32, i32), i64>(&store, hook_fn)
-            .map_err(|e| {
-                VellumError::Plugin(format!("WASM export '{hook_fn}' not found: {e}"))
-            })?;
+            .map_err(|e| VellumError::Plugin(format!("WASM export '{hook_fn}' not found: {e}")))?;
 
         let input_bytes = input_json.as_bytes();
         let input_len = i32::try_from(input_bytes.len())
@@ -190,7 +186,9 @@ impl WasmPluginRunner {
             .call(&mut store, input_len)
             .map_err(|e| VellumError::Plugin(format!("WASM alloc trapped: {e}")))?;
         if in_ptr < 0 {
-            return Err(VellumError::Plugin("WASM alloc returned negative pointer".to_string()));
+            return Err(VellumError::Plugin(
+                "WASM alloc returned negative pointer".to_string(),
+            ));
         }
         memory
             .write(&mut store, in_ptr as usize, input_bytes)
@@ -302,4 +300,3 @@ mod tests {
         assert!(res.fuel_consumed > 0);
     }
 }
-

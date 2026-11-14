@@ -212,13 +212,13 @@ impl BookTransformationPlugin for EpubTranslatorPlugin {
             .get("target_language")
             .and_then(|v| v.as_str())
             .unwrap_or("FR");
-        let lang_suffix =
-            if target_lang.eq_ignore_ascii_case("Français") || target_lang.eq_ignore_ascii_case("FR")
-            {
-                "FR".to_string()
-            } else {
-                target_lang.to_uppercase()
-            };
+        let lang_suffix = if target_lang.eq_ignore_ascii_case("Français")
+            || target_lang.eq_ignore_ascii_case("FR")
+        {
+            "FR".to_string()
+        } else {
+            target_lang.to_uppercase()
+        };
 
         let parent = input_file.parent().unwrap_or_else(|| Path::new("."));
         let output_file = parent.join(format!("{stem} - {lang_suffix}.{ext}"));

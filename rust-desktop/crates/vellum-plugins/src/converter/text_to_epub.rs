@@ -217,7 +217,9 @@ fn build_chapter_xhtml(c: &Chapter) -> String {
     sb.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n");
     sb.push_str("<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n");
     sb.push_str(&format!("<title>{}</title>\n", escape_xml(&c.title)));
-    sb.push_str("<link rel=\"stylesheet\" type=\"text/css\" href=\"stylesheet.css\"/>\n</head>\n<body>\n");
+    sb.push_str(
+        "<link rel=\"stylesheet\" type=\"text/css\" href=\"stylesheet.css\"/>\n</head>\n<body>\n",
+    );
     sb.push_str(&format!("<h1>{}</h1>\n", escape_xml(&c.title)));
     for p in &c.paragraphs {
         sb.push_str(&format!("<p>{}</p>\n", escape_xml(p)));
@@ -243,7 +245,9 @@ fn build_opf(title: &str, author: &str, chapters: &[Chapter]) -> String {
         "    <dc:identifier id=\"BookId\">urn:uuid:{uuid}</dc:identifier>\n"
     ));
     sb.push_str("    <dc:language>fr</dc:language>\n  </metadata>\n  <manifest>\n");
-    sb.push_str("    <item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>\n");
+    sb.push_str(
+        "    <item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>\n",
+    );
     sb.push_str("    <item id=\"css\" href=\"stylesheet.css\" media-type=\"text/css\"/>\n");
     for i in 0..chapters.len() {
         sb.push_str(&format!(

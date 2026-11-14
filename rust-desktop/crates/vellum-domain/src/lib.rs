@@ -30,13 +30,10 @@ pub use error::{VellumError, VellumResult};
 pub use health::{DuplicatePair, IncompleteBookIssue, LibraryHealthReport, MissingFileIssue};
 pub use news::{NewsArticle, NewsFeedConfig, NewsRecipe};
 pub use plugin::{
-    BookConverterPlugin, BookFormatPlugin, BookTransformationPlugin, ConfigField,
-    DeviceAnnotation, DeviceBookInfo, DeviceKind, DeviceReadingProgress, DeviceSyncPlugin,
-    ExtractedMetadata, LibraryPlugin, LibraryPluginInfo, MetadataEnricherPlugin, PluginDescriptor,
-    PluginType, TestResult, VellumPlugin,
+    BookConverterPlugin, BookFormatPlugin, BookTransformationPlugin, ConfigField, DeviceAnnotation,
+    DeviceBookInfo, DeviceKind, DeviceReadingProgress, DeviceSyncPlugin, ExtractedMetadata,
+    LibraryPlugin, LibraryPluginInfo, MetadataEnricherPlugin, PluginDescriptor, PluginType,
+    TestResult, VellumPlugin,
 };
-pub use sync::{
-    CloudSyncConfig, CloudSyncMode, SyncAction, SyncDelta, SyncEvent, SyncReport,
-};
+pub use sync::{CloudSyncConfig, CloudSyncMode, SyncAction, SyncDelta, SyncEvent, SyncReport};
 pub use template::{NamingTemplate, DEFAULT_NAMING_TEMPLATE};
-

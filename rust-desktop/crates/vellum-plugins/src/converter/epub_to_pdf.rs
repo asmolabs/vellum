@@ -98,7 +98,11 @@ fn extract_lines_from_epub(epub_file: &Path) -> VellumResult<Vec<String>> {
         ZipArchive::new(reader).map_err(|e| VellumError::InvalidArgument(e.to_string()))?;
 
     let mut names: Vec<String> = (0..zip.len())
-        .filter_map(|i| zip.by_index(i).ok().and_then(|e| e.name().ok().map(|n| n.to_string())))
+        .filter_map(|i| {
+            zip.by_index(i)
+                .ok()
+                .and_then(|e| e.name().ok().map(|n| n.to_string()))
+        })
         .filter(|n| n.ends_with(".xhtml") || n.ends_with(".html"))
         .collect();
     names.sort();

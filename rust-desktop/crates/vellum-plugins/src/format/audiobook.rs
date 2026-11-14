@@ -262,8 +262,8 @@ fn parse_m4b(data: &[u8]) -> ExtractedMetadata {
 fn find_ilst_atom(data: &[u8], start: usize, end: usize) -> Option<(usize, usize)> {
     let mut pos = start;
     while pos + 8 <= end {
-        let sz = u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize;
         let atom_type = &data[pos + 4..pos + 8];
         let atom_size = if sz == 0 { end - pos } else { sz };
         if atom_size < 8 || pos + atom_size > end {
@@ -294,8 +294,8 @@ fn find_ilst_atom(data: &[u8], start: usize, end: usize) -> Option<(usize, usize
 fn find_data_sub_atom(data: &[u8], start: usize, end: usize) -> Option<usize> {
     let mut pos = start;
     while pos + 8 <= end {
-        let sz = u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize;
         if &data[pos + 4..pos + 8] == b"data" {
             return Some(pos);
         }

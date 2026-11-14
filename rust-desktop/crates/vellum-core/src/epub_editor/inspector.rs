@@ -1,8 +1,8 @@
+use roxmltree::Document;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
-use roxmltree::Document;
 use tempfile::NamedTempFile;
 use vellum_domain::{EpubDiagnostics, EpubIssue, EpubIssueSeverity, VellumError, VellumResult};
 use zip::write::SimpleFileOptions;
@@ -13,9 +13,8 @@ use super::{map_zip, normalize_zip_path, EpubEditor};
 impl EpubEditor {
     /// Performs deep structural inspection and linting of an EPUB file
     pub fn inspect(epub_path: &Path) -> VellumResult<EpubDiagnostics> {
-        let meta = std::fs::metadata(epub_path).map_err(|e| {
-            VellumError::NotFound(format!("Fichier EPUB introuvable: {e}"))
-        })?;
+        let meta = std::fs::metadata(epub_path)
+            .map_err(|e| VellumError::NotFound(format!("Fichier EPUB introuvable: {e}")))?;
         let total_size_bytes = meta.len();
 
         let file = File::open(epub_path)?;
@@ -29,7 +28,10 @@ impl EpubEditor {
         let mut has_valid_mimetype = false;
         if total_files > 0 {
             if let Ok(mut first_entry) = zip.by_index(0) {
-                let name = first_entry.name().map(|n| n.to_string()).unwrap_or_default();
+                let name = first_entry
+                    .name()
+                    .map(|n| n.to_string())
+                    .unwrap_or_default();
                 if name == "mimetype" {
                     let mut content = String::new();
                     if first_entry.read_to_string(&mut content).is_ok()
@@ -56,7 +58,9 @@ impl EpubEditor {
                     issues.push(EpubIssue {
                         severity: EpubIssueSeverity::Warning,
                         code: "MIMETYPE_NOT_FIRST".to_string(),
-                        message: format!("Le premier fichier dans l'archive est '{name}' au lieu de 'mimetype'."),
+                        message: format!(
+                            "Le premier fichier dans l'archive est '{name}' au lieu de 'mimetype'."
+                        ),
                         file: Some(name),
                     });
                 }
@@ -108,7 +112,9 @@ impl EpubEditor {
                     issues.push(EpubIssue {
                         severity: EpubIssueSeverity::Error,
                         code: "INVALID_CONTAINER_XML".to_string(),
-                        message: "Le fichier META-INF/container.xml ne spécifie aucun 'rootfile' valide.".to_string(),
+                        message:
+                            "Le fichier META-INF/container.xml ne spécifie aucun 'rootfile' valide."
+                                .to_string(),
                         file: Some("META-INF/container.xml".to_string()),
                     });
                 }
@@ -191,7 +197,9 @@ impl EpubEditor {
                     issues.push(EpubIssue {
                         severity: EpubIssueSeverity::Error,
                         code: "OPF_READ_ERROR".to_string(),
-                        message: format!("Impossible de lire le fichier OPF '{opf_full_path}': {e}"),
+                        message: format!(
+                            "Impossible de lire le fichier OPF '{opf_full_path}': {e}"
+                        ),
                         file: Some(opf_full_path.clone()),
                     });
                 }
@@ -200,7 +208,9 @@ impl EpubEditor {
                 issues.push(EpubIssue {
                     severity: EpubIssueSeverity::Error,
                     code: "OPF_NOT_FOUND".to_string(),
-                    message: format!("Le fichier OPF déclaré '{opf_full_path}' est introuvable dans le zip."),
+                    message: format!(
+                        "Le fichier OPF déclaré '{opf_full_path}' est introuvable dans le zip."
+                    ),
                     file: Some(opf_full_path.clone()),
                 });
             }
@@ -236,7 +246,8 @@ impl EpubEditor {
                         manifest_items.insert(id.clone(), resolved.clone());
                         manifest_hrefs.push(resolved.clone());
 
-                        if properties.contains("cover-image") || id.to_lowercase().contains("cover") {
+                        if properties.contains("cover-image") || id.to_lowercase().contains("cover")
+                        {
                             has_cover = true;
                         }
 
@@ -288,7 +299,9 @@ impl EpubEditor {
                                 issues.push(EpubIssue {
                                     severity: EpubIssueSeverity::Error,
                                     code: "UNRESOLVED_SPINE_IDREF".to_string(),
-                                    message: format!("Élément de spine avec idref inconnu: '{idref}'"),
+                                    message: format!(
+                                        "Élément de spine avec idref inconnu: '{idref}'"
+                                    ),
                                     file: Some(opf_full_path.clone()),
                                 });
                             }
@@ -343,7 +356,10 @@ impl EpubEditor {
                 let mut xml = String::new();
                 if f.read_to_string(&mut xml).is_ok() {
                     if let Ok(doc) = Document::parse(&xml) {
-                        toc_entries_count = doc.descendants().filter(|n| n.has_tag_name("navPoint")).count();
+                        toc_entries_count = doc
+                            .descendants()
+                            .filter(|n| n.has_tag_name("navPoint"))
+                            .count();
                     }
                 }
             }
@@ -352,7 +368,8 @@ impl EpubEditor {
                 let mut xml = String::new();
                 if f.read_to_string(&mut xml).is_ok() {
                     if let Ok(doc) = Document::parse(&xml) {
-                        toc_entries_count = doc.descendants().filter(|n| n.has_tag_name("li")).count();
+                        toc_entries_count =
+                            doc.descendants().filter(|n| n.has_tag_name("li")).count();
                     }
                 }
             }
@@ -362,7 +379,9 @@ impl EpubEditor {
             issues.push(EpubIssue {
                 severity: EpubIssueSeverity::Warning,
                 code: "MISSING_TOC".to_string(),
-                message: "Aucune Table des Matières (TOC / toc.ncx / nav.xhtml) exploitable trouvée.".to_string(),
+                message:
+                    "Aucune Table des Matières (TOC / toc.ncx / nav.xhtml) exploitable trouvée."
+                        .to_string(),
                 file: None,
             });
         }
@@ -371,7 +390,9 @@ impl EpubEditor {
             issues.push(EpubIssue {
                 severity: EpubIssueSeverity::Info,
                 code: "NO_COVER_DECLARED".to_string(),
-                message: "Aucune couverture n'est explicitement déclarée dans les métadonnées de l'EPUB.".to_string(),
+                message:
+                    "Aucune couverture n'est explicitement déclarée dans les métadonnées de l'EPUB."
+                        .to_string(),
                 file: None,
             });
         }
@@ -393,7 +414,7 @@ impl EpubEditor {
         })
     }
 
-    /// Extracts the hierarchical Table of Contents (TOC) from an EPUB
+    // Extracts the hierarchical Table of Contents (TOC) from an EPUB
 
     pub fn clean_and_repair(epub_path: &Path) -> VellumResult<EpubDiagnostics> {
         let diag_before = Self::inspect(epub_path)?;
@@ -406,8 +427,10 @@ impl EpubEditor {
         let mut zip_out = ZipWriter::new(temp_file.reopen()?);
 
         // 1. Write pristine uncompressed mimetype first
-        let stored_opt = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-        let deflated_opt = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let stored_opt =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated_opt =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         map_zip(zip_out.start_file("mimetype", stored_opt))?;
         zip_out.write_all(b"application/epub+zip")?;
@@ -458,6 +481,4 @@ impl EpubEditor {
     }
 
     // --- Private Helper Methods ---
-
-
 }

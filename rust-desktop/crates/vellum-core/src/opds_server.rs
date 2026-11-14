@@ -121,7 +121,10 @@ impl OpdsServer {
             .route("/opds/books", get(books_catalog_handler))
             .route("/opds/covers/:id", get(cover_handler))
             .route("/opds/download/:id/:format", get(download_handler))
-            .layer(middleware::from_fn_with_state(expected_token, auth_and_security_headers))
+            .layer(middleware::from_fn_with_state(
+                expected_token,
+                auth_and_security_headers,
+            ))
             .layer(cors)
             .with_state(shared)
     }
@@ -171,7 +174,10 @@ async fn auth_and_security_headers(
         if !header_ok && !query_ok {
             return (
                 StatusCode::UNAUTHORIZED,
-                [(axum::http::header::WWW_AUTHENTICATE, "Bearer realm=\"Vellum\"")],
+                [(
+                    axum::http::header::WWW_AUTHENTICATE,
+                    "Bearer realm=\"Vellum\"",
+                )],
                 "Unauthorized",
             )
                 .into_response();
@@ -428,13 +434,10 @@ async fn api_book_progress_handler(
 ) -> Response {
     let percent = body.percentage.unwrap_or(0.0) * 100.0;
     let finished = percent >= 99.0;
-    if service.update_reading_progress(
-        &book_id,
-        body.chapter_index as i32,
-        0,
-        percent,
-        finished,
-    ).is_ok() {
+    if service
+        .update_reading_progress(&book_id, body.chapter_index as i32, 0, percent, finished)
+        .is_ok()
+    {
         return Json(serde_json::json!({ "status": "ok" })).into_response();
     }
     StatusCode::NOT_FOUND.into_response()
@@ -502,11 +505,17 @@ async fn books_catalog_handler(
         xml.push_str(&format!("    <title>{}</title>\n", escape_xml(&b.title)));
         xml.push_str(&format!("    <id>urn:vellum:book:{}</id>\n", b.id));
         xml.push_str(&format!("    <updated>{}</updated>\n", b.added_at));
-        xml.push_str(&format!("    <author><name>{}</name></author>\n", escape_xml(&b.author)));
+        xml.push_str(&format!(
+            "    <author><name>{}</name></author>\n",
+            escape_xml(&b.author)
+        ));
 
         if let Some(ref publ) = b.publisher {
             if !publ.trim().is_empty() {
-                xml.push_str(&format!("    <dc:publisher>{}</dc:publisher>\n", escape_xml(publ)));
+                xml.push_str(&format!(
+                    "    <dc:publisher>{}</dc:publisher>\n",
+                    escape_xml(publ)
+                ));
             }
         }
         if let Some(ref date) = b.publish_date {
@@ -516,7 +525,10 @@ async fn books_catalog_handler(
         }
         if let Some(ref desc) = b.description {
             if !desc.trim().is_empty() {
-                xml.push_str(&format!("    <summary type=\"text\">{}</summary>\n", escape_xml(desc)));
+                xml.push_str(&format!(
+                    "    <summary type=\"text\">{}</summary>\n",
+                    escape_xml(desc)
+                ));
             }
         }
 

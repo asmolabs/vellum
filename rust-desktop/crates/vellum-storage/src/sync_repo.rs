@@ -21,8 +21,7 @@ impl SyncRepository {
             SyncAction::BookDeleted { .. } => "BOOK_DELETED",
             SyncAction::ProgressUpdated { .. } => "PROGRESS_UPDATED",
         };
-        let payload = serde_json::to_string(&event.action)
-            .map_err(VellumError::Json)?;
+        let payload = serde_json::to_string(&event.action).map_err(VellumError::Json)?;
 
         conn.execute(
             "INSERT INTO sync_events (id, client_id, timestamp, action_type, payload, synced_at)
@@ -65,8 +64,8 @@ impl SyncRepository {
         for r in rows {
             let (id, client_id, timestamp, payload_str) =
                 r.map_err(|e| VellumError::Database(e.to_string()))?;
-            let action: SyncAction = serde_json::from_str(&payload_str)
-                .map_err(VellumError::Json)?;
+            let action: SyncAction =
+                serde_json::from_str(&payload_str).map_err(VellumError::Json)?;
             events.push(SyncEvent {
                 id,
                 client_id,

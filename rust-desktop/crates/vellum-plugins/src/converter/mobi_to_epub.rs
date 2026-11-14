@@ -125,10 +125,11 @@ impl BookConverterPlugin for MobiToEpubConverterPlugin {
                             && name_len < 1024
                             && rec0 + name_off + name_len <= data.len()
                         {
-                            let t =
-                                String::from_utf8_lossy(&data[rec0 + name_off..rec0 + name_off + name_len])
-                                    .trim()
-                                    .to_string();
+                            let t = String::from_utf8_lossy(
+                                &data[rec0 + name_off..rec0 + name_off + name_len],
+                            )
+                            .trim()
+                            .to_string();
                             if !t.is_empty() {
                                 book_title = t;
                             }

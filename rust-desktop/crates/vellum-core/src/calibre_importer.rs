@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 use vellum_domain::{Book, BookFormat, Tag, VellumError, VellumResult};
 
@@ -60,7 +60,9 @@ impl CalibreImporter {
         let (root_dir, db_path) = Self::resolve_paths(calibre_path)?;
 
         let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| VellumError::Database(format!("Erreur ouverture Calibre metadata.db: {e}")))?;
+            .map_err(|e| {
+                VellumError::Database(format!("Erreur ouverture Calibre metadata.db: {e}"))
+            })?;
 
         let mut report = CalibreImportReport::default();
         let mut series_set = std::collections::HashSet::new();
@@ -90,10 +92,13 @@ impl CalibreImporter {
             .map_err(|e| VellumError::Database(format!("Erreur lecture livres Calibre: {e}")))?;
 
         for row_res in book_rows {
-            let (calibre_id, title, pubdate, series_idx, isbn, rel_path, has_cover) = match row_res {
+            let (calibre_id, title, pubdate, series_idx, isbn, rel_path, has_cover) = match row_res
+            {
                 Ok(r) => r,
                 Err(e) => {
-                    report.errors.push(format!("Erreur lecture ligne livre: {e}"));
+                    report
+                        .errors
+                        .push(format!("Erreur lecture ligne livre: {e}"));
                     continue;
                 }
             };
@@ -132,9 +137,8 @@ impl CalibreImporter {
                 )
                 .map_err(|e| VellumError::Database(e.to_string()))?;
 
-            let series_name: Option<String> = series_stmt
-                .query_row([calibre_id], |row| row.get(0))
-                .ok();
+            let series_name: Option<String> =
+                series_stmt.query_row([calibre_id], |row| row.get(0)).ok();
 
             if let Some(ref s) = series_name {
                 series_set.insert(s.clone());
@@ -171,9 +175,8 @@ impl CalibreImporter {
                 )
                 .map_err(|e| VellumError::Database(e.to_string()))?;
 
-            let publisher_name: Option<String> = pub_stmt
-                .query_row([calibre_id], |row| row.get(0))
-                .ok();
+            let publisher_name: Option<String> =
+                pub_stmt.query_row([calibre_id], |row| row.get(0)).ok();
 
             // 6. Fetch description (comments)
             let mut comm_stmt = conn
@@ -274,7 +277,10 @@ impl CalibreImporter {
                     let dest_filename = format!("{safe_title}.{ext}");
                     let dest_path = book_dest_dir.join(&dest_filename);
                     if let Err(e) = std::fs::copy(&calibre_file_path, &dest_path) {
-                        warn!("Impossible de copier le format {:?}: {e}", calibre_file_path);
+                        warn!(
+                            "Impossible de copier le format {:?}: {e}",
+                            calibre_file_path
+                        );
                         continue;
                     }
                     let rel = dest_path
@@ -284,7 +290,10 @@ impl CalibreImporter {
                         .to_string();
                     (rel, dest_filename)
                 } else {
-                    (calibre_file_path.to_string_lossy().to_string(), src_filename)
+                    (
+                        calibre_file_path.to_string_lossy().to_string(),
+                        src_filename,
+                    )
                 };
 
                 let format_entity = BookFormat::new(ext, final_filename, final_filepath, size);
@@ -298,7 +307,9 @@ impl CalibreImporter {
             }
 
             if let Err(e) = book_service.book_repo().save(&book) {
-                report.errors.push(format!("Erreur sauvegarde livre '{}': {e}", book.title));
+                report
+                    .errors
+                    .push(format!("Erreur sauvegarde livre '{}': {e}", book.title));
             } else {
                 report.books_imported += 1;
             }
@@ -358,4 +369,3 @@ fn strip_html_tags(input: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
-

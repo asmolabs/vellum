@@ -237,7 +237,11 @@ fn inject_opf_metadata(opf_xml: &str, book: &Book) -> String {
     if let Some(desc) = book.description.as_deref().filter(|s| !s.trim().is_empty()) {
         inner = upsert_dc_tag(&inner, "description", desc);
     }
-    if let Some(date) = book.publish_date.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(date) = book
+        .publish_date
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         inner = upsert_dc_tag(&inner, "date", date);
     }
     if let Some(isbn) = book.isbn.as_deref().filter(|s| !s.trim().is_empty()) {
@@ -257,8 +261,7 @@ fn inject_opf_cover(opf_xml: &str, cover_href: &str, mime: &str) -> String {
     let mut out = opf_xml.to_string();
 
     // Ensure <meta name="cover" content="vellum-cover-img"/> in <metadata>
-    let cover_meta_re =
-        Regex::new(r#"(?is)<meta\b[^>]*\bname=["']cover["'][^>]*/?>"#).unwrap();
+    let cover_meta_re = Regex::new(r#"(?is)<meta\b[^>]*\bname=["']cover["'][^>]*/?>"#).unwrap();
     let meta_tag = r#"<meta name="cover" content="vellum-cover-img"/>"#;
     if cover_meta_re.is_match(&out) {
         out = cover_meta_re.replace(&out, meta_tag).to_string();
@@ -267,8 +270,7 @@ fn inject_opf_cover(opf_xml: &str, cover_href: &str, mime: &str) -> String {
     }
 
     // Ensure <item id="vellum-cover-img" .../> in <manifest>
-    let item_re =
-        Regex::new(r#"(?is)<item\b[^>]*\bid=["']vellum-cover-img["'][^>]*/?>"#).unwrap();
+    let item_re = Regex::new(r#"(?is)<item\b[^>]*\bid=["']vellum-cover-img["'][^>]*/?>"#).unwrap();
     let item_tag = format!(
         r#"<item id="vellum-cover-img" href="{}" media-type="{}" properties="cover-image"/>"#,
         escape_xml(cover_href),
@@ -314,5 +316,7 @@ fn smarten_xhtml_prose(xhtml: &str) -> String {
 }
 
 fn smarten_text_segment(text: &str) -> String {
-    text.replace("...", "…").replace("---", "—").replace("--", "–")
+    text.replace("...", "…")
+        .replace("---", "—")
+        .replace("--", "–")
 }

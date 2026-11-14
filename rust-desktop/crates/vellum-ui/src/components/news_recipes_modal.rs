@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use dioxus::prelude::*;
+use std::sync::Arc;
 use vellum_core::NewsService;
 use vellum_domain::{NewsFeedConfig, NewsRecipe};
 
@@ -11,7 +11,11 @@ pub fn NewsRecipesModal(
 ) -> Element {
     let recipes = use_signal(|| news_service.get_recipes());
     let mut selected_recipe_id = use_signal(|| {
-        news_service.get_recipes().first().map(|r| r.id.clone()).unwrap_or_default()
+        news_service
+            .get_recipes()
+            .first()
+            .map(|r| r.id.clone())
+            .unwrap_or_default()
     });
     let is_generating = use_signal(|| false);
     let notification = use_signal(|| None::<(String, bool)>); // (message, is_success)

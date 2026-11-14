@@ -1,5 +1,5 @@
-use dioxus::prelude::*;
 use crate::state::ReaderSession;
+use dioxus::prelude::*;
 use vellum_core::reader_store::{ComicFitMode, ComicReadingMode, SearchResult};
 
 fn step_page(
@@ -61,7 +61,8 @@ pub fn ReaderModal(
 
     // Listen to selection changes via JS eval
     use_effect(move || {
-        let mut eval = document::eval(r#"
+        let mut eval = document::eval(
+            r#"
             document.addEventListener('mouseup', () => {
                 setTimeout(() => {
                     const sel = window.getSelection().toString().trim();
@@ -70,7 +71,8 @@ pub fn ReaderModal(
                     }
                 }, 10);
             });
-        "#);
+        "#,
+        );
         spawn(async move {
             while let Ok(msg) = eval.recv::<String>().await {
                 if !msg.trim().is_empty() {
@@ -107,11 +109,7 @@ pub fn ReaderModal(
             info.total_in_chapter,
         )
     } else {
-        (
-            sess.current_title(),
-            cur_page + 1,
-            total_pages.max(1),
-        )
+        (sess.current_title(), cur_page + 1, total_pages.max(1))
     };
 
     let can_prev = cur_page > 0;
@@ -122,7 +120,11 @@ pub fn ReaderModal(
     let font_size = prefs.font_size;
     let line_height = prefs.line_height;
     let margin_h = prefs.margin_horizontal;
-    let justify_css = if prefs.justify_text { "justify" } else { "left" };
+    let justify_css = if prefs.justify_text {
+        "justify"
+    } else {
+        "left"
+    };
     let brightness_pct = prefs.brightness;
     let warmth_opacity = (prefs.warmth as f32 / 100.0) * 0.75;
     let is_spread = prefs.two_columns;
@@ -159,7 +161,9 @@ pub fn ReaderModal(
     let body_style = if is_webtoon {
         "padding: 0; overflow-y: auto; height: 100%; text-align: center;".to_string()
     } else {
-        format!("padding: 22px {margin_h}px; text-align: {justify_css}; line-height: {line_height};")
+        format!(
+            "padding: 22px {margin_h}px; text-align: {justify_css}; line-height: {line_height};"
+        )
     };
 
     let body_class = if is_webtoon {
@@ -288,16 +292,46 @@ pub fn ReaderModal(
 
     let footer_left = if is_comic {
         match prefs.comic_reading_mode {
-            ComicReadingMode::Webtoon => format!("Défilement Webtoon continu • {} planches", total_pages),
+            ComicReadingMode::Webtoon => {
+                format!("Défilement Webtoon continu • {} planches", total_pages)
+            }
             ComicReadingMode::DoublePage => {
                 let next_p = (cur_page + 2).min(total_pages);
                 if next_p > cur_page + 1 {
-                    format!("Planches {}-{} sur {} • {}", cur_page + 1, next_p, total_pages, if prefs.comic_rtl { "Sens Manga (D➔G)" } else { "Sens BD (G➔D)" })
+                    format!(
+                        "Planches {}-{} sur {} • {}",
+                        cur_page + 1,
+                        next_p,
+                        total_pages,
+                        if prefs.comic_rtl {
+                            "Sens Manga (D➔G)"
+                        } else {
+                            "Sens BD (G➔D)"
+                        }
+                    )
                 } else {
-                    format!("Planche {} sur {} • {}", cur_page + 1, total_pages, if prefs.comic_rtl { "Sens Manga (D➔G)" } else { "Sens BD (G➔D)" })
+                    format!(
+                        "Planche {} sur {} • {}",
+                        cur_page + 1,
+                        total_pages,
+                        if prefs.comic_rtl {
+                            "Sens Manga (D➔G)"
+                        } else {
+                            "Sens BD (G➔D)"
+                        }
+                    )
                 }
             }
-            ComicReadingMode::SinglePage => format!("Planche {} sur {} • {}", cur_page + 1, total_pages, if prefs.comic_rtl { "Sens Manga (D➔G)" } else { "Sens BD (G➔D)" }),
+            ComicReadingMode::SinglePage => format!(
+                "Planche {} sur {} • {}",
+                cur_page + 1,
+                total_pages,
+                if prefs.comic_rtl {
+                    "Sens Manga (D➔G)"
+                } else {
+                    "Sens BD (G➔D)"
+                }
+            ),
         }
     } else {
         format!("Page {page_in_ch} sur {total_in_ch} • {chapter_title}")
@@ -306,7 +340,12 @@ pub fn ReaderModal(
     let footer_right = if is_comic && prefs.comic_reading_mode == ComicReadingMode::Webtoon {
         format!("{} planches", total_pages)
     } else {
-        format!("Page {} / {} ({:.0}%)", cur_page + 1, total_pages.max(1), progress)
+        format!(
+            "Page {} / {} ({:.0}%)",
+            cur_page + 1,
+            total_pages.max(1),
+            progress
+        )
     };
 
     rsx! {

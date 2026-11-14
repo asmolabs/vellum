@@ -180,7 +180,10 @@ fn find_isbn(doc: &Document) -> Option<String> {
             || text.starts_with("978")
             || text.starts_with("979");
 
-        if is_isbn || (!text.is_empty() && (text.len() == 10 || text.len() == 13 || text.len() == 14 || text.len() == 17)) {
+        if is_isbn
+            || (!text.is_empty()
+                && (text.len() == 10 || text.len() == 13 || text.len() == 14 || text.len() == 17))
+        {
             let clean: String = text
                 .chars()
                 .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')

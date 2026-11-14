@@ -1,6 +1,6 @@
+use dioxus::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
-use dioxus::prelude::*;
 use vellum_core::BookService;
 use vellum_domain::{Book, ContentSearchHit};
 
@@ -31,7 +31,8 @@ pub fn ContentSearchModal(
             status_msg.set(None);
             let bs_task = bs.clone();
             spawn(async move {
-                let res = tokio::task::spawn_blocking(move || bs_task.search_inside_books(&q, 40)).await;
+                let res =
+                    tokio::task::spawn_blocking(move || bs_task.search_inside_books(&q, 40)).await;
                 is_searching.set(false);
                 match res {
                     Ok(Ok(hits)) => {
@@ -39,7 +40,9 @@ pub fn ContentSearchModal(
                         results.set(hits);
                         status_msg.set(Some((format!("{count} passage(s) trouvé(s)."), true)));
                     }
-                    Ok(Err(e)) => status_msg.set(Some((format!("Erreur de recherche : {e}"), false))),
+                    Ok(Err(e)) => {
+                        status_msg.set(Some((format!("Erreur de recherche : {e}"), false)))
+                    }
                     Err(e) => status_msg.set(Some((format!("Erreur asynchrone : {e}"), false))),
                 }
             });

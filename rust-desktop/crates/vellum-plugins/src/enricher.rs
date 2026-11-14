@@ -118,7 +118,8 @@ impl VellumPlugin for GoogleBooksEnricherPlugin {
             .to_string();
 
         let handle = std::thread::spawn(move || {
-            let mut url = "https://www.googleapis.com/books/v1/volumes?q=test&maxResults=1".to_string();
+            let mut url =
+                "https://www.googleapis.com/books/v1/volumes?q=test&maxResults=1".to_string();
             if !api_key.is_empty() {
                 url.push_str(&format!("&key={api_key}"));
             }
@@ -143,19 +144,23 @@ impl VellumPlugin for GoogleBooksEnricherPlugin {
                             "Connexion réussie à Google Books API (HTTP 200) !{suffix}"
                         ))
                     }
-                    400 if !api_key.is_empty() => TestResult::error(
-                        "Clé API Google Books invalide ou refusée (HTTP 400).",
-                    ),
+                    400 if !api_key.is_empty() => {
+                        TestResult::error("Clé API Google Books invalide ou refusée (HTTP 400).")
+                    }
                     403 => TestResult::error(
                         "Quota Google Books dépassé ou accès restreint (HTTP 403).",
                     ),
-                    code => TestResult::error(format!("Réponse inattendue de Google Books : HTTP {code}")),
+                    code => TestResult::error(format!(
+                        "Réponse inattendue de Google Books : HTTP {code}"
+                    )),
                 },
                 Err(e) => TestResult::error(format!("Impossible de joindre Google Books : {e}")),
             }
         });
 
-        handle.join().unwrap_or_else(|_| TestResult::error("Le thread réseau s'est arrêté inopinément."))
+        handle
+            .join()
+            .unwrap_or_else(|_| TestResult::error("Le thread réseau s'est arrêté inopinément."))
     }
 
     fn as_enricher_plugin(&self) -> Option<&dyn MetadataEnricherPlugin> {
@@ -184,22 +189,34 @@ impl MetadataEnricherPlugin for GoogleBooksEnricherPlugin {
 
         let auto_add_tags = config
             .get("auto_add_tags")
-            .and_then(|v| v.as_bool().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+            .and_then(|v| {
+                v.as_bool()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            })
             .unwrap_or(true);
 
         let fetch_cover = config
             .get("fetch_cover")
-            .and_then(|v| v.as_bool().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+            .and_then(|v| {
+                v.as_bool()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            })
             .unwrap_or(true);
 
         let overwrite_existing = config
             .get("overwrite_existing")
-            .and_then(|v| v.as_bool().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+            .and_then(|v| {
+                v.as_bool()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            })
             .unwrap_or(false);
 
         let fallback_openlibrary = config
             .get("fallback_openlibrary")
-            .and_then(|v| v.as_bool().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+            .and_then(|v| {
+                v.as_bool()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            })
             .unwrap_or(true);
 
         let mut current_title = clean_string(current_metadata.get("title"));
@@ -229,9 +246,21 @@ impl MetadataEnricherPlugin for GoogleBooksEnricherPlugin {
             // 1. Try Google Books
             match query_google_books(
                 &client,
-                if cur_isbn_clone.is_empty() { None } else { Some(&cur_isbn_clone) },
-                if cur_title_clone.is_empty() { None } else { Some(&cur_title_clone) },
-                if cur_author_clone.is_empty() { None } else { Some(&cur_author_clone) },
+                if cur_isbn_clone.is_empty() {
+                    None
+                } else {
+                    Some(&cur_isbn_clone)
+                },
+                if cur_title_clone.is_empty() {
+                    None
+                } else {
+                    Some(&cur_title_clone)
+                },
+                if cur_author_clone.is_empty() {
+                    None
+                } else {
+                    Some(&cur_author_clone)
+                },
                 &lang_str,
                 &api_key_str,
             ) {
@@ -251,9 +280,21 @@ impl MetadataEnricherPlugin for GoogleBooksEnricherPlugin {
             if matched.is_none() && fallback_openlibrary {
                 match query_open_library(
                     &client,
-                    if cur_isbn_clone.is_empty() { None } else { Some(&cur_isbn_clone) },
-                    if cur_title_clone.is_empty() { None } else { Some(&cur_title_clone) },
-                    if cur_author_clone.is_empty() { None } else { Some(&cur_author_clone) },
+                    if cur_isbn_clone.is_empty() {
+                        None
+                    } else {
+                        Some(&cur_isbn_clone)
+                    },
+                    if cur_title_clone.is_empty() {
+                        None
+                    } else {
+                        Some(&cur_title_clone)
+                    },
+                    if cur_author_clone.is_empty() {
+                        None
+                    } else {
+                        Some(&cur_author_clone)
+                    },
                 ) {
                     Ok(Some(dto)) => {
                         info!("Open Library fallback matched: {:?}", dto.title);
@@ -261,7 +302,10 @@ impl MetadataEnricherPlugin for GoogleBooksEnricherPlugin {
                     }
                     Ok(None) => {}
                     Err(e) => {
-                        warn!("Open Library fallback failed for '{}': {}", cur_title_clone, e);
+                        warn!(
+                            "Open Library fallback failed for '{}': {}",
+                            cur_title_clone, e
+                        );
                     }
                 }
             }
@@ -286,32 +330,46 @@ impl MetadataEnricherPlugin for GoogleBooksEnricherPlugin {
 
         // Apply metadata fields
         if let Some(ref t) = m.title {
-            if !t.trim().is_empty() && (overwrite_existing || current_title.is_empty() || is_generic_value(&current_title)) {
+            if !t.trim().is_empty()
+                && (overwrite_existing
+                    || current_title.is_empty()
+                    || is_generic_value(&current_title))
+            {
                 current_metadata.insert("title".to_string(), json!(t));
             }
         }
 
         if !m.authors.is_empty() {
             let joined_authors = m.authors.join(", ");
-            if overwrite_existing || current_author.is_empty() || is_generic_value(&current_author) {
+            if overwrite_existing || current_author.is_empty() || is_generic_value(&current_author)
+            {
                 current_metadata.insert("author".to_string(), json!(joined_authors));
             }
         }
 
         if let Some(ref p) = m.publisher {
-            if !p.trim().is_empty() && (overwrite_existing || clean_string(current_metadata.get("publisher")).is_empty()) {
+            if !p.trim().is_empty()
+                && (overwrite_existing
+                    || clean_string(current_metadata.get("publisher")).is_empty())
+            {
                 current_metadata.insert("publisher".to_string(), json!(p));
             }
         }
 
         if let Some(ref d) = m.published_date {
-            if !d.trim().is_empty() && (overwrite_existing || clean_string(current_metadata.get("publishDate")).is_empty()) {
+            if !d.trim().is_empty()
+                && (overwrite_existing
+                    || clean_string(current_metadata.get("publishDate")).is_empty())
+            {
                 current_metadata.insert("publishDate".to_string(), json!(d));
             }
         }
 
         if let Some(ref desc) = m.description {
-            if !desc.trim().is_empty() && (overwrite_existing || clean_string(current_metadata.get("description")).is_empty()) {
+            if !desc.trim().is_empty()
+                && (overwrite_existing
+                    || clean_string(current_metadata.get("description")).is_empty())
+            {
                 current_metadata.insert("description".to_string(), json!(desc));
             }
         }
@@ -343,7 +401,7 @@ impl MetadataEnricherPlugin for GoogleBooksEnricherPlugin {
         }
 
         // Apply downloaded cover image if present
-        let has_existing_cover = current_metadata.get("coverData").is_some();
+        let has_existing_cover = current_metadata.contains_key("coverData");
         if fetch_cover && (!has_existing_cover || overwrite_existing) {
             if let Some(cover_bytes) = downloaded_cover {
                 if cover_bytes.len() > 500 {
@@ -374,7 +432,11 @@ fn query_google_books(
     api_key: &str,
 ) -> Result<Option<BookMetadataDto>, String> {
     let clean_isbn = isbn
-        .map(|s| s.chars().filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x').collect::<String>())
+        .map(|s| {
+            s.chars()
+                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
+                .collect::<String>()
+        })
         .unwrap_or_default();
 
     let query_param = if clean_isbn.len() == 10 || clean_isbn.len() == 13 {
@@ -427,7 +489,11 @@ fn query_google_books(
 
     // Relaxed search if combined query yielded 0 results
     if let Some(ref b) = body {
-        let items_len = b.get("items").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+        let items_len = b
+            .get("items")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
         if items_len == 0 && query_param.contains("+inauthor:") {
             if let Some(t) = title {
                 let relaxed_query = format!("intitle:\"{}\"", clean_term(t));
@@ -495,10 +561,17 @@ fn parse_google_volume_info(volume_info: &Value) -> BookMetadataDto {
 
     // ISBN_13 or ISBN_10
     let mut found_isbn = None;
-    if let Some(id_list) = volume_info.get("industryIdentifiers").and_then(|v| v.as_array()) {
+    if let Some(id_list) = volume_info
+        .get("industryIdentifiers")
+        .and_then(|v| v.as_array())
+    {
         for id_node in id_list {
             let id_type = id_node.get("type").and_then(|v| v.as_str()).unwrap_or("");
-            let val = id_node.get("identifier").and_then(|v| v.as_str()).unwrap_or("").trim();
+            let val = id_node
+                .get("identifier")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
             if id_type.eq_ignore_ascii_case("ISBN_13") {
                 found_isbn = Some(val.to_string());
                 break;
@@ -527,7 +600,8 @@ fn parse_google_volume_info(volume_info: &Value) -> BookMetadataDto {
     let cover_url = volume_info
         .get("imageLinks")
         .and_then(|links| {
-            links.get("extraLarge")
+            links
+                .get("extraLarge")
                 .or_else(|| links.get("large"))
                 .or_else(|| links.get("medium"))
                 .or_else(|| links.get("thumbnail"))
@@ -559,7 +633,11 @@ fn query_open_library(
     author: Option<&str>,
 ) -> Result<Option<BookMetadataDto>, String> {
     let clean_isbn = isbn
-        .map(|s| s.chars().filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x').collect::<String>())
+        .map(|s| {
+            s.chars()
+                .filter(|c| c.is_ascii_digit() || *c == 'X' || *c == 'x')
+                .collect::<String>()
+        })
         .unwrap_or_default();
 
     // Strategy A: By ISBN
@@ -638,11 +716,18 @@ fn parse_open_library_data(data: &Value, fallback_isbn: &str) -> BookMetadataDto
         .and_then(|p| p.get("name").and_then(|n| n.as_str()))
         .map(String::from);
 
-    let published_date = data.get("publish_date").and_then(|v| v.as_str()).map(String::from);
+    let published_date = data
+        .get("publish_date")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     let cover_url = data
         .get("cover")
-        .and_then(|c| c.get("large").or_else(|| c.get("medium")).or_else(|| c.get("small")))
+        .and_then(|c| {
+            c.get("large")
+                .or_else(|| c.get("medium"))
+                .or_else(|| c.get("small"))
+        })
         .and_then(|v| v.as_str())
         .map(String::from);
 
@@ -651,7 +736,10 @@ fn parse_open_library_data(data: &Value, fallback_isbn: &str) -> BookMetadataDto
         for s in subjects {
             if let Some(name) = s.get("name").and_then(|n| n.as_str()) {
                 let clean = clean_tag(name);
-                if !clean.is_empty() && categories.len() < 8 && !categories.iter().any(|c| c == &clean) {
+                if !clean.is_empty()
+                    && categories.len() < 8
+                    && !categories.iter().any(|c| c == &clean)
+                {
                     categories.push(clean);
                 }
             }
@@ -709,7 +797,10 @@ fn parse_open_library_doc(doc: &Value) -> BookMetadataDto {
         for s in subjects {
             if let Some(name) = s.as_str() {
                 let clean = clean_tag(name);
-                if !clean.is_empty() && categories.len() < 8 && !categories.iter().any(|c| c == &clean) {
+                if !clean.is_empty()
+                    && categories.len() < 8
+                    && !categories.iter().any(|c| c == &clean)
+                {
                     categories.push(clean);
                 }
             }
@@ -763,7 +854,10 @@ fn detect_image_extension(bytes: &[u8], url: &str) -> &'static str {
 }
 
 fn clean_string(val: Option<&Value>) -> String {
-    val.and_then(|v| v.as_str()).unwrap_or("").trim().to_string()
+    val.and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string()
 }
 
 fn clean_term(s: &str) -> String {

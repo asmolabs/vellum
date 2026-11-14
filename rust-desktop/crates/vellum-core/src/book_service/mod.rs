@@ -9,10 +9,10 @@ mod metadata;
 pub use bulk_regex::{BulkRegexChange, BulkRegexReport, BulkRegexRequest, RegexTargetField};
 pub use conversion::BulkConvertReport;
 
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
 
 use vellum_domain::{Book, VellumResult};
 use vellum_storage::{BookRepository, ParamRepository, SyncRepository, TagRepository};
@@ -98,7 +98,11 @@ impl BookService {
         service
     }
 
-    pub fn with_sync_repo(mut self, sync_repo: SyncRepository, client_id: impl Into<String>) -> Self {
+    pub fn with_sync_repo(
+        mut self,
+        sync_repo: SyncRepository,
+        client_id: impl Into<String>,
+    ) -> Self {
         self.sync_repo = Some(sync_repo);
         self.client_id = client_id.into();
         self
@@ -165,20 +169,12 @@ impl BookService {
         }
     }
 
-    pub fn get_books(
-        &self,
-        search: Option<&str>,
-        tag: Option<&str>,
-    ) -> VellumResult<Vec<Book>> {
+    pub fn get_books(&self, search: Option<&str>, tag: Option<&str>) -> VellumResult<Vec<Book>> {
         self.book_repo.search_books(search, tag)
     }
 
     /// Recherche plein texte rapide via SQLite FTS5 (insensible aux accents, triée par pertinence BM25).
-    pub fn search_books_fts(
-        &self,
-        query: &str,
-        tag: Option<&str>,
-    ) -> VellumResult<Vec<Book>> {
+    pub fn search_books_fts(&self, query: &str, tag: Option<&str>) -> VellumResult<Vec<Book>> {
         self.book_repo.search_fts(query, tag)
     }
 
@@ -196,7 +192,8 @@ impl BookService {
                 books.retain(|b| {
                     if filter.eq_ignore_ascii_case("En cours") || filter.contains("cours") {
                         b.progress_percent > 0.0 && !b.is_finished
-                    } else if filter.eq_ignore_ascii_case("Terminés") || filter.contains("Terminé") {
+                    } else if filter.eq_ignore_ascii_case("Terminés") || filter.contains("Terminé")
+                    {
                         b.is_finished
                     } else if filter.eq_ignore_ascii_case("À lire") || filter.contains("lire") {
                         b.progress_percent <= 0.0 && !b.is_finished
@@ -235,7 +232,11 @@ impl BookService {
         self.tag_repo.find_tags_with_book_counts()
     }
 
-    pub fn check_duplicate(&self, title: &str, author: &str) -> VellumResult<Option<DuplicateBookInfo>> {
+    pub fn check_duplicate(
+        &self,
+        title: &str,
+        author: &str,
+    ) -> VellumResult<Option<DuplicateBookInfo>> {
         let books = self.book_repo.find_all()?;
         let clean_title = title.trim().to_lowercase();
         let clean_author = author.trim().to_lowercase();
@@ -284,12 +285,9 @@ impl BookService {
         book_id: &str,
         dest: Option<&Path>,
     ) -> VellumResult<String> {
-        let book = self
-            .book_repo
-            .find_by_id(book_id)?
-            .ok_or_else(|| {
-                vellum_domain::VellumError::NotFound(format!("Livre introuvable: {book_id}"))
-            })?;
+        let book = self.book_repo.find_by_id(book_id)?.ok_or_else(|| {
+            vellum_domain::VellumError::NotFound(format!("Livre introuvable: {book_id}"))
+        })?;
         let vellum_dir = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join(".vellum");
@@ -303,12 +301,9 @@ impl BookService {
 
     /// Indexe le texte brut de tous les chapitres d'un livre dans `book_content_fts`.
     pub fn index_book_content(&self, book_id: &str) -> VellumResult<usize> {
-        let book = self
-            .book_repo
-            .find_by_id(book_id)?
-            .ok_or_else(|| {
-                vellum_domain::VellumError::NotFound(format!("Livre introuvable: {book_id}"))
-            })?;
+        let book = self.book_repo.find_by_id(book_id)?.ok_or_else(|| {
+            vellum_domain::VellumError::NotFound(format!("Livre introuvable: {book_id}"))
+        })?;
         let fmt = book
             .formats
             .iter()
@@ -370,6 +365,9 @@ mod tests {
             BookService::sanitize_filename("../../etc/passwd"),
             "_.._etc_passwd"
         );
-        assert_eq!(BookService::sanitize_filename("Dune\x00: Tome 1"), "Dune__ Tome 1");
+        assert_eq!(
+            BookService::sanitize_filename("Dune\x00: Tome 1"),
+            "Dune__ Tome 1"
+        );
     }
 }

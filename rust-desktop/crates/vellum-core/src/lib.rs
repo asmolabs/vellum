@@ -38,11 +38,12 @@ pub mod virtual_library_service;
 pub mod watch_folder;
 pub mod web_companion_assets;
 
-pub use app_services::{define_passage_with_ai, init_services, scan_and_index_library, AppServices};
+pub use app_services::{
+    define_passage_with_ai, init_services, scan_and_index_library, AppServices,
+};
 pub use book_service::{
     BookService, BulkConvertReport, BulkRegexChange, BulkRegexReport, BulkRegexRequest,
-    DuplicateBookInfo,
-    RegexTargetField, TranslateBookRequest, UpdateMetadataRequest,
+    DuplicateBookInfo, RegexTargetField, TranslateBookRequest, UpdateMetadataRequest,
 };
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
 pub use catalog_exporter::{CatalogExporter, CatalogFormat};
@@ -67,4 +68,3 @@ pub use search_query::SearchQuery;
 pub use sync_service::{CloudSyncBackend, FolderSyncBackend, SyncService};
 pub use virtual_library_service::VirtualLibraryService;
 pub use watch_folder::{WatchFolderReport, WatchFolderService};
-

@@ -33,12 +33,48 @@ pub fn normalize_string(input: &str) -> String {
 
     // Liste des mots de bruit à ignorer pour les titres et éditions
     let noise_words: &[&str] = &[
-        "tome", "tomes", "tom", "vol", "volume", "volumes", "livre", "book",
-        "part", "partie", "edition", "editions", "ed", "collector", "french",
-        "francais", "francaise", "english", "anglais", "anglaise", "version",
-        "vf", "vost", "vostfr", "integrale", "integral", "complete", "serie",
-        "the", "le", "la", "les", "un", "une", "des", "du", "de", "d", "l",
-        "ebook", "epub", "pdf",
+        "tome",
+        "tomes",
+        "tom",
+        "vol",
+        "volume",
+        "volumes",
+        "livre",
+        "book",
+        "part",
+        "partie",
+        "edition",
+        "editions",
+        "ed",
+        "collector",
+        "french",
+        "francais",
+        "francaise",
+        "english",
+        "anglais",
+        "anglaise",
+        "version",
+        "vf",
+        "vost",
+        "vostfr",
+        "integrale",
+        "integral",
+        "complete",
+        "serie",
+        "the",
+        "le",
+        "la",
+        "les",
+        "un",
+        "une",
+        "des",
+        "du",
+        "de",
+        "d",
+        "l",
+        "ebook",
+        "epub",
+        "pdf",
     ];
 
     let tokens: Vec<&str> = clean
@@ -155,8 +191,14 @@ pub fn compute_similarity(b1: &Book, b2: &Book) -> (f64, String) {
 
     // 1. Détection stricte par ISBN si renseigné des deux côtés
     if let (Some(isbn1), Some(isbn2)) = (&b1.isbn, &b2.isbn) {
-        let clean1: String = isbn1.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
-        let clean2: String = isbn2.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+        let clean1: String = isbn1
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .collect();
+        let clean2: String = isbn2
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .collect();
         if clean1.len() >= 10 && clean1 == clean2 {
             return (1.0, "Code ISBN strictement identique".to_string());
         }
@@ -200,10 +242,7 @@ pub fn compute_similarity(b1: &Book, b2: &Book) -> (f64, String) {
     if title_ratio >= 0.94 {
         let combined = title_ratio * 0.85 + author_ratio * 0.15;
         let pct = (combined * 100.0).round();
-        return (
-            combined,
-            format!("Titres extrêmement similaires ({pct}%)"),
-        );
+        return (combined, format!("Titres extrêmement similaires ({pct}%)"));
     }
 
     (0.0, String::new())
@@ -282,11 +321,8 @@ pub fn audit_library(books: &[Book], library_path: &Path) -> LibraryHealthReport
             .unwrap_or(true);
         let missing_tags = book.tags.is_empty();
 
-        let has_incomplete = missing_cover
-            || missing_author
-            || missing_description
-            || missing_isbn
-            || missing_tags;
+        let has_incomplete =
+            missing_cover || missing_author || missing_description || missing_isbn || missing_tags;
 
         if has_incomplete {
             incomplete_issues.push(IncompleteBookIssue {
@@ -302,8 +338,8 @@ pub fn audit_library(books: &[Book], library_path: &Path) -> LibraryHealthReport
         // Vérification des fichiers de formats sur disque
         let mut book_has_missing_file = false;
         for fmt in &book.formats {
-            let file_exists = library_path.join(&fmt.filepath).exists()
-                || Path::new(&fmt.filepath).exists();
+            let file_exists =
+                library_path.join(&fmt.filepath).exists() || Path::new(&fmt.filepath).exists();
 
             if !file_exists {
                 book_has_missing_file = true;
@@ -342,19 +378,24 @@ pub fn audit_library(books: &[Book], library_path: &Path) -> LibraryHealthReport
         score -= cover_penalty;
 
         // Pénalité auteurs manquants/inconnus (jusqu'à -20 points)
-        let missing_authors_count = incomplete_issues.iter().filter(|i| i.missing_author).count();
+        let missing_authors_count = incomplete_issues
+            .iter()
+            .filter(|i| i.missing_author)
+            .count();
         let author_penalty = (missing_authors_count as f64 / total_books as f64) * 20.0;
         score -= author_penalty;
 
         // Pénalité descriptions manquantes (jusqu'à -10 points)
-        let missing_desc_count = incomplete_issues.iter().filter(|i| i.missing_description).count();
+        let missing_desc_count = incomplete_issues
+            .iter()
+            .filter(|i| i.missing_description)
+            .count();
         let desc_penalty = (missing_desc_count as f64 / total_books as f64) * 10.0;
         score -= desc_penalty;
 
         // Pénalité fichiers introuvables (jusqu'à -20 points)
         if total_formats > 0 {
-            let files_penalty =
-                (missing_file_issues.len() as f64 / total_formats as f64) * 20.0;
+            let files_penalty = (missing_file_issues.len() as f64 / total_formats as f64) * 20.0;
             score -= files_penalty;
         }
 

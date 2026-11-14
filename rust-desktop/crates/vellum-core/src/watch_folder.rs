@@ -77,9 +77,7 @@ impl WatchFolderService {
                     }
                 }
                 Err(e) => {
-                    report
-                        .errors
-                        .push(format!("{}: {e}", file_path.display()));
+                    report.errors.push(format!("{}: {e}", file_path.display()));
                 }
             }
         }
@@ -97,4 +95,3 @@ impl WatchFolderService {
             .unwrap_or(false)
     }
 }
-

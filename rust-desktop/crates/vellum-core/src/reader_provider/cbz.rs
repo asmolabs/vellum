@@ -61,7 +61,13 @@ impl BookContentProvider for CbzContentProvider {
         self.images_b64.len()
     }
 
-    fn get_page_html(&self, page_index: usize, _theme: &str, _font_size: u32, _is_serif: bool) -> String {
+    fn get_page_html(
+        &self,
+        page_index: usize,
+        _theme: &str,
+        _font_size: u32,
+        _is_serif: bool,
+    ) -> String {
         if page_index >= self.images_b64.len() {
             return String::new();
         }
@@ -103,22 +109,32 @@ impl BookContentProvider for CbzContentProvider {
                 // Manga RTL: first page (p1) is on the right, next page (p2) is on the left
                 format!(
                     r#"<div class="cbz-double-page rtl"><div class="cbz-page left"><img src="data:{};base64,{}" alt="Page {}"/></div><div class="cbz-page right"><img src="data:{};base64,{}" alt="Page {}"/></div></div>"#,
-                    p2.0, p2.1, page_index + 2,
-                    p1.0, p1.1, page_index + 1
+                    p2.0,
+                    p2.1,
+                    page_index + 2,
+                    p1.0,
+                    p1.1,
+                    page_index + 1
                 )
             }
             (Some(p2), false) => {
                 // Western LTR: first page (p1) is on the left, next page (p2) is on the right
                 format!(
                     r#"<div class="cbz-double-page ltr"><div class="cbz-page left"><img src="data:{};base64,{}" alt="Page {}"/></div><div class="cbz-page right"><img src="data:{};base64,{}" alt="Page {}"/></div></div>"#,
-                    p1.0, p1.1, page_index + 1,
-                    p2.0, p2.1, page_index + 2
+                    p1.0,
+                    p1.1,
+                    page_index + 1,
+                    p2.0,
+                    p2.1,
+                    page_index + 2
                 )
             }
             (None, _) => {
                 format!(
                     r#"<div class="cbz-double-page single"><div class="cbz-page center"><img src="data:{};base64,{}" alt="Page {}"/></div></div>"#,
-                    p1.0, p1.1, page_index + 1
+                    p1.0,
+                    p1.1,
+                    page_index + 1
                 )
             }
         }

@@ -7,9 +7,9 @@ use vellum_domain::{
     LibraryPlugin, MetadataEnricherPlugin, PluginDescriptor, TestResult, VellumError, VellumResult,
 };
 use vellum_plugins::{
-    ExternalPluginLoader, built_in_converter_plugins, built_in_device_plugins,
-    built_in_format_plugins, cleaner::OceanOfPdfCleanerPlugin, enricher::GoogleBooksEnricherPlugin,
-    translator::EpubTranslatorPlugin,
+    built_in_converter_plugins, built_in_device_plugins, built_in_format_plugins,
+    cleaner::OceanOfPdfCleanerPlugin, enricher::GoogleBooksEnricherPlugin,
+    translator::EpubTranslatorPlugin, ExternalPluginLoader,
 };
 use vellum_storage::ParamRepository;
 
@@ -45,7 +45,9 @@ impl PluginService {
         for dp in built_in_device_plugins() {
             all.push(LibraryPlugin::Device(dp));
         }
-        all.push(LibraryPlugin::Enricher(Arc::new(GoogleBooksEnricherPlugin::new())));
+        all.push(LibraryPlugin::Enricher(Arc::new(
+            GoogleBooksEnricherPlugin::new(),
+        )));
         all.push(LibraryPlugin::Transformation(Arc::new(
             OceanOfPdfCleanerPlugin::new(),
         )));
@@ -61,7 +63,6 @@ impl PluginService {
             *guard = all;
         }
     }
-
 
     pub fn external_plugins_dir(&self) -> PathBuf {
         self.external_loader.plugins_dir().to_path_buf()

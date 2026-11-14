@@ -63,7 +63,9 @@ impl BookService {
                 continue;
             }
 
-            let after = re.replace_all(&before, req.replacement.as_str()).to_string();
+            let after = re
+                .replace_all(&before, req.replacement.as_str())
+                .to_string();
             if after == before {
                 continue;
             }

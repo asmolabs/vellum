@@ -1,7 +1,7 @@
+use chrono::Utc;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use chrono::Utc;
 use uuid::Uuid;
 
 use vellum_domain::{Book, BookFormat, ReadingStats, Tag, VellumError, VellumResult};
@@ -158,7 +158,10 @@ impl BookService {
             use base64::Engine;
             if let Ok(cover_bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
                 if cover_bytes.len() > 500 {
-                    let ext = enriched.get("coverExt").and_then(|v| v.as_str()).unwrap_or(".jpg");
+                    let ext = enriched
+                        .get("coverExt")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(".jpg");
                     let cover_filename = format!("cover{ext}");
                     let cover_file_abs = book_dir_abs.join(&cover_filename);
                     if fs::write(&cover_file_abs, cover_bytes).is_ok() {
@@ -256,8 +259,8 @@ impl BookService {
                 if old_book_dir.exists() {
                     let clean_author = Self::sanitize_filename(&book.author);
                     let clean_title = Self::sanitize_filename(&book.title);
-                    let new_book_dir_rel = PathBuf::from(&clean_author)
-                        .join(format!("{clean_title} ({})", book.id));
+                    let new_book_dir_rel =
+                        PathBuf::from(&clean_author).join(format!("{clean_title} ({})", book.id));
                     let new_book_dir_abs = self.library_path.join(&new_book_dir_rel);
 
                     if let Some(parent) = new_book_dir_abs.parent() {
@@ -362,11 +365,7 @@ impl BookService {
         Ok(())
     }
 
-    pub fn add_format_to_book(
-        &self,
-        book_id: &str,
-        new_format_file: &Path,
-    ) -> VellumResult<Book> {
+    pub fn add_format_to_book(&self, book_id: &str, new_format_file: &Path) -> VellumResult<Book> {
         let mut book = self
             .book_repo
             .find_by_id(book_id)?
@@ -419,11 +418,10 @@ impl BookService {
             .to_string_lossy()
             .to_string();
 
-        let file_size = fs::metadata(&dest_file_abs)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = fs::metadata(&dest_file_abs).map(|m| m.len()).unwrap_or(0);
 
-        book.formats.retain(|f| !f.format.eq_ignore_ascii_case(&ext));
+        book.formats
+            .retain(|f| !f.format.eq_ignore_ascii_case(&ext));
         let fmt = BookFormat::new(ext, target_filename, dest_file_rel, file_size);
         book.add_format(fmt);
 
@@ -595,6 +593,4 @@ impl BookService {
             .map(|rel| self.library_path.join(rel))
             .filter(|p| p.exists())
     }
-
-
 }

@@ -3,9 +3,7 @@ use std::fs::File;
 use std::io::Write;
 
 use tempfile::TempDir;
-use vellum_domain::{
-    BookConverterPlugin, BookFormatPlugin, BookTransformationPlugin,
-};
+use vellum_domain::{BookConverterPlugin, BookFormatPlugin, BookTransformationPlugin};
 use vellum_plugins::cleaner::OceanOfPdfCleanerPlugin;
 use vellum_plugins::converter::epub_to_pdf::EpubToPdfConverterPlugin;
 use vellum_plugins::converter::epub_to_text::EpubToTextConverterPlugin;
@@ -173,7 +171,8 @@ fn test_translator_html_parser_qa_glossary_and_cache() {
     assert!(!issues.is_empty());
 
     let temp = TempDir::new().expect("tempdir");
-    let cache = TranslationSegmentCache::new(Some(temp.path().to_path_buf()), "qwen2.5", "Français");
+    let cache =
+        TranslationSegmentCache::new(Some(temp.path().to_path_buf()), "qwen2.5", "Français");
     cache.put("Hello world", "Bonjour le monde");
     assert_eq!(
         cache.get("Hello world").as_deref(),
@@ -219,7 +218,9 @@ fn test_audiobook_id3v2_metadata() {
     std::fs::write(&mp3_path, &bytes).unwrap();
 
     let plugin = AudiobookFormatPlugin::new();
-    let meta = plugin.extract_metadata(&mp3_path, &HashMap::new()).expect("extract mp3");
+    let meta = plugin
+        .extract_metadata(&mp3_path, &HashMap::new())
+        .expect("extract mp3");
     assert_eq!(meta.title.as_deref(), Some("Hyperion"));
     assert_eq!(meta.author.as_deref(), Some("Dan Simmons"));
 }
@@ -244,7 +245,10 @@ fn test_google_books_enricher_plugin_metadata() {
     let desc = enricher.descriptor();
     assert_eq!(desc.id, "google-books-enricher");
     assert!(desc.config_schema.iter().any(|c| c.key == "api_key"));
-    assert!(desc.config_schema.iter().any(|c| c.key == "fallback_openlibrary"));
+    assert!(desc
+        .config_schema
+        .iter()
+        .any(|c| c.key == "fallback_openlibrary"));
 
     let test_result = enricher.test_configuration(&HashMap::new());
     // In CI or offline test, it will return either success HTTP 200 or connection error, but shouldn't panic

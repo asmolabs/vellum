@@ -29,9 +29,10 @@ fn test_kepubify_injection() {
                 <p>Premier paragraphe du chapitre 1.</p>
                 <p>Deuxième paragraphe avec du texte intéressant.</p>
               </body>
-            </html>"#.as_bytes()
-        ).unwrap();
-
+            </html>"#
+                .as_bytes(),
+        )
+        .unwrap();
 
         zip.finish().unwrap();
     }
@@ -75,7 +76,8 @@ fn test_kobo_sync_plugin_lifecycle() {
                 MimeType TEXT
             )",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         conn.execute(
             "CREATE TABLE Bookmark (
@@ -86,7 +88,8 @@ fn test_kobo_sync_plugin_lifecycle() {
                 DateCreated TEXT
             )",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         conn.execute(
             "INSERT INTO content (ContentID, ContentType, Title, Attribution, ___PercentRead, ReadStatus, DateLastRead)
@@ -117,9 +120,20 @@ fn test_kobo_sync_plugin_lifecycle() {
 
     // 4. Export a book
     let src_file = temp.path().join("Neuromancer.txt");
-    std::fs::write(&src_file, "Le ciel au-dessus du port était couleur de télé calée sur un canal vide.").unwrap();
+    std::fs::write(
+        &src_file,
+        "Le ciel au-dessus du port était couleur de télé calée sur un canal vide.",
+    )
+    .unwrap();
     let book = Book::new("Neuromancer", "William Gibson");
-    let exported = plugin.export_book(&book, &src_file, &kobo_mount, &std::collections::HashMap::new()).unwrap();
+    let exported = plugin
+        .export_book(
+            &book,
+            &src_file,
+            &kobo_mount,
+            &std::collections::HashMap::new(),
+        )
+        .unwrap();
 
     assert!(exported.exists());
     assert!(exported.to_string_lossy().contains("William Gibson"));
@@ -151,13 +165,17 @@ fn test_kindle_sync_plugin_lifecycle() {
     std::fs::write(&mobi_file, b"MOBI mock binary data").unwrap();
 
     let clippings = docs_dir.join("My Clippings.txt");
-    std::fs::write(&clippings, r#"
+    std::fs::write(
+        &clippings,
+        r#"
 Hyperion (Dan Simmons)
 - Votre surlignement sur la page 15 | emplacement 210-212 | Ajouté le mardi 10 mars 2026 14:00:00
 
 Le criquet du temps chantait dans les herbes mortes.
 ==========
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     let plugin = KindleSyncPlugin::new();
     assert_eq!(plugin.device_kind(), DeviceKind::Kindle);
@@ -175,7 +193,14 @@ Le criquet du temps chantait dans les herbes mortes.
     let src_file = temp.path().join("Solaris.azw3");
     std::fs::write(&src_file, b"AZW3 mock data").unwrap();
     let book = Book::new("Solaris", "Stanislaw Lem");
-    let exported = plugin.export_book(&book, &src_file, &kindle_mount, &std::collections::HashMap::new()).unwrap();
+    let exported = plugin
+        .export_book(
+            &book,
+            &src_file,
+            &kindle_mount,
+            &std::collections::HashMap::new(),
+        )
+        .unwrap();
     assert!(exported.exists());
     assert!(exported.to_string_lossy().contains("Stanislaw Lem"));
 

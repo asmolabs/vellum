@@ -10,26 +10,26 @@ use zip::{ZipArchive, ZipWriter};
 /// into paragraph elements (<p>), allowing the Kobo ACCESS rendering engine to handle
 /// per-chapter page numbering, micro-measurements, and instant bookmarking.
 pub fn convert_epub_to_kepub(input_epub: &Path, output_kepub: &Path) -> VellumResult<()> {
-    let file = File::open(input_epub).map_err(|e| {
-        VellumError::Plugin(format!("Impossible d'ouvrir l'EPUB source: {e}"))
-    })?;
-    let mut zip_in = ZipArchive::new(file).map_err(|e| {
-        VellumError::Plugin(format!("Archive EPUB invalide: {e}"))
-    })?;
+    let file = File::open(input_epub)
+        .map_err(|e| VellumError::Plugin(format!("Impossible d'ouvrir l'EPUB source: {e}")))?;
+    let mut zip_in = ZipArchive::new(file)
+        .map_err(|e| VellumError::Plugin(format!("Archive EPUB invalide: {e}")))?;
 
     let temp_file = NamedTempFile::new().map_err(|e| {
         VellumError::Plugin(format!("Impossible de créer un fichier temporaire: {e}"))
     })?;
-    let mut zip_out = ZipWriter::new(temp_file.reopen().map_err(|e| {
-        VellumError::Plugin(format!("Erreur d'accès fichier temporaire: {e}"))
-    })?);
+    let mut zip_out = ZipWriter::new(
+        temp_file
+            .reopen()
+            .map_err(|e| VellumError::Plugin(format!("Erreur d'accès fichier temporaire: {e}")))?,
+    );
 
     let mut chapter_idx = 0usize;
 
     for i in 0..zip_in.len() {
-        let mut entry = zip_in.by_index(i).map_err(|e| {
-            VellumError::Plugin(format!("Erreur lecture entrée zip {i}: {e}"))
-        })?;
+        let mut entry = zip_in
+            .by_index(i)
+            .map_err(|e| VellumError::Plugin(format!("Erreur lecture entrée zip {i}: {e}")))?;
         let entry_name = entry.name().map(|n| n.to_string()).unwrap_or_default();
 
         if entry.is_dir() {
@@ -88,9 +88,8 @@ pub fn convert_epub_to_kepub(input_epub: &Path, output_kepub: &Path) -> VellumRe
         })?;
     }
 
-    std::fs::copy(temp_file.path(), output_kepub).map_err(|e| {
-        VellumError::Plugin(format!("Impossible de copier le KEPUB final: {e}"))
-    })?;
+    std::fs::copy(temp_file.path(), output_kepub)
+        .map_err(|e| VellumError::Plugin(format!("Impossible de copier le KEPUB final: {e}")))?;
 
     Ok(())
 }

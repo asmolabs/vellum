@@ -77,17 +77,18 @@ impl LitestreamService {
     }
 
     pub fn generate_config_file(&self) -> VellumResult<PathBuf> {
-        let config_dir = self
-            .db_path
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let config_dir = self.db_path.parent().unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(config_dir)?;
 
         let config_file = config_dir.join("litestream.yml");
         fs::create_dir_all(&self.config.replica_path)?;
 
         let db_str = self.db_path.to_string_lossy().replace('\\', "/");
-        let replica_str = self.config.replica_path.to_string_lossy().replace('\\', "/");
+        let replica_str = self
+            .config
+            .replica_path
+            .to_string_lossy()
+            .replace('\\', "/");
 
         let yaml = format!(
             "# Litestream SQLite Continuous Replication Configuration\n\
@@ -139,7 +140,9 @@ impl LitestreamService {
             .arg("-config")
             .arg(&config_file)
             .spawn()
-            .map_err(|e| VellumError::ExternalCommand(format!("Échec du lancement de Litestream: {e}")))?;
+            .map_err(|e| {
+                VellumError::ExternalCommand(format!("Échec du lancement de Litestream: {e}"))
+            })?;
 
         *guard = Some(child);
         let msg = format!(

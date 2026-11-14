@@ -21,15 +21,14 @@ impl MetadataService {
             .unwrap_or("")
             .to_lowercase();
 
-        let mut meta = if let Some(plugin) =
-            self.plugin_service.find_format_plugin_for_extension(&ext)
-        {
-            plugin
-                .extract_metadata(file_path, &std::collections::HashMap::new())
-                .unwrap_or_default()
-        } else {
-            ExtractedMetadata::default()
-        };
+        let mut meta =
+            if let Some(plugin) = self.plugin_service.find_format_plugin_for_extension(&ext) {
+                plugin
+                    .extract_metadata(file_path, &std::collections::HashMap::new())
+                    .unwrap_or_default()
+            } else {
+                ExtractedMetadata::default()
+            };
 
         let stem = file_path
             .file_stem()
@@ -46,7 +45,9 @@ impl MetadataService {
             || meta
                 .author
                 .as_deref()
-                .map(|a| a.eq_ignore_ascii_case("unknown") || a.eq_ignore_ascii_case("unknown author"))
+                .map(|a| {
+                    a.eq_ignore_ascii_case("unknown") || a.eq_ignore_ascii_case("unknown author")
+                })
                 .unwrap_or(false)
         {
             meta.author = Some(fallback_author);

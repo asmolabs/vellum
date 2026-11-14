@@ -7,11 +7,11 @@ mod toc;
 
 pub use polish::{PolishOptions, PolishReport};
 
+use regex::Regex;
+use roxmltree::Document;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use regex::Regex;
-use roxmltree::Document;
 use vellum_domain::{VellumError, VellumResult};
 use zip::ZipArchive;
 
@@ -46,10 +46,10 @@ impl EpubEditor {
             }
         }
 
-        Err(VellumError::NotFound("Fichier OPF introuvable dans l'EPUB".into()))
+        Err(VellumError::NotFound(
+            "Fichier OPF introuvable dans l'EPUB".into(),
+        ))
     }
-
-
 }
 
 pub(super) fn normalize_zip_path(base_dir: &str, rel_path: &str) -> String {
@@ -85,7 +85,6 @@ pub(super) fn escape_xml(s: &str) -> String {
         .replace('\'', "&apos;")
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,8 +98,10 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let mut zip = ZipWriter::new(file.reopen().unwrap());
 
-        let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-        let deflated = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let deflated =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // 1. mimetype
         zip.start_file("mimetype", stored).unwrap();
@@ -182,7 +183,8 @@ mod tests {
       <content src="ch2.xhtml#sec2"/>
     </navPoint>
   </navMap>
-</ncx>"#.as_bytes(),
+</ncx>"#
+                    .as_bytes(),
             )
             .unwrap();
         }
@@ -210,7 +212,10 @@ mod tests {
         assert_eq!(diag.spine_count, 2);
         assert_eq!(diag.toc_entries_count, 2);
         assert!(diag.has_cover);
-        assert!(!diag.issues.iter().any(|i| i.severity == EpubIssueSeverity::Error));
+        assert!(!diag
+            .issues
+            .iter()
+            .any(|i| i.severity == EpubIssueSeverity::Error));
     }
 
     #[test]
@@ -248,12 +253,24 @@ mod tests {
     fn test_clean_and_repair() {
         let file = create_test_epub(false, true);
         let diag_before = EpubEditor::inspect(file.path()).unwrap();
-        assert!(diag_before.issues.iter().any(|i| i.code == "DRM_ENCRYPTION_DETECTED"));
-        assert!(diag_before.issues.iter().any(|i| i.code == "ORPHAN_ZIP_FILE"));
+        assert!(diag_before
+            .issues
+            .iter()
+            .any(|i| i.code == "DRM_ENCRYPTION_DETECTED"));
+        assert!(diag_before
+            .issues
+            .iter()
+            .any(|i| i.code == "ORPHAN_ZIP_FILE"));
 
         let diag_after = EpubEditor::clean_and_repair(file.path()).unwrap();
-        assert!(!diag_after.issues.iter().any(|i| i.code == "DRM_ENCRYPTION_DETECTED"));
-        assert!(!diag_after.issues.iter().any(|i| i.code == "ORPHAN_ZIP_FILE"));
+        assert!(!diag_after
+            .issues
+            .iter()
+            .any(|i| i.code == "DRM_ENCRYPTION_DETECTED"));
+        assert!(!diag_after
+            .issues
+            .iter()
+            .any(|i| i.code == "ORPHAN_ZIP_FILE"));
         assert!(diag_after.toc_entries_count >= 2);
     }
 }

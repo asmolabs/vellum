@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use vellum_domain::{
     Book, ConfigField, DeviceAnnotation, DeviceBookInfo, DeviceKind, DeviceReadingProgress,
@@ -142,16 +142,10 @@ impl DeviceSyncPlugin for KoboSyncPlugin {
             }
         }
 
-        for p in self.default_mount_paths() {
-            if p.exists()
-                && (p.join(".kobo/KoboReader.sqlite").exists()
-                    || p.join(".kobo/version").exists())
-            {
-                return Some(p);
-            }
-        }
-
-        None
+        self.default_mount_paths().into_iter().find(|p| {
+            p.exists()
+                && (p.join(".kobo/KoboReader.sqlite").exists() || p.join(".kobo/version").exists())
+        })
     }
 
     fn list_books(&self, mount_point: &Path) -> VellumResult<Vec<DeviceBookInfo>> {
@@ -178,7 +172,9 @@ impl DeviceSyncPlugin for KoboSyncPlugin {
                         let _mime: Option<String> = row.get(4)?;
                         Ok((content_id, title, author, pct))
                     })
-                    .map_err(|e| VellumError::Plugin(format!("Erreur lecture content Kobo: {e}")))?;
+                    .map_err(|e| {
+                        VellumError::Plugin(format!("Erreur lecture content Kobo: {e}"))
+                    })?;
 
                 let mut books = Vec::new();
                 for r in rows.flatten() {
@@ -197,15 +193,13 @@ impl DeviceSyncPlugin for KoboSyncPlugin {
                         .unwrap_or("epub")
                         .to_string();
 
-                    let clean_title = title
-                        .filter(|t| !t.trim().is_empty())
-                        .unwrap_or_else(|| {
-                            full_path
-                                .file_stem()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("Sans titre")
-                                .to_string()
-                        });
+                    let clean_title = title.filter(|t| !t.trim().is_empty()).unwrap_or_else(|| {
+                        full_path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("Sans titre")
+                            .to_string()
+                    });
 
                     books.push(DeviceBookInfo {
                         title: clean_title,
@@ -275,7 +269,8 @@ impl DeviceSyncPlugin for KoboSyncPlugin {
         let is_kepub = export_fmt == "kepub" && src_ext == "epub";
         let target_ext = if is_kepub { "kepub.epub" } else { &src_ext };
 
-        let relative_dest = vellum_domain::NamingTemplate::format_filename(book, template_str, target_ext);
+        let relative_dest =
+            vellum_domain::NamingTemplate::format_filename(book, template_str, target_ext);
         let dest_file = mount_point.join(target_folder_name).join(relative_dest);
 
         if let Some(parent) = dest_file.parent() {

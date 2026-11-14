@@ -162,7 +162,12 @@ impl EpubEditor {
                     if let Ok(mut f) = zip.by_name(path) {
                         let mut html = String::new();
                         if f.read_to_string(&mut html).is_ok() {
-                            let re = Regex::new(r#"(?is)<h[1-2][^>]*>(.*?)</h[1-2]>"#).unwrap();
+                            static HEADING_RE: std::sync::LazyLock<Regex> =
+                                std::sync::LazyLock::new(|| {
+                                    Regex::new(r#"(?is)<h[1-2][^>]*>(.*?)</h[1-2]>"#)
+                                        .expect("valid heading regex")
+                                });
+                            let re = &*HEADING_RE;
                             if let Some(caps) = re.captures(&html) {
                                 let heading = strip_html_tags(&caps[1]);
                                 if !heading.is_empty() {

@@ -29,8 +29,6 @@ impl PluginType {
     }
 }
 
-
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigField {
@@ -308,7 +306,6 @@ pub trait VellumPlugin: Send + Sync {
     }
 }
 
-
 pub trait BookFormatPlugin: VellumPlugin {
     fn supported_extensions(&self) -> Vec<String>;
 
@@ -378,4 +375,3 @@ pub trait DeviceSyncPlugin: VellumPlugin {
     fn get_reading_progress(&self, mount_point: &Path) -> VellumResult<Vec<DeviceReadingProgress>>;
     fn get_annotations(&self, mount_point: &Path) -> VellumResult<Vec<DeviceAnnotation>>;
 }
-

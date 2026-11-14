@@ -46,7 +46,11 @@ pub fn CommandPalette(
             .filter(|b| {
                 b.title.to_lowercase().contains(&q)
                     || b.author.to_lowercase().contains(&q)
-                    || b.series.as_deref().unwrap_or_default().to_lowercase().contains(&q)
+                    || b.series
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .contains(&q)
                     || b.tags.iter().any(|t| t.name.to_lowercase().contains(&q))
             })
             .take(8)
@@ -56,25 +60,101 @@ pub fn CommandPalette(
 
     // Quick built-in actions
     let all_actions = [
-        ("⊞ Basculer en vue Grille classique", PaletteAction::SetViewGrid, "vue grille grid affichage"),
-        ("☰ Basculer en vue Tableau (Calibre)", PaletteAction::SetViewTable, "vue tableau liste table calibre"),
-        ("🎠 Basculer en vue Tableau + Carrousel (Calibre)", PaletteAction::SetViewTableCarousel, "vue tableau carrousel cover browser calibre"),
-        ("📋 Basculer en vue Tableau Kanban (Pile à Lire)", PaletteAction::SetViewKanban, "vue kanban pal pile a lire tableau trello colonnes"),
-        ("📥 Importer des livres (Fichiers EPUB, PDF, CBZ...)", PaletteAction::ImportBooks, "import ajouter"),
-        ("📦 Importer une bibliothèque Calibre (metadata.db)", PaletteAction::ImportCalibre, "calibre import migration db metadata"),
-        ("🛡️ Santé & Audit de la bibliothèque (Doublons, fusion, fiches incomplètes)", PaletteAction::OpenLibraryAudit, "sante audit doublons merge fusion proprete"),
-        ("🔍 Recherche plein texte dans les chapitres (FTS5)", PaletteAction::OpenContentSearch, "fts5 recherche texte chapitre contenu"),
-        ("🔤 Recherche & Remplacement Regex en masse", PaletteAction::OpenBulkRegex, "regex masse bulk nettoyer titre auteur"),
-        ("⚡ Règles d'import automatiques (Tags, séries, polish)", PaletteAction::OpenImportRules, "regles import automatisation watch folder"),
-        ("📊 Statistiques & Habitudes de lecture (Heatmap annuelle, rythme)", PaletteAction::OpenReadingStats, "stats statistiques heatmap calendrier lecture rythme wpm"),
-        ("📰 Recettes d'actualités (compiler les flux RSS en journal EPUB)", PaletteAction::OpenNewsRecipes, "news rss actualites journal presse"),
-        ("🌐 Ouvrir le Compagnon Web Mobile & OPDS (navigateur)", PaletteAction::OpenWebCompanion, "web companion mobile lecteur opds phone navigateur"),
-        ("☁️ Synchroniser maintenant avec Google Drive", PaletteAction::SyncCloud, "synchro drive cloud gdrive"),
-        ("⚙️ Ouvrir les Paramètres & Diagnostics", PaletteAction::OpenSettings, "paramètres settings config"),
-        ("📖 Afficher les livres en cours de lecture", PaletteAction::FilterReading, "en cours lecture reading"),
-        ("✓ Afficher les livres terminés", PaletteAction::FilterFinished, "terminés finished lu"),
-        ("⏳ Afficher les livres à lire", PaletteAction::FilterToRead, "a lire to read"),
-        ("📚 Afficher toute la bibliothèque", PaletteAction::FilterAll, "tous all bibliothèque"),
+        (
+            "⊞ Basculer en vue Grille classique",
+            PaletteAction::SetViewGrid,
+            "vue grille grid affichage",
+        ),
+        (
+            "☰ Basculer en vue Tableau (Calibre)",
+            PaletteAction::SetViewTable,
+            "vue tableau liste table calibre",
+        ),
+        (
+            "🎠 Basculer en vue Tableau + Carrousel (Calibre)",
+            PaletteAction::SetViewTableCarousel,
+            "vue tableau carrousel cover browser calibre",
+        ),
+        (
+            "📋 Basculer en vue Tableau Kanban (Pile à Lire)",
+            PaletteAction::SetViewKanban,
+            "vue kanban pal pile a lire tableau trello colonnes",
+        ),
+        (
+            "📥 Importer des livres (Fichiers EPUB, PDF, CBZ...)",
+            PaletteAction::ImportBooks,
+            "import ajouter",
+        ),
+        (
+            "📦 Importer une bibliothèque Calibre (metadata.db)",
+            PaletteAction::ImportCalibre,
+            "calibre import migration db metadata",
+        ),
+        (
+            "🛡️ Santé & Audit de la bibliothèque (Doublons, fusion, fiches incomplètes)",
+            PaletteAction::OpenLibraryAudit,
+            "sante audit doublons merge fusion proprete",
+        ),
+        (
+            "🔍 Recherche plein texte dans les chapitres (FTS5)",
+            PaletteAction::OpenContentSearch,
+            "fts5 recherche texte chapitre contenu",
+        ),
+        (
+            "🔤 Recherche & Remplacement Regex en masse",
+            PaletteAction::OpenBulkRegex,
+            "regex masse bulk nettoyer titre auteur",
+        ),
+        (
+            "⚡ Règles d'import automatiques (Tags, séries, polish)",
+            PaletteAction::OpenImportRules,
+            "regles import automatisation watch folder",
+        ),
+        (
+            "📊 Statistiques & Habitudes de lecture (Heatmap annuelle, rythme)",
+            PaletteAction::OpenReadingStats,
+            "stats statistiques heatmap calendrier lecture rythme wpm",
+        ),
+        (
+            "📰 Recettes d'actualités (compiler les flux RSS en journal EPUB)",
+            PaletteAction::OpenNewsRecipes,
+            "news rss actualites journal presse",
+        ),
+        (
+            "🌐 Ouvrir le Compagnon Web Mobile & OPDS (navigateur)",
+            PaletteAction::OpenWebCompanion,
+            "web companion mobile lecteur opds phone navigateur",
+        ),
+        (
+            "☁️ Synchroniser maintenant avec Google Drive",
+            PaletteAction::SyncCloud,
+            "synchro drive cloud gdrive",
+        ),
+        (
+            "⚙️ Ouvrir les Paramètres & Diagnostics",
+            PaletteAction::OpenSettings,
+            "paramètres settings config",
+        ),
+        (
+            "📖 Afficher les livres en cours de lecture",
+            PaletteAction::FilterReading,
+            "en cours lecture reading",
+        ),
+        (
+            "✓ Afficher les livres terminés",
+            PaletteAction::FilterFinished,
+            "terminés finished lu",
+        ),
+        (
+            "⏳ Afficher les livres à lire",
+            PaletteAction::FilterToRead,
+            "a lire to read",
+        ),
+        (
+            "📚 Afficher toute la bibliothèque",
+            PaletteAction::FilterAll,
+            "tous all bibliothèque",
+        ),
     ];
 
     let matched_actions: Vec<_> = all_actions

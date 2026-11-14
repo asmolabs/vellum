@@ -90,7 +90,9 @@ fn test_sync_repository_events_and_deltas() {
     assert_eq!(unsynced.len(), 1);
     assert_eq!(unsynced[0].client_id, "macbook-1");
     match &unsynced[0].action {
-        vellum_domain::SyncAction::ProgressUpdated { progress_percent, .. } => {
+        vellum_domain::SyncAction::ProgressUpdated {
+            progress_percent, ..
+        } => {
             assert_eq!(*progress_percent, 45.0);
         }
         _ => panic!("Expected ProgressUpdated"),
@@ -128,7 +130,9 @@ fn test_fts5_accent_insensitive_search_and_bm25_ranking() {
     assert_eq!(hits[0].title, "Les Misérables");
 
     // Special characters shouldn't trigger FTS5 syntax errors
-    let safe_hits = book_repo.search_fts("hugo: \"paris\" + (test)!", None).unwrap();
+    let safe_hits = book_repo
+        .search_fts("hugo: \"paris\" + (test)!", None)
+        .unwrap();
     assert!(safe_hits.is_empty());
 
     // Delete removes from FTS index via trigger

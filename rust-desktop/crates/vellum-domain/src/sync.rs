@@ -55,14 +55,12 @@ pub struct SyncDelta {
     pub events: Vec<SyncEvent>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CloudSyncMode {
     #[default]
     GoogleDriveFolder,
     GoogleDriveApi,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloudSyncConfig {

@@ -30,7 +30,8 @@ impl QualityAssuranceValidator {
             issues.push(QaIssue {
                 paragraph_index,
                 category: "EMPTY_TRANSLATION".to_string(),
-                message: "La traduction est vide alors que la source contient du texte.".to_string(),
+                message: "La traduction est vide alors que la source contient du texte."
+                    .to_string(),
             });
             return issues;
         }

@@ -1,12 +1,11 @@
-use std::path::Path;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use uuid::Uuid;
 
 use crate::reader_provider::BookContentProvider;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ComicReadingMode {
     #[default]
     SinglePage,
@@ -14,9 +13,7 @@ pub enum ComicReadingMode {
     Webtoon,
 }
 
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ComicFitMode {
     #[default]
     FitHeight,
@@ -24,28 +21,27 @@ pub enum ComicFitMode {
     Original,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReaderPreferences {
-    pub theme: String,              // "dark", "sepia", "light", "amoled"
-    pub font_family: String,        // "sans", "serif", "literata", "merriweather", "dyslexic"
-    pub font_size: u32,             // 12 to 36 px
-    pub line_height: f32,           // 1.3 to 2.2
-    pub margin_horizontal: u32,     // 16 to 72 px
+    pub theme: String,          // "dark", "sepia", "light", "amoled"
+    pub font_family: String,    // "sans", "serif", "literata", "merriweather", "dyslexic"
+    pub font_size: u32,         // 12 to 36 px
+    pub line_height: f32,       // 1.3 to 2.2
+    pub margin_horizontal: u32, // 16 to 72 px
     pub justify_text: bool,
-    pub two_columns: bool,          // Two-page spread on wide viewport
-    pub warmth: u8,                 // 0 to 80% amber tint for night reading
-    pub brightness: u8,             // 30 to 100%
-    pub animation_style: String,    // "slide", "fade", "none"
-    pub words_per_minute: usize,    // Reading speed for time estimation (default: 200)
+    pub two_columns: bool,       // Two-page spread on wide viewport
+    pub warmth: u8,              // 0 to 80% amber tint for night reading
+    pub brightness: u8,          // 30 to 100%
+    pub animation_style: String, // "slide", "fade", "none"
+    pub words_per_minute: usize, // Reading speed for time estimation (default: 200)
 
     // Comic & Manga modes (CBZ / CBR)
     #[serde(default)]
     pub comic_reading_mode: ComicReadingMode, // SinglePage, DoublePage, Webtoon
     #[serde(default)]
-    pub comic_rtl: bool,                      // Japanese Manga direction: Right-to-Left
+    pub comic_rtl: bool, // Japanese Manga direction: Right-to-Left
     #[serde(default)]
-    pub comic_fit_mode: ComicFitMode,         // FitHeight, FitWidth, Original
+    pub comic_fit_mode: ComicFitMode, // FitHeight, FitWidth, Original
 }
 
 impl Default for ReaderPreferences {
@@ -219,8 +215,11 @@ impl BookUserData {
                 && b.page_in_chapter == bookmark.page_in_chapter)
         });
         self.bookmarks.push(bookmark);
-        self.bookmarks
-            .sort_by(|a, b| a.chapter_index.cmp(&b.chapter_index).then(a.page_in_chapter.cmp(&b.page_in_chapter)));
+        self.bookmarks.sort_by(|a, b| {
+            a.chapter_index
+                .cmp(&b.chapter_index)
+                .then(a.page_in_chapter.cmp(&b.page_in_chapter))
+        });
     }
 
     pub fn remove_bookmark(&mut self, id: &str) {
@@ -294,7 +293,11 @@ pub fn search_in_book(
                 chapter_title: ch_title.clone(),
                 snippet_before: format!("{}{}", if snippet_start > 0 { "…" } else { "" }, before),
                 matched_text: matched.to_string(),
-                snippet_after: format!("{}{}", after, if snippet_end < text.len() { "…" } else { "" }),
+                snippet_after: format!(
+                    "{}{}",
+                    after,
+                    if snippet_end < text.len() { "…" } else { "" }
+                ),
                 char_offset: match_idx,
             });
 
@@ -337,7 +340,10 @@ pub fn export_highlights_markdown(
     let mut out = String::new();
     out.push_str(&format!("# Notes & Citations : {}\n", book_title));
     out.push_str(&format!("**Auteur** : {}\n", author));
-    out.push_str(&format!("**Date d'export** : {}\n\n", Utc::now().format("%Y-%m-%d %H:%M")));
+    out.push_str(&format!(
+        "**Date d'export** : {}\n\n",
+        Utc::now().format("%Y-%m-%d %H:%M")
+    ));
 
     if !highlights.is_empty() {
         out.push_str("## Citations et Surlignages\n\n");
@@ -375,13 +381,15 @@ mod tests {
     #[test]
     fn test_preferences_save_and_load() {
         let temp = TempDir::new().unwrap();
-        let mut prefs = ReaderPreferences::default();
-        prefs.font_size = 22;
-        prefs.theme = "sepia".to_string();
-        prefs.two_columns = true;
-        prefs.comic_reading_mode = ComicReadingMode::Webtoon;
-        prefs.comic_rtl = true;
-        prefs.comic_fit_mode = ComicFitMode::FitWidth;
+        let prefs = ReaderPreferences {
+            font_size: 22,
+            theme: "sepia".to_string(),
+            two_columns: true,
+            comic_reading_mode: ComicReadingMode::Webtoon,
+            comic_rtl: true,
+            comic_fit_mode: ComicFitMode::FitWidth,
+            ..Default::default()
+        };
 
         prefs.save_to_dir(temp.path()).unwrap();
         let loaded = ReaderPreferences::load_from_dir(temp.path());
@@ -419,9 +427,17 @@ mod tests {
         let loaded = BookUserData::load_from_dir(temp.path(), book_id);
         assert_eq!(loaded.bookmarks.len(), 1);
         assert_eq!(loaded.highlights.len(), 1);
-        assert_eq!(loaded.highlights[0].note.as_deref(), Some("Penser à vérifier la source"));
+        assert_eq!(
+            loaded.highlights[0].note.as_deref(),
+            Some("Penser à vérifier la source")
+        );
 
-        let md = export_highlights_markdown("Mon Livre", "Auteur", &loaded.highlights, &loaded.bookmarks);
+        let md = export_highlights_markdown(
+            "Mon Livre",
+            "Auteur",
+            &loaded.highlights,
+            &loaded.bookmarks,
+        );
         assert!(md.contains("La vérité est ailleurs."));
         assert!(md.contains("Penser à vérifier la source"));
     }

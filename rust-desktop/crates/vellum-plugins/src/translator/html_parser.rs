@@ -202,10 +202,9 @@ pub struct Paragraph {
 }
 
 pub fn extract_paragraphs(html: &str) -> Vec<Paragraph> {
-    let p_regex = Regex::new(
-        r"(?is)<(p|h1|h2|h3|h4|h5|h6|div)\b([^>]*)>(.*?)</(p|h1|h2|h3|h4|h5|h6|div)>",
-    )
-    .unwrap();
+    let p_regex =
+        Regex::new(r"(?is)<(p|h1|h2|h3|h4|h5|h6|div)\b([^>]*)>(.*?)</(p|h1|h2|h3|h4|h5|h6|div)>")
+            .unwrap();
     let inline_tag_regex =
         Regex::new(r"(?is)<([a-zA-Z0-9]+)\b([^>]*)>(.*?)</([a-zA-Z0-9]+)>").unwrap();
 

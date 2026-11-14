@@ -87,4 +87,3 @@ impl VirtualLibraryRepository {
         Ok(deleted > 0)
     }
 }
-

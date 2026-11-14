@@ -136,12 +136,11 @@ pub fn paginate_html_into_pages(raw_html: &str, target_chars: usize) -> Vec<Stri
         let heading_break = is_heading && current_chars >= 350;
         let size_break = (current_chars + weight > target_chars) && current_chars > 0;
 
-        if (heading_break || size_break)
-            && !current_page.is_empty() {
-                pages.push(current_page.join("\n"));
-                current_page.clear();
-                current_chars = 0;
-            }
+        if (heading_break || size_break) && !current_page.is_empty() {
+            pages.push(current_page.join("\n"));
+            current_page.clear();
+            current_chars = 0;
+        }
 
         current_page.push(block);
         current_chars += weight;
@@ -212,9 +211,7 @@ pub(super) fn replace_image_sources(
                 ("\"", "")
             };
 
-            if val.starts_with("data:")
-                || val.starts_with("http://")
-                || val.starts_with("https://")
+            if val.starts_with("data:") || val.starts_with("http://") || val.starts_with("https://")
             {
                 return format!("{}={}{}{}", attr, quote, val, quote);
             }
@@ -293,7 +290,9 @@ pub(super) fn extract_chapter_title(html: &str, fallback_index: usize) -> String
         Some(c[1].to_string())
     } else if let Some(c) = re_h2.captures(html) {
         Some(c[1].to_string())
-    } else { re_title.captures(html).map(|c| c[1].to_string()) };
+    } else {
+        re_title.captures(html).map(|c| c[1].to_string())
+    };
 
     if let Some(text) = raw {
         let clean = re_tags.replace_all(&text, " ").trim().to_string();
@@ -312,7 +311,6 @@ pub(super) fn escape_html(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use dioxus::prelude::*;
+use std::sync::Arc;
 use vellum_core::{BookService, BulkRegexReport, BulkRegexRequest, RegexTargetField};
 
 #[component]
@@ -36,7 +36,8 @@ pub fn BulkRegexModal(
             };
             let bs_task = bs.clone();
             spawn(async move {
-                let res = tokio::task::spawn_blocking(move || bs_task.bulk_regex_replace(req)).await;
+                let res =
+                    tokio::task::spawn_blocking(move || bs_task.bulk_regex_replace(req)).await;
                 is_running.set(false);
                 match res {
                     Ok(Ok(rep)) => {
@@ -163,4 +164,3 @@ pub fn BulkRegexModal(
         }
     }
 }
-

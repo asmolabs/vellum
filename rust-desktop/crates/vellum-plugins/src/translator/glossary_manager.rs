@@ -91,6 +91,9 @@ impl GlossaryManager {
             }
         }
 
-        format!("GLOSSAIRE TERMINOLOGIQUE OBLIGATOIRE :\n{}", matching.join("\n"))
+        format!(
+            "GLOSSAIRE TERMINOLOGIQUE OBLIGATOIRE :\n{}",
+            matching.join("\n")
+        )
     }
 }

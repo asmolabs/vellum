@@ -22,7 +22,9 @@ impl PdfFormatPlugin {
             descriptor: PluginDescriptor {
                 id: "format-pdf".to_string(),
                 name: "Lecteur de format PDF (Adobe / Document)".to_string(),
-                description: "Support des documents PDF avec extraction des métadonnées intégrées et aperçu.".to_string(),
+                description:
+                    "Support des documents PDF avec extraction des métadonnées intégrées et aperçu."
+                        .to_string(),
                 version: "1.0.0".to_string(),
                 plugin_type: PluginType::Format,
                 external: false,

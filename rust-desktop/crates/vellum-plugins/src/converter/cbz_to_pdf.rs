@@ -74,7 +74,11 @@ impl BookConverterPlugin for CbzToPdfConverterPlugin {
             ZipArchive::new(reader).map_err(|e| VellumError::InvalidArgument(e.to_string()))?;
 
         let mut image_names: Vec<String> = (0..zip.len())
-            .filter_map(|i| zip.by_index(i).ok().and_then(|e| e.name().ok().map(|n| n.to_string())))
+            .filter_map(|i| {
+                zip.by_index(i)
+                    .ok()
+                    .and_then(|e| e.name().ok().map(|n| n.to_string()))
+            })
             .filter(|name| is_image(name))
             .collect();
         image_names.sort_by_key(|a| a.to_lowercase());

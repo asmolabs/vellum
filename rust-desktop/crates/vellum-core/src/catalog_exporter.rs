@@ -85,7 +85,11 @@ impl CatalogExporter {
                 .filter(|c| c.is_ascii_alphanumeric())
                 .take(12)
                 .collect();
-            let id_prefix: String = b.id.chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect();
+            let id_prefix: String =
+                b.id.chars()
+                    .filter(|c| c.is_ascii_alphanumeric())
+                    .take(8)
+                    .collect();
             let key = if author_slug.is_empty() {
                 format!("book_{id_prefix}")
             } else {

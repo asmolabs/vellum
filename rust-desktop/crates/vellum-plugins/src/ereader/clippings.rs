@@ -49,7 +49,11 @@ pub fn parse_kindle_clippings(content: &str) -> Vec<DeviceAnnotation> {
             annotations.push(DeviceAnnotation {
                 book_title: title,
                 book_author: author,
-                text: if is_note { String::new() } else { text_body.clone() },
+                text: if is_note {
+                    String::new()
+                } else {
+                    text_body.clone()
+                },
                 note: if is_note { Some(text_body) } else { None },
                 location,
                 created_at,
@@ -66,7 +70,14 @@ fn parse_title_and_author(line: &str) -> (String, Option<String>) {
             if close_paren > open_paren {
                 let title = line[..open_paren].trim().to_string();
                 let author = line[open_paren + 1..close_paren].trim().to_string();
-                return (title, if author.is_empty() { None } else { Some(author) });
+                return (
+                    title,
+                    if author.is_empty() {
+                        None
+                    } else {
+                        Some(author)
+                    },
+                );
             }
         }
     }

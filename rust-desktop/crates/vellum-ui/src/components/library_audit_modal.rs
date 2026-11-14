@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use dioxus::prelude::*;
+use std::sync::Arc;
 use vellum_core::BookService;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -77,15 +77,15 @@ pub fn LibraryAuditModal(
             let bs_cloned = bs.clone();
             spawn(async move {
                 let bs_task = bs_cloned.clone();
-                let res = tokio::task::spawn_blocking(move || {
-                    bs_task.enrich_book(&book_id)
-                })
-                .await;
+                let res = tokio::task::spawn_blocking(move || bs_task.enrich_book(&book_id)).await;
                 enr_id.set(None);
                 match res {
                     Ok(Ok(enriched)) => {
                         notif.set(Some((
-                            format!("🪄 Fiche de '{}' enrichie avec succès via Google Books !", enriched.title),
+                            format!(
+                                "🪄 Fiche de '{}' enrichie avec succès via Google Books !",
+                                enriched.title
+                            ),
                             true,
                         )));
                         if let Ok(new_rep) = bs_cloned.audit_library() {
@@ -94,7 +94,10 @@ pub fn LibraryAuditModal(
                         on_upd.call(());
                     }
                     Ok(Err(e)) => {
-                        notif.set(Some((format!("Erreur lors de l'enrichissement : {e}"), false)));
+                        notif.set(Some((
+                            format!("Erreur lors de l'enrichissement : {e}"),
+                            false,
+                        )));
                     }
                     Err(e) => {
                         notif.set(Some((format!("Erreur asynchrone : {e}"), false)));
@@ -109,15 +112,16 @@ pub fn LibraryAuditModal(
         let bs = bs.clone();
         let mut rep = audit_report;
         let mut notif = notification;
-        move |_| {
-            match bs.audit_library() {
-                Ok(new_rep) => {
-                    rep.set(Some(new_rep));
-                    notif.set(Some(("🩺 Audit de santé actualisé avec succès.".to_string(), true)));
-                }
-                Err(e) => {
-                    notif.set(Some((format!("Erreur d'analyse : {e}"), false)));
-                }
+        move |_| match bs.audit_library() {
+            Ok(new_rep) => {
+                rep.set(Some(new_rep));
+                notif.set(Some((
+                    "🩺 Audit de santé actualisé avec succès.".to_string(),
+                    true,
+                )));
+            }
+            Err(e) => {
+                notif.set(Some((format!("Erreur d'analyse : {e}"), false)));
             }
         }
     };

@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use dioxus::prelude::*;
+use std::sync::Arc;
 use vellum_core::BookService;
 use vellum_domain::{Book, EpubDiagnostics, EpubIssueSeverity, EpubTocEntry};
 
@@ -60,10 +60,9 @@ pub fn EpubEditorModal(
             is_op.set(true);
             notif.set(None);
             spawn(async move {
-                let res = tokio::task::spawn_blocking(move || {
-                    bs.generate_book_toc_from_headings(&b_id)
-                })
-                .await;
+                let res =
+                    tokio::task::spawn_blocking(move || bs.generate_book_toc_from_headings(&b_id))
+                        .await;
 
                 is_op.set(false);
                 match res {
@@ -114,7 +113,8 @@ pub fn EpubEditorModal(
                     Ok(Ok(updated_diag)) => {
                         diag_sig.set(Some(updated_diag));
                         notif.set(Some((
-                            "💾 Table des Matières enregistrée avec succès dans le fichier EPUB !".to_string(),
+                            "💾 Table des Matières enregistrée avec succès dans le fichier EPUB !"
+                                .to_string(),
                             true,
                         )));
                         on_updated.call(());
@@ -166,10 +166,7 @@ pub fn EpubEditorModal(
                         on_updated.call(());
                     }
                     Ok(Err(e)) => {
-                        notif.set(Some((
-                            format!("Erreur lors de la réparation: {e}"),
-                            false,
-                        )));
+                        notif.set(Some((format!("Erreur lors de la réparation: {e}"), false)));
                     }
                     Err(e) => {
                         notif.set(Some((format!("Tâche interrompue: {e}"), false)));

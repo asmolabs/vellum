@@ -63,7 +63,7 @@ impl Locale {
 }
 
 /// Retourne la traduction associée à `key` pour `locale` (avec repli sur `Fr`, puis sur `key`).
-pub fn translate<'a>(locale: Locale, key: &'a str) -> &'a str {
+pub fn translate(locale: Locale, key: &str) -> &str {
     let catalog = match locale {
         Locale::Fr => &*FR_CATALOG,
         Locale::En => &*EN_CATALOG,
@@ -116,4 +116,3 @@ mod tests {
         }
     }
 }
-

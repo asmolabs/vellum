@@ -72,7 +72,11 @@ impl BookFormatPlugin for ComicFormatPlugin {
         let reader = File::open(file)?;
         if let Ok(mut zip) = ZipArchive::new(reader) {
             let mut entry_names: Vec<String> = (0..zip.len())
-                .filter_map(|i| zip.by_index(i).ok().and_then(|e| e.name().ok().map(|n| n.to_string())))
+                .filter_map(|i| {
+                    zip.by_index(i)
+                        .ok()
+                        .and_then(|e| e.name().ok().map(|n| n.to_string()))
+                })
                 .collect();
 
             // 1. Check ComicInfo.xml

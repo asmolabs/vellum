@@ -156,9 +156,9 @@ impl DeviceService {
                 "Conversion automatique du livre '{}' vers le format optimal pour {:?}",
                 book.title, kind
             );
-            let updated_book =
-                self.book_service
-                    .convert_book_to_format(book_id, preferred_format)?;
+            let updated_book = self
+                .book_service
+                .convert_book_to_format(book_id, preferred_format)?;
             let fmt = updated_book
                 .formats
                 .iter()
@@ -210,10 +210,7 @@ impl DeviceService {
                 .any(|b| b.title.eq_ignore_ascii_case(&d_book.title));
 
             if !already_exists {
-                info!(
-                    "Importation du livre depuis {:?}: {}",
-                    kind, d_book.title
-                );
+                info!("Importation du livre depuis {:?}: {}", kind, d_book.title);
                 match self.book_service.import_book(&full_device_file) {
                     Ok(b) => imported.push(b),
                     Err(e) => {
@@ -249,15 +246,16 @@ impl DeviceService {
         for state in &states {
             for b in &all_books {
                 if b.title.eq_ignore_ascii_case(&state.book_title)
-                    && state.progress_percent > b.progress_percent {
-                        let _ = self.book_service.update_reading_progress(
-                            &b.id,
-                            (state.progress_percent * 10.0) as i32,
-                            1000,
-                            state.progress_percent,
-                            state.is_finished,
-                        );
-                    }
+                    && state.progress_percent > b.progress_percent
+                {
+                    let _ = self.book_service.update_reading_progress(
+                        &b.id,
+                        (state.progress_percent * 10.0) as i32,
+                        1000,
+                        state.progress_percent,
+                        state.is_finished,
+                    );
+                }
             }
         }
 

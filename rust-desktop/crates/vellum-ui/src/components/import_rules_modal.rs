@@ -1,12 +1,9 @@
-use std::sync::Arc;
 use dioxus::prelude::*;
+use std::sync::Arc;
 use vellum_core::{BookService, ImportRule, ImportRuleTarget};
 
 #[component]
-pub fn ImportRulesModal(
-    book_service: Arc<BookService>,
-    on_close: EventHandler<()>,
-) -> Element {
+pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<()>) -> Element {
     let mut rules = use_signal(|| book_service.get_import_rules());
     let mut name = use_signal(String::new);
     let mut target = use_signal(|| ImportRuleTarget::Title);
@@ -18,14 +15,12 @@ pub fn ImportRulesModal(
 
     let persist = {
         let bs = book_service.clone();
-        move |next: Vec<ImportRule>| {
-            match bs.save_import_rules(&next) {
-                Ok(()) => {
-                    rules.set(next);
-                    status_msg.set(Some(("Règles enregistrées.".to_string(), true)));
-                }
-                Err(e) => status_msg.set(Some((format!("Erreur de sauvegarde : {e}"), false))),
+        move |next: Vec<ImportRule>| match bs.save_import_rules(&next) {
+            Ok(()) => {
+                rules.set(next);
+                status_msg.set(Some(("Règles enregistrées.".to_string(), true)));
             }
+            Err(e) => status_msg.set(Some((format!("Erreur de sauvegarde : {e}"), false))),
         }
     };
 
@@ -219,4 +214,3 @@ pub fn ImportRulesModal(
         }
     }
 }
-
