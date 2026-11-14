@@ -100,6 +100,7 @@ pub(crate) fn render_app_overlays(
         // EPUB Inspector & TOC Editor Modal
         if let Some(book) = st.epub_editing_book.read().as_ref() {
             EpubEditorModal {
+                locale: *st.ui_locale.read(),
                 book: book.clone(),
                 book_service: book_service.clone(),
                 on_close: move |_| st.epub_editing_book.set(None),
@@ -110,6 +111,7 @@ pub(crate) fn render_app_overlays(
         // Translate Modal
         if let Some(book) = st.translating_book.read().as_ref() {
             TranslateModal {
+                locale: *st.ui_locale.read(),
                 book: book.clone(),
                 is_translating: *st.is_translating.read(),
                 on_close: move |_| st.translating_book.set(None),
@@ -120,6 +122,7 @@ pub(crate) fn render_app_overlays(
         // News Recipes Modal (RSS to EPUB)
         if *st.news_recipes_open.read() {
             NewsRecipesModal {
+                locale: *st.ui_locale.read(),
                 news_service: news_service.clone(),
                 on_close: move |_| st.news_recipes_open.set(false),
                 on_imported: move |_| hd.on_refresh.call(()),
@@ -129,6 +132,7 @@ pub(crate) fn render_app_overlays(
         // Library Health & Audit Modal
         if *st.audit_open.read() {
             LibraryAuditModal {
+                locale: *st.ui_locale.read(),
                 book_service: book_service.clone(),
                 on_close: move |_| st.audit_open.set(false),
                 on_updated: move |_| hd.on_refresh.call(()),
@@ -139,6 +143,7 @@ pub(crate) fn render_app_overlays(
         if *st.stats_open.read() {
             if let Some(ref reading_stats) = svc.reading_stats {
                 ReadingStatsModal {
+                    locale: *st.ui_locale.read(),
                     stats: reading_stats.clone(),
                     on_close: move |_| st.stats_open.set(false),
                     on_read_book: hd.on_read,
@@ -150,6 +155,7 @@ pub(crate) fn render_app_overlays(
         if st.active_reader.read().is_some() {
             ReaderModal {
                 session: st.active_reader,
+                locale: *st.ui_locale.read(),
                 on_close: move |_| {
                     st.active_reader.set(None);
                     hd.on_refresh.call(());
@@ -269,6 +275,7 @@ pub(crate) fn render_app_overlays(
         // Command Palette (Cmd + K)
         if *st.palette_open.read() {
             CommandPalette {
+                locale: *st.ui_locale.read(),
                 books: st.books.read().clone(),
                 series_list: svc.series_names.clone(),
                 on_close: move |_| st.palette_open.set(false),
@@ -280,6 +287,8 @@ pub(crate) fn render_app_overlays(
         if !st.selected_ids.read().is_empty() {
             {
                 let count = st.selected_ids.read().len();
+                let count_str = count.to_string();
+                let loc = *st.ui_locale.read();
                 rsx! {
                     div {
                         style: "position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: rgba(24, 24, 27, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 12px 32px rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 9999px; display: flex; align-items: center; gap: 14px; z-index: 1000;",
@@ -289,7 +298,7 @@ pub(crate) fn render_app_overlays(
                                 style: "background: var(--accent-primary); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;",
                                 "{count}"
                             }
-                            span { "sélectionné(s)" }
+                            span { {vellum_core::translate(loc, "selection.count_suffix")} }
                         }
                         div { style: "width: 1px; height: 20px; background: rgba(255,255,255,0.15);" }
                         button {
@@ -297,34 +306,34 @@ pub(crate) fn render_app_overlays(
                             style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| st.bulk_edit_open.set(true),
                             span { "✏️" }
-                            "Modifier en masse"
+                            {vellum_core::translate(loc, "selection.bulk_edit")}
                         }
                         button {
                             class: "btn btn-secondary",
                             style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| st.bulk_convert_open.set(true),
                             span { "🔄" }
-                            "Convertir"
+                            {vellum_core::translate(loc, "selection.convert")}
                         }
                         button {
                             class: "btn btn-secondary",
                             style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| st.bulk_regex_open.set(true),
                             span { "🔤" }
-                            "Regex"
+                            {vellum_core::translate(loc, "selection.regex")}
                         }
                         button {
                             class: "btn btn-danger",
                             style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| hd.on_bulk_delete.call(()),
                             span { "🗑️" }
-                            "Supprimer ({count})"
+                            {vellum_core::translate_fmt(loc, "selection.delete_count", &[("count", &count_str)])}
                         }
                         button {
                             class: "btn btn-secondary",
                             style: "padding: 6px 12px; font-size: 12px; border-radius: 20px; color: var(--text-muted); cursor: pointer;",
                             onclick: move |_| st.selected_ids.set(HashSet::new()),
-                            "Annuler"
+                            {vellum_core::translate(loc, "action.cancel")}
                         }
                     }
                 }
@@ -337,6 +346,7 @@ pub(crate) fn render_app_overlays(
                 let count = st.selected_ids.read().len();
                 rsx! {
                     BulkEditModal {
+                        locale: *st.ui_locale.read(),
                         selected_count: count,
                         on_save: move |data| {
                             st.bulk_edit_open.set(false);
@@ -351,6 +361,7 @@ pub(crate) fn render_app_overlays(
         // Full-Text Content Search Modal (FTS5)
         if *st.content_search_open.read() {
             ContentSearchModal {
+                locale: *st.ui_locale.read(),
                 book_service: book_service.clone(),
                 books: st.books.read().clone(),
                 on_close: move |_| st.content_search_open.set(false),
@@ -364,6 +375,7 @@ pub(crate) fn render_app_overlays(
                 let ids: Vec<String> = st.selected_ids.read().iter().cloned().collect();
                 rsx! {
                     BulkConvertModal {
+                        locale: *st.ui_locale.read(),
                         book_service: book_service.clone(),
                         target_book_ids: ids,
                         on_close: move |_| st.bulk_convert_open.set(false),
@@ -383,6 +395,7 @@ pub(crate) fn render_app_overlays(
                 };
                 rsx! {
                     BulkRegexModal {
+                        locale: *st.ui_locale.read(),
                         book_service: book_service.clone(),
                         target_book_ids: ids,
                         on_close: move |_| st.bulk_regex_open.set(false),
@@ -395,6 +408,7 @@ pub(crate) fn render_app_overlays(
         // Automatic Import Rules Modal
         if *st.import_rules_open.read() {
             ImportRulesModal {
+                locale: *st.ui_locale.read(),
                 book_service: book_service.clone(),
                 on_close: move |_| st.import_rules_open.set(false),
             }

@@ -1,9 +1,11 @@
 use chrono::{Datelike, Duration, Utc};
 use dioxus::prelude::*;
+use vellum_core::{translate, translate_fmt, Locale};
 use vellum_domain::{Book, ReadingStats};
 
 #[component]
 pub fn ReadingStatsModal(
+    locale: Locale,
     stats: ReadingStats,
     on_close: EventHandler<()>,
     on_read_book: EventHandler<Book>,
@@ -55,8 +57,8 @@ pub fn ReadingStatsModal(
                     div { style: "display: flex; align-items: center; gap: 10px;",
                         span { style: "font-size: 26px;", "📊" }
                         div {
-                            h3 { style: "font-size: 17px; font-weight: 700; margin: 0;", "Statistiques & Habitudes de Lecture" }
-                            p { style: "font-size: 12px; color: var(--text-secondary); margin: 0;", "Quantified Reading : suivez votre rythme de lecture et vos genres favoris" }
+                            h3 { style: "font-size: 17px; font-weight: 700; margin: 0;", {translate(locale, "stats.title")} }
+                            p { style: "font-size: 12px; color: var(--text-secondary); margin: 0;", {translate(locale, "stats.subtitle")} }
                         }
                     }
                     button {
@@ -71,23 +73,23 @@ pub fn ReadingStatsModal(
                     // Key Metrics Grid
                     div { style: "display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;",
                         div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;",
-                            div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;", "Livres total" }
+                            div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;", {translate(locale, "stats.total_books")} }
                             div { style: "font-size: 24px; font-weight: 800; color: var(--text-primary); margin-top: 4px;", "{stats.total_books}" }
                         }
                         div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;",
-                            div { style: "font-size: 11px; font-weight: 700; color: #38bdf8; text-transform: uppercase;", "Temps estimé" }
+                            div { style: "font-size: 11px; font-weight: 700; color: #38bdf8; text-transform: uppercase;", {translate(locale, "stats.est_time")} }
                             div { style: "font-size: 24px; font-weight: 800; color: #38bdf8; margin-top: 4px;", "{stats.total_reading_hours} h" }
                         }
                         div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;",
-                            div { style: "font-size: 11px; font-weight: 700; color: #f59e0b; text-transform: uppercase;", "En cours" }
+                            div { style: "font-size: 11px; font-weight: 700; color: #f59e0b; text-transform: uppercase;", {translate(locale, "stats.reading")} }
                             div { style: "font-size: 24px; font-weight: 800; color: #f59e0b; margin-top: 4px;", "{stats.in_progress_books}" }
                         }
                         div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;",
-                            div { style: "font-size: 11px; font-weight: 700; color: #34d399; text-transform: uppercase;", "Terminés" }
+                            div { style: "font-size: 11px; font-weight: 700; color: #34d399; text-transform: uppercase;", {translate(locale, "stats.finished")} }
                             div { style: "font-size: 24px; font-weight: 800; color: #34d399; margin-top: 4px;", "{stats.finished_books} ({completion_pct}%)" }
                         }
                         div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center;",
-                            div { style: "font-size: 11px; font-weight: 700; color: #c084fc; text-transform: uppercase;", "Coups de cœur" }
+                            div { style: "font-size: 11px; font-weight: 700; color: #c084fc; text-transform: uppercase;", {translate(locale, "stats.favorites")} }
                             div { style: "font-size: 24px; font-weight: 800; color: #c084fc; margin-top: 4px;", "{stats.favorite_books}" }
                         }
                     }
@@ -95,8 +97,8 @@ pub fn ReadingStatsModal(
                     // Annual Activity Heatmap (GitHub Style)
                     div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px;",
                         div { style: "display: flex; justify-content: space-between; align-items: center;",
-                            div { style: "font-size: 13px; font-weight: 700; color: var(--text-primary);", "📅 Activité de lecture sur l'année (52 semaines)" }
-                            div { style: "font-size: 11px; color: var(--text-secondary);", "Chaque case représente un jour d'activité" }
+                            div { style: "font-size: 13px; font-weight: 700; color: var(--text-primary);", {translate(locale, "stats.heatmap_title")} }
+                            div { style: "font-size: 11px; color: var(--text-secondary);", {translate(locale, "stats.heatmap_hint")} }
                         }
 
                         // Grid of weeks
@@ -116,10 +118,11 @@ pub fn ReadingStatsModal(
                                             } else {
                                                 ("#22c55e", "#4ade80")
                                             };
+                                            let count_str = count.to_string();
                                             let tip = if *count == 0 {
-                                                format!("{day_str} : Aucune activité")
+                                                translate_fmt(locale, "stats.day_empty", &[("date", day_str)])
                                             } else {
-                                                format!("{day_str} : {count} livre(s) lu(s) ou progressé(s)")
+                                                translate_fmt(locale, "stats.day_active", &[("date", day_str), ("count", &count_str)])
                                             };
 
                                             rsx! {
@@ -136,12 +139,12 @@ pub fn ReadingStatsModal(
 
                         // Heatmap Legend
                         div { style: "display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary);",
-                            span { "Moins" }
+                            span { {translate(locale, "stats.less")} }
                             div { style: "width: 10px; height: 10px; border-radius: 2px; background: rgba(255, 255, 255, 0.04);" }
                             div { style: "width: 10px; height: 10px; border-radius: 2px; background: rgba(34, 197, 94, 0.35);" }
                             div { style: "width: 10px; height: 10px; border-radius: 2px; background: rgba(34, 197, 94, 0.65);" }
                             div { style: "width: 10px; height: 10px; border-radius: 2px; background: #22c55e;" }
-                            span { "Plus" }
+                            span { {translate(locale, "stats.more")} }
                         }
                     }
 
@@ -149,9 +152,9 @@ pub fn ReadingStatsModal(
                     div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 14px;",
                         // Top Genres / Tags
                         div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;",
-                            div { style: "font-size: 13px; font-weight: 700; color: var(--text-primary);", "🏷️ Répartition par Genres & Étiquettes" }
+                            div { style: "font-size: 13px; font-weight: 700; color: var(--text-primary);", {translate(locale, "stats.genres_title")} }
                             if stats.tag_distribution.is_empty() {
-                                div { style: "font-size: 12px; color: var(--text-secondary); font-style: italic; padding: 20px 0; text-align: center;", "Aucune étiquette renseignée" }
+                                div { style: "font-size: 12px; color: var(--text-secondary); font-style: italic; padding: 20px 0; text-align: center;", {translate(locale, "stats.no_tags")} }
                             } else {
                                 {
                                     let total_tagged: usize = stats.tag_distribution.values().sum();
@@ -166,11 +169,13 @@ pub fn ReadingStatsModal(
                                                     } else {
                                                         0
                                                     };
+                                                    let count_str = count.to_string();
+                                                    let books_label = translate_fmt(locale, "status.books_count", &[("count", &count_str)]);
                                                     rsx! {
                                                         div { style: "display: flex; flex-direction: column; gap: 3px;",
                                                             div { style: "display: flex; justify-content: space-between; font-size: 12px;",
                                                                 span { style: "font-weight: 600; color: var(--text-primary);", "{tag}" }
-                                                                span { style: "color: var(--text-secondary);", "{count} livre(s) ({pct}%)" }
+                                                                span { style: "color: var(--text-secondary);", "{books_label} ({pct}%)" }
                                                             }
                                                             div { style: "width: 100%; height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden;",
                                                                 div { style: "height: 100%; width: {pct}%; background: #6366f1; border-radius: 3px;" }
@@ -187,28 +192,29 @@ pub fn ReadingStatsModal(
 
                         // Recently Read Books
                         div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;",
-                            div { style: "font-size: 13px; font-weight: 700; color: var(--text-primary);", "📖 Dernières Lectures Actives" }
+                            div { style: "font-size: 13px; font-weight: 700; color: var(--text-primary);", {translate(locale, "stats.recent_title")} }
                             if stats.recently_read.is_empty() {
-                                div { style: "font-size: 12px; color: var(--text-secondary); font-style: italic; padding: 20px 0; text-align: center;", "Aucune session de lecture récente" }
+                                div { style: "font-size: 12px; color: var(--text-secondary); font-style: italic; padding: 20px 0; text-align: center;", {translate(locale, "stats.no_recent")} }
                             } else {
                                 div { style: "display: flex; flex-direction: column; gap: 8px;",
                                     for b in stats.recently_read.iter() {
                                         {
                                             let book_c = b.clone();
                                             let on_r = on_read_book;
-                                            let prog = b.progress_percent as u32;
+                                            let prog = (b.progress_percent as u32).to_string();
+                                            let subtitle = translate_fmt(locale, "stats.read_pct", &[("author", &b.author), ("pct", &prog)]);
                                             rsx! {
                                                 div {
                                                     style: "display: flex; justify-content: space-between; align-items: center; background: var(--bg-primary); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color);",
                                                     div { style: "flex: 1; min-width: 0; padding-right: 8px;",
                                                         div { style: "font-size: 12px; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{b.title}" }
-                                                        div { style: "font-size: 11px; color: var(--text-secondary);", "{b.author} • {prog}% lu" }
+                                                        div { style: "font-size: 11px; color: var(--text-secondary);", "{subtitle}" }
                                                     }
                                                     button {
                                                         class: "btn btn-secondary",
                                                         style: "font-size: 11px; padding: 3px 8px; white-space: nowrap;",
                                                         onclick: move |_| on_r.call(book_c.clone()),
-                                                        "Continuer"
+                                                        {translate(locale, "stats.continue")}
                                                     }
                                                 }
                                             }

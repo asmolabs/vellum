@@ -1,10 +1,11 @@
 use dioxus::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use vellum_core::{BookService, BulkConvertReport};
+use vellum_core::{translate, translate_fmt, BookService, BulkConvertReport, Locale};
 
 #[component]
 pub fn BulkConvertModal(
+    locale: Locale,
     book_service: Arc<BookService>,
     target_book_ids: Vec<String>,
     on_close: EventHandler<()>,
@@ -98,8 +99,14 @@ pub fn BulkConvertModal(
                 div {
                     style: "display: flex; align-items: center; justify-content: space-between;",
                     div {
-                        h2 { style: "margin: 0; font-size: 18px;", "🔄 Conversion en batch" }
-                        p { style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);", "{count} livre(s) sélectionné(s)" }
+                        h2 { style: "margin: 0; font-size: 18px;", {translate(locale, "bulk.convert_title")} }
+                        p {
+                            style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);",
+                            {
+                                let count_str = count.to_string();
+                                translate_fmt(locale, "bulk.selected_count", &[("count", &count_str)])
+                            }
+                        }
                     }
                     button {
                         class: "btn btn-secondary",
@@ -111,17 +118,17 @@ pub fn BulkConvertModal(
 
                 div {
                     style: "display: flex; flex-direction: column; gap: 8px;",
-                    label { style: "font-size: 13px; font-weight: 600;", "Format cible" }
+                    label { style: "font-size: 13px; font-weight: 600;", {translate(locale, "bulk.target_format")} }
                     select {
                         class: "form-input",
                         disabled: *is_running.read(),
                         value: "{target_format}",
                         onchange: move |e| target_format.set(e.value()),
-                        option { value: "epub", "EPUB (Pivot universel / liseuses)" }
-                        option { value: "kepub", "KEPUB (Kobo EPUB avec koboSpan)" }
-                        option { value: "pdf", "PDF (Document imprimable)" }
-                        option { value: "cbz", "CBZ (Archive BD / Manga)" }
-                        option { value: "txt", "TXT (Texte brut)" }
+                        option { value: "epub", {translate(locale, "bulk.fmt_epub")} }
+                        option { value: "kepub", {translate(locale, "bulk.fmt_kepub")} }
+                        option { value: "pdf", {translate(locale, "bulk.fmt_pdf")} }
+                        option { value: "cbz", {translate(locale, "bulk.fmt_cbz")} }
+                        option { value: "txt", {translate(locale, "bulk.fmt_txt")} }
                     }
                 }
 
@@ -129,7 +136,13 @@ pub fn BulkConvertModal(
                     div {
                         style: "padding: 10px 12px; border-radius: 8px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); display: flex; flex-direction: column; gap: 6px;",
                         div { style: "display: flex; justify-content: space-between; font-size: 12px; font-weight: 600;",
-                            span { "Progression : {done_val} / {total_val}" }
+                            span {
+                                {
+                                    let d = done_val.to_string();
+                                    let t = total_val.to_string();
+                                    translate_fmt(locale, "bulk.progress", &[("done", &d), ("total", &t)])
+                                }
+                            }
                             span { "{pct:.0}%" }
                         }
                         div { style: "width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden;",
@@ -137,7 +150,7 @@ pub fn BulkConvertModal(
                         }
                         if !current_title.read().is_empty() {
                             div { style: "font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-                                "En cours : {current_title}"
+                                {translate_fmt(locale, "bulk.running", &[("title", &current_title.read())])}
                             }
                         }
                     }
@@ -145,17 +158,29 @@ pub fn BulkConvertModal(
 
                 if let Some(rep) = report.read().as_ref() {
                     {
-                        let err_count = rep.errors.len();
+                        let err_count = rep.errors.len().to_string();
+                        let converted = rep.converted_count.to_string();
+                        let skipped = rep.skipped_count.to_string();
                         let status_prefix = if rep.cancelled {
-                            "Annulée"
+                            translate(locale, "bulk.status_cancelled")
                         } else {
-                            "Résultat"
+                            translate(locale, "bulk.status_result")
                         };
                         rsx! {
                             div {
                                 style: "padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); font-size: 13px; display: flex; flex-direction: column; gap: 6px;",
                                 div { style: "font-weight: 600;",
-                                    "{status_prefix} ({rep.target_format}) : {rep.converted_count} converti(s), {rep.skipped_count} ignoré(s), {err_count} erreur(s)"
+                                    {translate_fmt(
+                                        locale,
+                                        "bulk.convert_summary",
+                                        &[
+                                            ("prefix", status_prefix),
+                                            ("fmt", &rep.target_format),
+                                            ("converted", &converted),
+                                            ("skipped", &skipped),
+                                            ("errors", &err_count),
+                                        ],
+                                    )}
                                 }
                                 for err in rep.errors.iter().take(5) {
                                     div { style: "font-size: 12px; color: #fca5a5;", "• {err}" }
@@ -175,18 +200,18 @@ pub fn BulkConvertModal(
                                     flag.store(true, Ordering::Relaxed);
                                 }
                             },
-                            "⏹ Annuler le lot"
+                            {translate(locale, "bulk.cancel_batch")}
                         }
                     } else {
                         button {
                             class: "btn btn-secondary",
                             onclick: move |_| on_close.call(()),
-                            "Fermer"
+                            {translate(locale, "action.close")}
                         }
                         button {
                             class: "btn btn-primary",
                             onclick: run_convert,
-                            "🚀 Lancer la conversion"
+                            {translate(locale, "bulk.start_convert")}
                         }
                     }
                 }

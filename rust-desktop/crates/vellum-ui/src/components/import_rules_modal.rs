@@ -1,9 +1,13 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
-use vellum_core::{BookService, ImportRule, ImportRuleTarget};
+use vellum_core::{translate, BookService, ImportRule, ImportRuleTarget, Locale};
 
 #[component]
-pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<()>) -> Element {
+pub fn ImportRulesModal(
+    locale: Locale,
+    book_service: Arc<BookService>,
+    on_close: EventHandler<()>,
+) -> Element {
     let mut rules = use_signal(|| book_service.get_import_rules());
     let mut name = use_signal(String::new);
     let mut target = use_signal(|| ImportRuleTarget::Title);
@@ -18,9 +22,9 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
         move |next: Vec<ImportRule>| match bs.save_import_rules(&next) {
             Ok(()) => {
                 rules.set(next);
-                status_msg.set(Some(("Règles enregistrées.".to_string(), true)));
+                status_msg.set(Some((translate(locale, "rules.saved").to_string(), true)));
             }
-            Err(e) => status_msg.set(Some((format!("Erreur de sauvegarde : {e}"), false))),
+            Err(e) => status_msg.set(Some((format!("Erreur : {e}"), false))),
         }
     };
 
@@ -30,7 +34,10 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
             let n = name.read().trim().to_string();
             let pat = match_regex.read().trim().to_string();
             if n.is_empty() || pat.is_empty() {
-                status_msg.set(Some(("Nom et motif Regex requis.".to_string(), false)));
+                status_msg.set(Some((
+                    translate(locale, "rules.missing_fields").to_string(),
+                    false,
+                )));
                 return;
             }
             let mut rule = ImportRule::new(n, *target.read(), pat);
@@ -71,8 +78,8 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                 div {
                     style: "display: flex; align-items: center; justify-content: space-between;",
                     div {
-                        h2 { style: "margin: 0; font-size: 18px;", "⚙️ Règles d'import automatiques" }
-                        p { style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);", "Appliquées automatiquement à chaque import manuel ou via Watch Folder." }
+                        h2 { style: "margin: 0; font-size: 18px;", {translate(locale, "rules.title")} }
+                        p { style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);", {translate(locale, "rules.subtitle")} }
                     }
                     button {
                         class: "btn btn-secondary",
@@ -87,7 +94,7 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                         style: "display: grid; grid-template-columns: 1fr 140px 1fr; gap: 8px;",
                         input {
                             class: "form-input",
-                            placeholder: "Nom de la règle",
+                            placeholder: translate(locale, "rules.name_ph"),
                             value: "{name}",
                             oninput: move |e| name.set(e.value()),
                         }
@@ -101,9 +108,9 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                                 };
                                 target.set(t);
                             },
-                            option { value: "title", selected: *target.read() == ImportRuleTarget::Title, "Titre" }
-                            option { value: "author", selected: *target.read() == ImportRuleTarget::Author, "Auteur" }
-                            option { value: "filename", selected: *target.read() == ImportRuleTarget::Filename, "Nom de fichier" }
+                            option { value: "title", selected: *target.read() == ImportRuleTarget::Title, {translate(locale, "table.col_title")} }
+                            option { value: "author", selected: *target.read() == ImportRuleTarget::Author, {translate(locale, "table.col_author")} }
+                            option { value: "filename", selected: *target.read() == ImportRuleTarget::Filename, {translate(locale, "rules.filename")} }
                         }
                         input {
                             class: "form-input",
@@ -116,13 +123,13 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                         style: "display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: center;",
                         input {
                             class: "form-input",
-                            placeholder: "Tags à ajouter (séparés par virgule)",
+                            placeholder: translate(locale, "rules.tags_ph"),
                             value: "{add_tags}",
                             oninput: move |e| add_tags.set(e.value()),
                         }
                         input {
                             class: "form-input",
-                            placeholder: "Série à assigner (optionnel)",
+                            placeholder: translate(locale, "rules.series_ph"),
                             value: "{set_series}",
                             oninput: move |e| set_series.set(e.value()),
                         }
@@ -138,7 +145,7 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                         button {
                             class: "btn btn-primary",
                             onclick: handle_add,
-                            "+ Ajouter"
+                            {translate(locale, "settings.add_btn")}
                         }
                     }
                 }
@@ -157,7 +164,7 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                 div {
                     style: "flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;",
                     if rules.read().is_empty() {
-                        p { style: "color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;", "Aucune règle configurée." }
+                        p { style: "color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;", {translate(locale, "rules.empty")} }
                     }
                     for rule in rules.read().iter() {
                         {
@@ -179,8 +186,8 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                                         }
                                         div {
                                             style: "font-size: 12px; color: var(--text-secondary);",
-                                            "Tags: {tags_str} • Série: {ser_str} • Polish: ",
-                                            if rule.auto_polish { "oui" } else { "non" }
+                                            "Tags: {tags_str} • {translate(locale, \"table.col_series\")}: {ser_str} • Polish: ",
+                                            {if rule.auto_polish { translate(locale, "rules.yes") } else { translate(locale, "rules.no") }}
                                         }
                                     }
                                     div {
@@ -194,7 +201,7 @@ pub fn ImportRulesModal(book_service: Arc<BookService>, on_close: EventHandler<(
                                                 }
                                                 p_toggle(next);
                                             },
-                                            if rule.enabled { "Activée" } else { "Désactivée" }
+                                            {if rule.enabled { translate(locale, "rules.enabled") } else { translate(locale, "rules.disabled") }}
                                         }
                                         button {
                                             class: "btn btn-danger",

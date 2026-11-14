@@ -1,11 +1,13 @@
 use crate::state::ReaderSession;
 use dioxus::prelude::*;
+use vellum_core::i18n::{translate, translate_fmt, Locale};
 
 use super::jump_and_notify;
 
 #[component]
 pub(super) fn ReaderTocDrawer(
     mut session: Signal<Option<ReaderSession>>,
+    locale: Locale,
     mut active_drawer: Signal<Option<String>>,
     mut drawer_tab: Signal<String>,
     mut toc_filter: Signal<String>,
@@ -31,8 +33,18 @@ pub(super) fn ReaderTocDrawer(
 
                 div { class: "reader-toc-header",
                     div { style: "display: flex; flex-direction: column;",
-                        span { style: "font-weight: 600; font-size: 14px; color: var(--text-primary);", "Sommaire & Annotations" }
-                        span { style: "font-size: 11px; color: var(--text-muted);", "{total_chapters} chapitres • {user_data.bookmarks.len()} signets • {user_data.highlights.len()} notes" }
+                        span { style: "font-weight: 600; font-size: 14px; color: var(--text-primary);", {translate(locale, "reader.toc_header")} }
+                        span { style: "font-size: 11px; color: var(--text-muted);",
+                            {translate_fmt(
+                                locale,
+                                "reader.toc_summary",
+                                &[
+                                    ("chapters", &total_chapters.to_string()),
+                                    ("bookmarks", &user_data.bookmarks.len().to_string()),
+                                    ("notes", &user_data.highlights.len().to_string()),
+                                ],
+                            )}
+                        }
                     }
                     button {
                         class: "btn btn-icon",
@@ -45,17 +57,25 @@ pub(super) fn ReaderTocDrawer(
                     button {
                         class: if *drawer_tab.read() == "toc" { "reader-drawer-tab active" } else { "reader-drawer-tab" },
                         onclick: move |_| drawer_tab.set("toc".to_string()),
-                        "Sommaire"
+                        {translate(locale, "reader.tab_toc")}
                     }
                     button {
                         class: if *drawer_tab.read() == "bookmarks" { "reader-drawer-tab active" } else { "reader-drawer-tab" },
                         onclick: move |_| drawer_tab.set("bookmarks".to_string()),
-                        "Signets ({user_data.bookmarks.len()})"
+                        {translate_fmt(
+                            locale,
+                            "reader.tab_bookmarks",
+                            &[("count", &user_data.bookmarks.len().to_string())],
+                        )}
                     }
                     button {
                         class: if *drawer_tab.read() == "highlights" { "reader-drawer-tab active" } else { "reader-drawer-tab" },
                         onclick: move |_| drawer_tab.set("highlights".to_string()),
-                        "Notes ({user_data.highlights.len()})"
+                        {translate_fmt(
+                            locale,
+                            "reader.tab_highlights",
+                            &[("count", &user_data.highlights.len().to_string())],
+                        )}
                     }
                 }
 
@@ -63,7 +83,7 @@ pub(super) fn ReaderTocDrawer(
                     div { style: "padding: 10px 14px; border-bottom: 1px solid var(--border-subtle);",
                         input {
                             style: "width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-size: 12px; outline: none;",
-                            placeholder: "Filtrer les chapitres...",
+                            placeholder: translate(locale, "reader.toc_filter_placeholder"),
                             value: "{toc_filter}",
                             oninput: move |e| toc_filter.set(e.value()),
                         }
@@ -72,7 +92,7 @@ pub(super) fn ReaderTocDrawer(
                     div { class: "reader-toc-list",
                         if filtered_toc.is_empty() {
                             div { style: "padding: 30px 10px; text-align: center; color: var(--text-muted); font-size: 12px;",
-                                "Aucun chapitre trouvé."
+                                {translate(locale, "reader.toc_empty")}
                             }
                         } else {
                             for (idx, title) in filtered_toc.iter() {
@@ -104,8 +124,8 @@ pub(super) fn ReaderTocDrawer(
                         if user_data.bookmarks.is_empty() {
                             div { style: "padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 12px;",
                                 p { style: "font-size: 24px; margin-bottom: 8px;", "🔖" }
-                                p { "Aucun signet enregistré." }
-                                p { style: "margin-top: 6px; font-size: 11px; opacity: 0.7;", "Appuyez sur B ou sur « 📑 Marquer » pour ajouter un signet." }
+                                p { {translate(locale, "reader.bookmarks_empty")} }
+                                p { style: "margin-top: 6px; font-size: 11px; opacity: 0.7;", {translate(locale, "reader.bookmarks_hint")} }
                             }
                         } else {
                             for bm in user_data.bookmarks.iter() {
@@ -128,7 +148,7 @@ pub(super) fn ReaderTocDrawer(
                                                 button {
                                                     class: "btn btn-icon",
                                                     style: "padding: 2px 6px; font-size: 11px;",
-                                                    title: "Supprimer ce signet",
+                                                    title: translate(locale, "reader.bookmark_delete"),
                                                     onclick: {
                                                         let id = bm_id.clone();
                                                         move |_| {
@@ -159,8 +179,8 @@ pub(super) fn ReaderTocDrawer(
                         if user_data.highlights.is_empty() {
                             div { style: "padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 12px;",
                                 p { style: "font-size: 24px; margin-bottom: 8px;", "🖍" }
-                                p { "Aucun surlignage ni note." }
-                                p { style: "margin-top: 6px; font-size: 11px; opacity: 0.7;", "Sélectionnez du texte dans le livre pour surligner ou ajouter une note." }
+                                p { {translate(locale, "reader.highlights_empty")} }
+                                p { style: "margin-top: 6px; font-size: 11px; opacity: 0.7;", {translate(locale, "reader.highlights_hint")} }
                             }
                         } else {
                             for h in user_data.highlights.iter() {
@@ -188,7 +208,7 @@ pub(super) fn ReaderTocDrawer(
                                                 button {
                                                     class: "btn btn-icon",
                                                     style: "padding: 2px 6px; font-size: 11px;",
-                                                    title: "Supprimer cette note",
+                                                    title: translate(locale, "reader.highlight_delete"),
                                                     onclick: {
                                                         let id = h_id.clone();
                                                         move |_| {

@@ -1,10 +1,12 @@
 use crate::state::ReaderSession;
 use dioxus::prelude::*;
+use vellum_core::i18n::{translate, translate_fmt, Locale};
 use vellum_core::reader_store::{ComicFitMode, ComicReadingMode, ReaderPreferences};
 
 #[component]
 pub(super) fn ReaderToolbar(
     mut session: Signal<Option<ReaderSession>>,
+    locale: Locale,
     mut show_chrome: Signal<bool>,
     mut active_drawer: Signal<Option<String>>,
     current_drawer: Option<String>,
@@ -27,24 +29,28 @@ pub(super) fn ReaderToolbar(
                 button {
                     class: "btn btn-secondary",
                     onclick: move |_| on_close.call(()),
-                    "← Bibliothèque"
+                    {translate(locale, "reader.back_library")}
                 }
 
                 button {
                     class: if is_bookmarked { "btn btn-secondary active" } else { "btn btn-secondary" },
-                    title: "Marquer cette page (B)",
+                    title: translate(locale, "reader.bookmark_title"),
                     onclick: move |_| {
                         let mut mut_sess = session.write();
                         if let Some(s) = mut_sess.as_mut() {
                             s.toggle_current_bookmark();
                         }
                     },
-                    if is_bookmarked { "🔖 Marqué" } else { "📑 Marquer" }
+                    if is_bookmarked {
+                        {translate(locale, "reader.bookmarked")}
+                    } else {
+                        {translate(locale, "reader.bookmark_btn")}
+                    }
                 }
 
                 button {
                     class: if current_drawer.as_deref() == Some("toc") { "btn btn-secondary active" } else { "btn btn-secondary" },
-                    title: "Sommaire, signets & citations (T)",
+                    title: translate(locale, "reader.toc_title"),
                     onclick: move |_| {
                         let cur = active_drawer.read().clone();
                         if cur.as_deref() == Some("toc") {
@@ -53,12 +59,12 @@ pub(super) fn ReaderToolbar(
                             active_drawer.set(Some("toc".to_string()));
                         }
                     },
-                    "📑 Sommaire"
+                    {translate(locale, "reader.toc_btn")}
                 }
 
                 button {
                     class: if current_drawer.as_deref() == Some("search") { "btn btn-secondary active" } else { "btn btn-secondary" },
-                    title: "Recherche dans le livre (S)",
+                    title: translate(locale, "reader.search_title"),
                     onclick: move |_| {
                         let cur = active_drawer.read().clone();
                         if cur.as_deref() == Some("search") {
@@ -73,7 +79,7 @@ pub(super) fn ReaderToolbar(
                 if has_history {
                     button {
                         class: "btn btn-icon",
-                        title: "Page précédente de l'historique",
+                        title: translate(locale, "reader.history_back_title"),
                         onclick: move |_| on_history_back.call(()),
                         "↩"
                     }
@@ -90,7 +96,7 @@ pub(super) fn ReaderToolbar(
                     div { class: "comic-mode-pill",
                         button {
                             class: if prefs.comic_reading_mode == ComicReadingMode::SinglePage { "comic-pill-btn active" } else { "comic-pill-btn" },
-                            title: "Mode 1 planche",
+                            title: translate(locale, "reader.comic_1p_title"),
                             onclick: move |_| {
                                 let mut mut_sess = session.write();
                                 if let Some(s) = mut_sess.as_mut() {
@@ -98,11 +104,11 @@ pub(super) fn ReaderToolbar(
                                     s.save_prefs();
                                 }
                             },
-                            "📄 1 Page"
+                            {translate(locale, "reader.comic_1p_btn")}
                         }
                         button {
                             class: if prefs.comic_reading_mode == ComicReadingMode::DoublePage { "comic-pill-btn active" } else { "comic-pill-btn" },
-                            title: "Mode double-page (planche manga/BD)",
+                            title: translate(locale, "reader.comic_2p_title"),
                             onclick: move |_| {
                                 let mut mut_sess = session.write();
                                 if let Some(s) = mut_sess.as_mut() {
@@ -113,11 +119,11 @@ pub(super) fn ReaderToolbar(
                                     s.save_prefs();
                                 }
                             },
-                            "📖 2 Pages"
+                            {translate(locale, "reader.comic_2p_btn")}
                         }
                         button {
                             class: if prefs.comic_reading_mode == ComicReadingMode::Webtoon { "comic-pill-btn active" } else { "comic-pill-btn" },
-                            title: "Mode Webtoon (défilement vertical infini)",
+                            title: translate(locale, "reader.comic_webtoon_title"),
                             onclick: move |_| {
                                 let mut mut_sess = session.write();
                                 if let Some(s) = mut_sess.as_mut() {
@@ -125,14 +131,18 @@ pub(super) fn ReaderToolbar(
                                     s.save_prefs();
                                 }
                             },
-                            "📜 Webtoon"
+                            {translate(locale, "reader.comic_webtoon_btn")}
                         }
                     }
 
                     button {
                         class: if prefs.comic_rtl { "btn btn-secondary active" } else { "btn btn-secondary" },
                         style: "font-size: 11px; padding: 4px 10px;",
-                        title: if prefs.comic_rtl { "Sens japonais : Droite à Gauche (Actif)" } else { "Sens occidental : Gauche à Droite (Actif)" },
+                        title: if prefs.comic_rtl {
+                            translate(locale, "reader.dir_rtl_title")
+                        } else {
+                            translate(locale, "reader.dir_ltr_title")
+                        },
                         onclick: move |_| {
                             let mut mut_sess = session.write();
                             if let Some(s) = mut_sess.as_mut() {
@@ -140,16 +150,20 @@ pub(super) fn ReaderToolbar(
                                 s.save_prefs();
                             }
                         },
-                        if prefs.comic_rtl { "🇯🇵 Manga (D ➔ G)" } else { "🇫🇷 BD (G ➔ D)" }
+                        if prefs.comic_rtl {
+                            {translate(locale, "reader.dir_rtl_btn")}
+                        } else {
+                            {translate(locale, "reader.dir_ltr_btn")}
+                        }
                     }
 
                     button {
                         class: "btn btn-secondary",
                         style: "font-size: 11px; padding: 4px 10px;",
                         title: match prefs.comic_fit_mode {
-                            ComicFitMode::FitHeight => "Ajusté à la hauteur de l'écran",
-                            ComicFitMode::FitWidth => "Ajusté à la largeur",
-                            ComicFitMode::Original => "Taille originale de l'image (100%)",
+                            ComicFitMode::FitHeight => translate(locale, "reader.fit_height_title"),
+                            ComicFitMode::FitWidth => translate(locale, "reader.fit_width_title"),
+                            ComicFitMode::Original => translate(locale, "reader.fit_original_title"),
                         },
                         onclick: move |_| {
                             let mut mut_sess = session.write();
@@ -163,15 +177,15 @@ pub(super) fn ReaderToolbar(
                             }
                         },
                         match prefs.comic_fit_mode {
-                            ComicFitMode::FitHeight => "↕ Hauteur",
-                            ComicFitMode::FitWidth => "↔ Largeur",
-                            ComicFitMode::Original => "🔍 100%",
+                            ComicFitMode::FitHeight => translate(locale, "reader.fit_height_btn"),
+                            ComicFitMode::FitWidth => translate(locale, "reader.fit_width_btn"),
+                            ComicFitMode::Original => translate(locale, "reader.fit_original_btn"),
                         }
                     }
                 } else {
                     div {
                         style: "display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 14px; font-size: 11px; color: var(--text-secondary); cursor: default;",
-                        title: "Temps restant estimé : {time_ch} dans ce chapitre • {time_book} pour finir le livre (basé sur {prefs.words_per_minute} mpm)",
+                        title: "{translate_fmt(locale, \"reader.eta_title\", &[(\"ch\", &time_ch), (\"book\", &time_book), (\"wpm\", &prefs.words_per_minute.to_string())])}",
                         span { "⏱" }
                         span { "{time_ch}" }
                     }
@@ -179,7 +193,7 @@ pub(super) fn ReaderToolbar(
                     div { style: "display: flex; align-items: center; gap: 2px;",
                         button {
                             class: "btn btn-icon",
-                            title: "Réduire police (-)",
+                            title: translate(locale, "reader.font_smaller"),
                             onclick: move |_| {
                                 let mut mut_sess = session.write();
                                 if let Some(s) = mut_sess.as_mut() {
@@ -195,7 +209,7 @@ pub(super) fn ReaderToolbar(
                         span { style: "font-size: 11px; width: 22px; text-align: center; color: var(--text-primary);", "{font_size}" }
                         button {
                             class: "btn btn-icon",
-                            title: "Agrandir police (+)",
+                            title: translate(locale, "reader.font_larger"),
                             onclick: move |_| {
                                 let mut mut_sess = session.write();
                                 if let Some(s) = mut_sess.as_mut() {
@@ -213,7 +227,7 @@ pub(super) fn ReaderToolbar(
 
                 button {
                     class: if current_drawer.as_deref() == Some("settings") { "btn btn-secondary active" } else { "btn btn-secondary" },
-                    title: "Préférences d'affichage et lecture",
+                    title: translate(locale, "reader.settings_title"),
                     onclick: move |_| {
                         let cur = active_drawer.read().clone();
                         if cur.as_deref() == Some("settings") {
@@ -222,12 +236,12 @@ pub(super) fn ReaderToolbar(
                             active_drawer.set(Some("settings".to_string()));
                         }
                     },
-                    "⚙ Réglages"
+                    {translate(locale, "reader.settings_btn")}
                 }
 
                 button {
                     class: "btn btn-icon",
-                    title: "Mode immersif (M / F)",
+                    title: translate(locale, "reader.immersive_title"),
                     onclick: move |_| show_chrome.set(false),
                     "⛶"
                 }

@@ -3,6 +3,7 @@ mod edit_form;
 use dioxus::prelude::*;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use vellum_core::{translate, translate_fmt, Locale};
 use vellum_domain::{Book, CustomColumnDefinition};
 
 use self::edit_form::MetadataEditForm;
@@ -24,6 +25,7 @@ pub struct SaveMetadataRequest {
 
 #[component]
 pub fn DetailDrawer(
+    locale: Locale,
     book: Book,
     convertible_formats: Vec<String>,
     connected_devices: Vec<vellum_core::ConnectedDevice>,
@@ -72,11 +74,11 @@ pub fn DetailDrawer(
     let publisher = book
         .publisher
         .clone()
-        .unwrap_or_else(|| "Éditeur non renseigné".to_string());
+        .unwrap_or_else(|| translate(locale, "drawer.unknown_publisher").to_string());
     let description = book
         .description
         .clone()
-        .unwrap_or_else(|| "Aucune description disponible.".to_string());
+        .unwrap_or_else(|| translate(locale, "drawer.no_description").to_string());
     let formats = book.formats.clone();
     let tags = book.tags.clone();
     let book_id = book.id.clone();
@@ -106,9 +108,9 @@ pub fn DetailDrawer(
                 div { class: "drawer-header",
                     span { style: "font-weight: 600; color: var(--text-muted); font-size: 13px;",
                         if *is_editing.read() {
-                            "Édition des métadonnées"
+                            {translate(locale, "drawer.editing_title")}
                         } else {
-                            "Détails de l'ouvrage"
+                            {translate(locale, "drawer.details_title")}
                         }
                     }
                     div { style: "display: flex; align-items: center; gap: 8px;",
@@ -131,7 +133,7 @@ pub fn DetailDrawer(
                                         is_editing.set(true);
                                     }
                                 },
-                                "✏️ Modifier"
+                                {translate(locale, "drawer.edit_btn")}
                             }
                         }
 
@@ -145,6 +147,7 @@ pub fn DetailDrawer(
 
                 if *is_editing.read() {
                     MetadataEditForm {
+                        locale: locale,
                         book_id: book_id.clone(),
                         edit_title,
                         edit_author,
@@ -177,9 +180,10 @@ pub fn DetailDrawer(
                                 style: "font-size: 11px; padding: 4px 8px; width: 100%;",
                                 onclick: {
                                     let b_id = book_id.clone();
+                                    let pick_title = translate(locale, "drawer.pick_cover_title").to_string();
                                     move |_| {
                                         let file = rfd::FileDialog::new()
-                                            .set_title("Sélectionner une nouvelle image de couverture")
+                                            .set_title(&pick_title)
                                             .add_filter("Images", &["jpg", "jpeg", "png", "webp"])
                                             .pick_file();
                                         if let Some(path) = file {
@@ -187,7 +191,7 @@ pub fn DetailDrawer(
                                         }
                                     }
                                 },
-                                "🖼 Couverture"
+                                {translate(locale, "drawer.cover_btn")}
                             }
                         }
 
@@ -197,7 +201,7 @@ pub fn DetailDrawer(
                                 div {
                                     style: "font-size: 13px; font-weight: 600; color: #a78bfa; margin-top: 2px;",
                                     if let Some(idx) = book.series_index {
-                                        "📚 {s} • Tome {idx}"
+                                        {translate_fmt(locale, "drawer.series_volume", &[("series", s), ("index", &idx.to_string())])}
                                     } else {
                                         "📚 {s}"
                                     }
@@ -209,13 +213,13 @@ pub fn DetailDrawer(
                                 div { style: "font-size: 11px; color: var(--text-muted); font-family: monospace; margin-top: 3px;", "ISBN: {isbn_val}" }
                             }
                             if let Some(ref date_val) = book.publish_date {
-                                div { style: "font-size: 11px; color: var(--text-muted); margin-top: 2px;", "Publié : {date_val}" }
+                                div { style: "font-size: 11px; color: var(--text-muted); margin-top: 2px;", {translate_fmt(locale, "drawer.published", &[("date", date_val)])} }
                             }
 
                             if book.progress_percent > 0.0 {
                                 div { style: "margin-top: 10px;",
                                     div { style: "display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;",
-                                        span { "Progression" }
+                                        span { {translate(locale, "drawer.progress")} }
                                         span { "{book.progress_percent:.0}%" }
                                     }
                                     div { class: "progress-track",
@@ -232,7 +236,7 @@ pub fn DetailDrawer(
                                         let book_clone = book.clone();
                                         move |_| on_read.call(book_clone.clone())
                                     },
-                                    "📖 Lire l'ouvrage"
+                                    {translate(locale, "drawer.read_book")}
                                 }
 
                                 div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 8px;",
@@ -243,7 +247,7 @@ pub fn DetailDrawer(
                                             let b_id = book_id.clone();
                                             move |_| on_enrich_metadata.call(b_id.clone())
                                         },
-                                        "✨ Enrichir"
+                                        {translate(locale, "drawer.enrich")}
                                     }
                                     button {
                                         class: "drawer-action-btn",
@@ -252,7 +256,7 @@ pub fn DetailDrawer(
                                             let b_id = book_id.clone();
                                             move |_| on_export_file.call((b_id.clone(), None))
                                         },
-                                        "💾 Exporter"
+                                        {translate(locale, "drawer.export")}
                                     }
                                 }
 
@@ -263,7 +267,7 @@ pub fn DetailDrawer(
                                         let cur = *show_more_actions.read();
                                         show_more_actions.set(!cur);
                                     },
-                                    span { "⚡ Plus d'actions (IA, Notes, EPUB, Liseuse)" }
+                                    span { {translate(locale, "drawer.more_actions")} }
                                     span { if *show_more_actions.read() { "▴" } else { "▾" } }
                                 }
 
@@ -277,7 +281,7 @@ pub fn DetailDrawer(
                                                 let book_clone = book.clone();
                                                 move |_| on_open_translate.call(book_clone.clone())
                                             },
-                                            "🌐 Traduire avec l'IA"
+                                            {translate(locale, "drawer.ai_translate")}
                                         }
 
                                         button {
@@ -287,7 +291,7 @@ pub fn DetailDrawer(
                                                 let b_id = book_id.clone();
                                                 move |_| on_export_notes_md.call(b_id.clone())
                                             },
-                                            "📝 Exporter Notes (Markdown)"
+                                            {translate(locale, "drawer.export_notes")}
                                         }
 
                                         if can_send_kindle {
@@ -300,7 +304,7 @@ pub fn DetailDrawer(
                                                     move |_| on_send_to_kindle.call(book_clone.clone())
                                                 },
                                                 span { if is_sending_kindle { "⏳" } else { "✉️" } }
-                                                if is_sending_kindle { " Envoi vers Kindle..." } else { " Envoyer à ma Kindle" }
+                                                {if is_sending_kindle { translate(locale, "drawer.sending_kindle") } else { translate(locale, "drawer.send_kindle") }}
                                             }
                                         }
 
@@ -334,7 +338,7 @@ pub fn DetailDrawer(
                                         style: "margin-top: 8px; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 6px;",
                                         div {
                                             style: "font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em;",
-                                            "Colonnes personnalisées"
+                                            {translate(locale, "drawer.custom_columns")}
                                         }
                                         for col in custom_columns.iter() {
                                             {
@@ -368,15 +372,15 @@ pub fn DetailDrawer(
                                             let icon = match dev_kind {
                                                 vellum_domain::DeviceKind::Kobo => "📱 Kobo (KEPUB)",
                                                 vellum_domain::DeviceKind::Kindle => "📱 Kindle (AZW3/MOBI)",
-                                                vellum_domain::DeviceKind::Generic => "📱 Liseuse",
+                                                vellum_domain::DeviceKind::Generic => translate(locale, "drawer.generic_device"),
                                             };
                                             rsx! {
                                                 button {
                                                     class: "drawer-action-btn",
                                                     style: "width: 100%; justify-content: center; background: rgba(16, 185, 129, 0.12); color: #34d399; border-color: rgba(16, 185, 129, 0.3); font-weight: 600;",
                                                     onclick: move |_| on_export_to_device.call((b_id.clone(), dev_kind)),
-                                                    title: "Exporter vers {dev_name}",
-                                                    "📤 Envoyer vers {icon}"
+                                                    title: translate_fmt(locale, "drawer.export_to_title", &[("device", &dev_name)]),
+                                                    {translate_fmt(locale, "drawer.send_to_device", &[("device", icon)])}
                                                 }
                                             }
                                         }
@@ -390,7 +394,7 @@ pub fn DetailDrawer(
                                                 let b_id = book_id.clone();
                                                 move |_| on_export_to_device.call((b_id.clone(), vellum_domain::DeviceKind::Kobo))
                                             },
-                                            "📱 Vers Kobo"
+                                            {translate(locale, "drawer.to_kobo")}
                                         }
                                         button {
                                             class: "drawer-action-btn",
@@ -399,7 +403,7 @@ pub fn DetailDrawer(
                                                 let b_id = book_id.clone();
                                                 move |_| on_export_to_device.call((b_id.clone(), vellum_domain::DeviceKind::Kindle))
                                             },
-                                            "📱 Vers Kindle"
+                                            {translate(locale, "drawer.to_kindle")}
                                         }
                                     }
                                 }
@@ -409,7 +413,7 @@ pub fn DetailDrawer(
 
                     if !tags.is_empty() {
                         div {
-                            div { class: "sidebar-section-title", "Catégories & Tags" }
+                            div { class: "sidebar-section-title", {translate(locale, "drawer.categories_tags")} }
                             div { class: "tags-cloud",
                                 for t in tags.iter() {
                                     span { class: "tag-pill", "#{t.name}" }
@@ -419,7 +423,7 @@ pub fn DetailDrawer(
                     }
 
                     div {
-                        div { class: "sidebar-section-title", "Fichiers & Formats" }
+                        div { class: "sidebar-section-title", {translate(locale, "drawer.files_formats")} }
                         div { style: "display: flex; flex-direction: column; gap: 6px;",
                             for fmt in formats.iter() {
                                 div {
@@ -435,7 +439,7 @@ pub fn DetailDrawer(
 
                         if !convertible_formats.is_empty() {
                             div { style: "margin-top: 10px; padding: 10px 12px; background: rgba(99, 102, 241, 0.08); border: 1px dashed rgba(99, 102, 241, 0.3); border-radius: 8px;",
-                                div { style: "font-size: 11px; font-weight: 600; color: var(--accent-primary); margin-bottom: 6px;", "Convertir vers (format pivot) :" }
+                                div { style: "font-size: 11px; font-weight: 600; color: var(--accent-primary); margin-bottom: 6px;", {translate(locale, "drawer.convert_to")} }
                                 div { style: "display: flex; flex-wrap: wrap; gap: 6px;",
                                     for target in convertible_formats.iter() {
                                         {
@@ -457,7 +461,7 @@ pub fn DetailDrawer(
                     }
 
                     div {
-                        div { class: "sidebar-section-title", "Synopsis" }
+                        div { class: "sidebar-section-title", {translate(locale, "drawer.synopsis")} }
                         div { class: "drawer-description", "{description}" }
                     }
 
@@ -469,7 +473,7 @@ pub fn DetailDrawer(
                                 let b_id = book_id.clone();
                                 move |_| on_delete.call(b_id.clone())
                             },
-                            "🗑 Supprimer de la bibliothèque"
+                            {translate(locale, "drawer.delete_book")}
                         }
                     }
                 }

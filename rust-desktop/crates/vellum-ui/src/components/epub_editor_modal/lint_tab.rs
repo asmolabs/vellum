@@ -1,10 +1,12 @@
 //! Onglet de diagnostic et réparation automatique EPUB.
 
 use dioxus::prelude::*;
+use vellum_core::{translate, translate_fmt, Locale};
 use vellum_domain::{EpubDiagnostics, EpubIssueSeverity};
 
 #[component]
 pub(super) fn EpubLintTab(
+    locale: Locale,
     diagnostics: Signal<Option<EpubDiagnostics>>,
     is_operating: Signal<bool>,
     on_repair: EventHandler<()>,
@@ -14,50 +16,50 @@ pub(super) fn EpubLintTab(
             // 1. Metric Cards
             div { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;",
                 div { style: "background: var(--bg-card); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);",
-                    div { style: "font-size: 11px; color: var(--text-secondary);", "Conformité" }
+                    div { style: "font-size: 11px; color: var(--text-secondary);", {translate(locale, "epub.compliance")} }
                     div { style: "font-size: 14px; font-weight: 700; margin-top: 4px;",
                         if diag.is_valid {
-                            span { style: "color: #34d399;", "🟢 Conforme" }
+                            span { style: "color: #34d399;", {translate(locale, "epub.valid")} }
                         } else {
-                            span { style: "color: #f87171;", "🔴 Erreurs" }
+                            span { style: "color: #f87171;", {translate(locale, "epub.invalid")} }
                         }
                     }
                 }
 
                 div { style: "background: var(--bg-card); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);",
-                    div { style: "font-size: 11px; color: var(--text-secondary);", "Standard" }
+                    div { style: "font-size: 11px; color: var(--text-secondary);", {translate(locale, "epub.standard")} }
                     div { style: "font-size: 14px; font-weight: 700; margin-top: 4px; color: var(--text-primary);",
                         "EPUB {diag.epub_version}"
                     }
                 }
 
                 div { style: "background: var(--bg-card); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);",
-                    div { style: "font-size: 11px; color: var(--text-secondary);", "Chapitres (Spine)" }
+                    div { style: "font-size: 11px; color: var(--text-secondary);", {translate(locale, "epub.spine")} }
                     div { style: "font-size: 14px; font-weight: 700; margin-top: 4px; color: var(--text-primary);",
                         "{diag.spine_count}"
                     }
                 }
 
                 div { style: "background: var(--bg-card); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);",
-                    div { style: "font-size: 11px; color: var(--text-secondary);", "Entrées TOC" }
+                    div { style: "font-size: 11px; color: var(--text-secondary);", {translate(locale, "epub.toc_entries")} }
                     div { style: "font-size: 14px; font-weight: 700; margin-top: 4px; color: var(--text-primary);",
                         "{diag.toc_entries_count}"
                     }
                 }
 
                 div { style: "background: var(--bg-card); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);",
-                    div { style: "font-size: 11px; color: var(--text-secondary);", "Couverture" }
+                    div { style: "font-size: 11px; color: var(--text-secondary);", {translate(locale, "epub.cover")} }
                     div { style: "font-size: 14px; font-weight: 700; margin-top: 4px;",
                         if diag.has_cover {
-                            span { style: "color: #34d399;", "✅ Déclarée" }
+                            span { style: "color: #34d399;", {translate(locale, "epub.cover_ok")} }
                         } else {
-                            span { style: "color: #fbbf24;", "⚠️ Absente" }
+                            span { style: "color: #fbbf24;", {translate(locale, "epub.cover_missing")} }
                         }
                     }
                 }
 
                 div { style: "background: var(--bg-card); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);",
-                    div { style: "font-size: 11px; color: var(--text-secondary);", "Poids" }
+                    div { style: "font-size: 11px; color: var(--text-secondary);", {translate(locale, "epub.size")} }
                     div { style: "font-size: 14px; font-weight: 700; margin-top: 4px; color: var(--text-primary);",
                         "{format_bytes(diag.total_size_bytes)}"
                     }
@@ -67,9 +69,9 @@ pub(super) fn EpubLintTab(
             // 2. Action to Clean and Repair
             div { style: "display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px;",
                 div {
-                    div { style: "font-size: 13px; font-weight: 600; color: #60a5fa;", "✨ Réparation Automatique en 1 clic" }
+                    div { style: "font-size: 13px; font-weight: 600; color: #60a5fa;", {translate(locale, "epub.repair_title")} }
                     div { style: "font-size: 12px; color: var(--text-secondary); margin-top: 2px;",
-                        "Re-pack propre du mimetype sans compression, purge des fichiers résiduels (.DS_Store / DRM obsolètes), et régénération de la TOC."
+                        {translate(locale, "epub.repair_desc")}
                     }
                 }
                 button {
@@ -77,27 +79,30 @@ pub(super) fn EpubLintTab(
                     style: "font-size: 13px; padding: 7px 16px; white-space: nowrap;",
                     disabled: *is_operating.read(),
                     onclick: move |_| on_repair.call(()),
-                    if *is_operating.read() { "⏳ Réparation..." } else { "🛠️ Nettoyer & Réparer" }
+                    {if *is_operating.read() { translate(locale, "epub.repairing") } else { translate(locale, "epub.repair_btn") }}
                 }
             }
 
             // 3. Issues List
             div { style: "display: flex; flex-direction: column; gap: 8px; margin-top: 4px;",
                 h4 { style: "font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 0;",
-                    "Résultats de l'analyse ({diag.issues.len()} éléments relevés) :"
+                    {
+                        let iss_n = diag.issues.len().to_string();
+                        translate_fmt(locale, "epub.issues_heading", &[("count", &iss_n)])
+                    }
                 }
 
                 if diag.issues.is_empty() {
                     div { style: "padding: 16px; text-align: center; color: #34d399; background: rgba(16, 185, 129, 0.08); border-radius: 8px; font-size: 13px;",
-                        "✅ Aucun problème structurel détecté. Cet EPUB est parfaitement valide."
+                        {translate(locale, "epub.no_issues")}
                     }
                 } else {
                     for issue in &diag.issues {
                         {
                             let (badge_bg, badge_color, badge_text) = match issue.severity {
-                                EpubIssueSeverity::Error => ("rgba(239, 68, 68, 0.15)", "#f87171", "ERREUR"),
-                                EpubIssueSeverity::Warning => ("rgba(245, 158, 11, 0.15)", "#fbbf24", "AVERTISSEMENT"),
-                                EpubIssueSeverity::Info => ("rgba(59, 130, 246, 0.15)", "#60a5fa", "INFO"),
+                                EpubIssueSeverity::Error => ("rgba(239, 68, 68, 0.15)", "#f87171", translate(locale, "epub.sev_error")),
+                                EpubIssueSeverity::Warning => ("rgba(245, 158, 11, 0.15)", "#fbbf24", translate(locale, "epub.sev_warn")),
+                                EpubIssueSeverity::Info => ("rgba(59, 130, 246, 0.15)", "#60a5fa", translate(locale, "epub.sev_info")),
                             };
                             let file_desc = issue.file.as_deref().unwrap_or("");
                             rsx! {
@@ -112,7 +117,7 @@ pub(super) fn EpubLintTab(
                                         }
                                         if !file_desc.is_empty() {
                                             div { style: "font-size: 11px; font-family: monospace; color: var(--text-secondary); margin-top: 2px;",
-                                                "Fichier: {file_desc}"
+                                                {translate_fmt(locale, "epub.file_prefix", &[("file", file_desc)])}
                                             }
                                         }
                                     }

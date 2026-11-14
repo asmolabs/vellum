@@ -1,10 +1,11 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
-use vellum_core::NewsService;
+use vellum_core::{translate, translate_fmt, Locale, NewsService};
 use vellum_domain::{NewsFeedConfig, NewsRecipe};
 
 #[component]
 pub fn NewsRecipesModal(
+    locale: Locale,
     news_service: Arc<NewsService>,
     on_close: EventHandler<()>,
     on_imported: EventHandler<()>,
@@ -49,16 +50,13 @@ pub fn NewsRecipesModal(
                 match res {
                     Ok(book) => {
                         notif.set(Some((
-                            format!("📰 Journal '{}' généré et ajouté à votre bibliothèque avec succès !", book.title),
+                            translate_fmt(locale, "news.generated", &[("title", &book.title)]),
                             true,
                         )));
                         on_imported.call(());
                     }
                     Err(e) => {
-                        notif.set(Some((
-                            format!("Erreur lors de la compilation du journal: {e}"),
-                            false,
-                        )));
+                        notif.set(Some((format!("Erreur : {e}"), false)));
                     }
                 }
             });
@@ -80,8 +78,8 @@ pub fn NewsRecipesModal(
                     div { style: "display: flex; align-items: center; gap: 10px;",
                         span { style: "font-size: 24px;", "📰" }
                         div {
-                            h3 { style: "font-size: 16px; font-weight: 700; margin: 0;", "Recettes d'Actualités (RSS vers EPUB)" }
-                            p { style: "font-size: 12px; color: var(--text-secondary); margin: 0;", "Générez un journal numérique quotidien à partir de vos flux préférés" }
+                            h3 { style: "font-size: 16px; font-weight: 700; margin: 0;", {translate(locale, "news.title")} }
+                            p { style: "font-size: 12px; color: var(--text-secondary); margin: 0;", {translate(locale, "news.subtitle")} }
                         }
                     }
                     button {
@@ -107,13 +105,13 @@ pub fn NewsRecipesModal(
                 div { style: "display: flex; gap: 16px; flex: 1; overflow: hidden; min-height: 380px;",
                     // Left Column: Recipe Selector & Add
                     div { style: "width: 240px; border-right: 1px solid var(--border-color); padding-right: 12px; display: flex; flex-direction: column; gap: 8px;",
-                        div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;", "Recettes disponibles" }
+                        div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;", {translate(locale, "news.available")} }
                         div { style: "flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;",
                             for recipe in recipes.read().iter() {
                                 {
                                     let r_id = recipe.id.clone();
                                     let is_active = *selected_recipe_id.read() == r_id;
-                                    let feed_count = recipe.feeds.len();
+                                    let feed_count = recipe.feeds.len().to_string();
                                     let title = recipe.title.clone();
                                     rsx! {
                                         div {
@@ -125,7 +123,7 @@ pub fn NewsRecipesModal(
                                             onclick: move |_| selected_recipe_id.set(r_id.clone()),
                                             div { style: "font-size: 13px;", "{title}" }
                                             div { style: "font-size: 11px; color: var(--text-secondary); font-weight: 400; margin-top: 2px;",
-                                                "{feed_count} flux"
+                                                {translate_fmt(locale, "news.feeds_count", &[("count", &feed_count)])}
                                             }
                                         }
                                     }
@@ -142,14 +140,15 @@ pub fn NewsRecipesModal(
                                 let ns = ns.clone();
                                 move |_| {
                                     let mut list = r_sig.read().clone();
-                                    let idx = list.len() + 1;
-                                    let new_r = NewsRecipe::new(format!("recipe-custom-{idx}"), format!("Nouvelle Recette {idx}"));
+                                    let idx = (list.len() + 1).to_string();
+                                    let r_title = translate_fmt(locale, "news.new_recipe_name", &[("idx", &idx)]);
+                                    let new_r = NewsRecipe::new(format!("recipe-custom-{idx}"), r_title);
                                     list.push(new_r);
                                     let _ = ns.save_recipes(&list);
                                     r_sig.set(list);
                                 }
                             },
-                            "＋ Nouvelle Recette"
+                            {translate(locale, "news.new_recipe_btn")}
                         }
                     }
 
@@ -192,18 +191,17 @@ pub fn NewsRecipesModal(
                                         let r_gen = run_generate.clone();
                                         move |_| r_gen(r_id.clone())
                                     },
-                                    if *is_generating.read() {
-                                        "⏳ Compilation..."
-                                    } else {
-                                        "⚡ Compiler le journal"
-                                    }
+                                    {if *is_generating.read() { translate(locale, "news.compiling") } else { translate(locale, "news.compile_btn") }}
                                 }
                             }
 
                             // Feeds List
                             div { style: "display: flex; flex-direction: column; gap: 8px; margin-top: 6px;",
                                 div { style: "font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;",
-                                    "Flux RSS / Atom inclus ({recipe.feeds.len()}) :"
+                                    {
+                                        let f_len = recipe.feeds.len().to_string();
+                                        translate_fmt(locale, "news.included_feeds", &[("count", &f_len)])
+                                    }
                                 }
 
                                 for (f_idx, feed) in recipe.feeds.iter().enumerate() {
@@ -251,12 +249,12 @@ pub fn NewsRecipesModal(
 
                             // Form to add a feed to this recipe
                             div { style: "padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px dashed var(--border-color); border-radius: 8px; display: flex; flex-direction: column; gap: 8px;",
-                                div { style: "font-size: 12px; font-weight: 600;", "Ajouter un flux RSS ou Atom :" }
+                                div { style: "font-size: 12px; font-weight: 600;", {translate(locale, "news.add_feed_title")} }
                                 div { style: "display: flex; gap: 8px;",
                                     input {
                                         class: "drawer-input",
                                         style: "width: 140px; font-size: 12px; padding: 6px 10px;",
-                                        placeholder: "Nom du flux (ex: Le Figaro)...",
+                                        placeholder: translate(locale, "news.feed_name_ph"),
                                         value: "{new_feed_name}",
                                         oninput: move |e| new_feed_name.set(e.value()),
                                     }
@@ -293,7 +291,7 @@ pub fn NewsRecipesModal(
                                                 }
                                             }
                                         },
-                                        "＋ Ajouter"
+                                        {translate(locale, "news.add_btn")}
                                     }
                                 }
                             }
@@ -301,7 +299,7 @@ pub fn NewsRecipesModal(
                             // Options (max articles, auto-send to Kindle)
                             div { style: "display: flex; gap: 16px; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color);",
                                 div { style: "display: flex; align-items: center; gap: 8px;",
-                                    label { style: "font-size: 12px; color: var(--text-secondary);", "Articles max par flux :" }
+                                    label { style: "font-size: 12px; color: var(--text-secondary);", {translate(locale, "news.max_articles")} }
                                     input {
                                         class: "drawer-input",
                                         r#type: "number",
@@ -344,12 +342,12 @@ pub fn NewsRecipesModal(
                                             }
                                         },
                                     }
-                                    span { "✉️ Envoyer directement à ma Kindle après compilation" }
+                                    span { {translate(locale, "news.auto_kindle")} }
                                 }
                             }
                         } else {
                             div { style: "text-align: center; padding: 40px; color: var(--text-secondary);",
-                                "Sélectionnez une recette à gauche pour afficher ses détails."
+                                {translate(locale, "news.select_hint")}
                             }
                         }
                     }

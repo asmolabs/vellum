@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
-use vellum_core::BookService;
+use vellum_core::{translate, translate_fmt, BookService, Locale};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AuditTab {
@@ -11,6 +11,7 @@ enum AuditTab {
 
 #[component]
 pub fn LibraryAuditModal(
+    locale: Locale,
     book_service: Arc<BookService>,
     on_close: EventHandler<()>,
     on_updated: EventHandler<()>,
@@ -45,7 +46,7 @@ pub fn LibraryAuditModal(
                 match res {
                     Ok(Ok(merged)) => {
                         notif.set(Some((
-                            format!("✨ Livres fusionnés avec succès ! '{}' rassemble désormais tous les formats.", merged.title),
+                            translate_fmt(locale, "audit.merged", &[("title", &merged.title)]),
                             true,
                         )));
                         if let Ok(new_rep) = bs_cloned.audit_library() {
@@ -54,7 +55,7 @@ pub fn LibraryAuditModal(
                         on_upd.call(());
                     }
                     Ok(Err(e)) => {
-                        notif.set(Some((format!("Erreur lors de la fusion : {e}"), false)));
+                        notif.set(Some((format!("Erreur : {e}"), false)));
                     }
                     Err(e) => {
                         notif.set(Some((format!("Erreur asynchrone : {e}"), false)));
@@ -82,10 +83,7 @@ pub fn LibraryAuditModal(
                 match res {
                     Ok(Ok(enriched)) => {
                         notif.set(Some((
-                            format!(
-                                "🪄 Fiche de '{}' enrichie avec succès via Google Books !",
-                                enriched.title
-                            ),
+                            translate_fmt(locale, "audit.enriched", &[("title", &enriched.title)]),
                             true,
                         )));
                         if let Ok(new_rep) = bs_cloned.audit_library() {
@@ -94,10 +92,7 @@ pub fn LibraryAuditModal(
                         on_upd.call(());
                     }
                     Ok(Err(e)) => {
-                        notif.set(Some((
-                            format!("Erreur lors de l'enrichissement : {e}"),
-                            false,
-                        )));
+                        notif.set(Some((format!("Erreur : {e}"), false)));
                     }
                     Err(e) => {
                         notif.set(Some((format!("Erreur asynchrone : {e}"), false)));
@@ -116,12 +111,12 @@ pub fn LibraryAuditModal(
             Ok(new_rep) => {
                 rep.set(Some(new_rep));
                 notif.set(Some((
-                    "🩺 Audit de santé actualisé avec succès.".to_string(),
+                    translate(locale, "audit.refreshed").to_string(),
                     true,
                 )));
             }
             Err(e) => {
-                notif.set(Some((format!("Erreur d'analyse : {e}"), false)));
+                notif.set(Some((format!("Erreur : {e}"), false)));
             }
         }
     };
@@ -143,8 +138,8 @@ pub fn LibraryAuditModal(
                     div { style: "display: flex; align-items: center; gap: 10px;",
                         span { style: "font-size: 26px;", "🛡️" }
                         div {
-                            h3 { style: "font-size: 17px; font-weight: 700; margin: 0;", "Santé & Audit de la Bibliothèque" }
-                            p { style: "font-size: 12px; color: var(--text-secondary); margin: 0;", "Détectez les doublons, fusionnez les formats et optimisez vos métadonnées" }
+                            h3 { style: "font-size: 17px; font-weight: 700; margin: 0;", {translate(locale, "audit.title")} }
+                            p { style: "font-size: 12px; color: var(--text-secondary); margin: 0;", {translate(locale, "audit.subtitle")} }
                         }
                     }
                     div { style: "display: flex; align-items: center; gap: 8px;",
@@ -152,7 +147,7 @@ pub fn LibraryAuditModal(
                             class: "btn btn-secondary",
                             style: "font-size: 12px; padding: 4px 10px;",
                             onclick: run_refresh.clone(),
-                            "🔄 Re-scanner"
+                            {translate(locale, "audit.rescan")}
                         }
                         button {
                             class: "btn btn-icon",
@@ -179,12 +174,18 @@ pub fn LibraryAuditModal(
                     {
                         let score = report.overall_score;
                         let (score_color, score_bg, score_label) = if score >= 90 {
-                            ("#34d399", "rgba(16, 185, 129, 0.15)", "🟢 Excellente santé")
+                            ("#34d399", "rgba(16, 185, 129, 0.15)", translate(locale, "audit.score_good"))
                         } else if score >= 70 {
-                            ("#fbbf24", "rgba(245, 158, 11, 0.15)", "🟡 Bonne condition générale")
+                            ("#fbbf24", "rgba(245, 158, 11, 0.15)", translate(locale, "audit.score_warn"))
                         } else {
-                            ("#f87171", "rgba(239, 68, 68, 0.15)", "🔴 Optimisation requise")
+                            ("#f87171", "rgba(239, 68, 68, 0.15)", translate(locale, "audit.score_bad"))
                         };
+                        let total_b = report.total_books.to_string();
+                        let total_f = report.total_formats.to_string();
+                        let clean_b = report.clean_books_count.to_string();
+                        let dups_n = report.duplicate_pairs.len().to_string();
+                        let inc_n = report.incomplete_issues.len().to_string();
+                        let miss_n = report.missing_file_issues.len().to_string();
 
                         rsx! {
                             div {
@@ -197,20 +198,20 @@ pub fn LibraryAuditModal(
                                     div {
                                         div { style: "font-size: 14px; font-weight: 700; color: {score_color};", "{score_label}" }
                                         div { style: "font-size: 12px; color: var(--text-secondary); margin-top: 2px;",
-                                            "{report.total_books} livre(s) total • {report.total_formats} format(s) • {report.clean_books_count} livre(s) parfaitement complet(s)"
+                                            {translate_fmt(locale, "audit.summary", &[("books", &total_b), ("formats", &total_f), ("clean", &clean_b)])}
                                         }
                                     }
                                 }
                                 div { style: "display: flex; gap: 8px;",
                                     span { class: "tag", style: "background: rgba(99, 102, 241, 0.2); color: #a5b4fc; font-size: 11px;",
-                                        "👯 {report.duplicate_pairs.len()} doublon(s)"
+                                        {translate_fmt(locale, "audit.dups_chip", &[("count", &dups_n)])}
                                     }
                                     span { class: "tag", style: "background: rgba(245, 158, 11, 0.2); color: #fde68a; font-size: 11px;",
-                                        "📝 {report.incomplete_issues.len()} incomplet(s)"
+                                        {translate_fmt(locale, "audit.incomplete_chip", &[("count", &inc_n)])}
                                     }
                                     if !report.missing_file_issues.is_empty() {
                                         span { class: "tag", style: "background: rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 11px;",
-                                            "⚠️ {report.missing_file_issues.len()} fichier(s) manquant(s)"
+                                            {translate_fmt(locale, "audit.missing_chip", &[("count", &miss_n)])}
                                         }
                                     }
                                 }
@@ -219,24 +220,31 @@ pub fn LibraryAuditModal(
                     }
 
                     // Tabs
-                    div { style: "display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 14px;",
-                        button {
-                            class: if *active_tab.read() == AuditTab::Duplicates { "btn btn-primary" } else { "btn btn-secondary" },
-                            style: "font-size: 12px; padding: 6px 14px;",
-                            onclick: move |_| active_tab.set(AuditTab::Duplicates),
-                            "👯 Doublons détectés ({report.duplicate_pairs.len()})"
-                        }
-                        button {
-                            class: if *active_tab.read() == AuditTab::Incomplete { "btn btn-primary" } else { "btn btn-secondary" },
-                            style: "font-size: 12px; padding: 6px 14px;",
-                            onclick: move |_| active_tab.set(AuditTab::Incomplete),
-                            "📝 Fiches à enrichir ({report.incomplete_issues.len()})"
-                        }
-                        button {
-                            class: if *active_tab.read() == AuditTab::MissingFiles { "btn btn-primary" } else { "btn btn-secondary" },
-                            style: "font-size: 12px; padding: 6px 14px;",
-                            onclick: move |_| active_tab.set(AuditTab::MissingFiles),
-                            "📁 Fichiers & Intégrité ({report.missing_file_issues.len()})"
+                    {
+                        let dups_n = report.duplicate_pairs.len().to_string();
+                        let inc_n = report.incomplete_issues.len().to_string();
+                        let miss_n = report.missing_file_issues.len().to_string();
+                        rsx! {
+                            div { style: "display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 14px;",
+                                button {
+                                    class: if *active_tab.read() == AuditTab::Duplicates { "btn btn-primary" } else { "btn btn-secondary" },
+                                    style: "font-size: 12px; padding: 6px 14px;",
+                                    onclick: move |_| active_tab.set(AuditTab::Duplicates),
+                                    {translate_fmt(locale, "audit.tab_dups", &[("count", &dups_n)])}
+                                }
+                                button {
+                                    class: if *active_tab.read() == AuditTab::Incomplete { "btn btn-primary" } else { "btn btn-secondary" },
+                                    style: "font-size: 12px; padding: 6px 14px;",
+                                    onclick: move |_| active_tab.set(AuditTab::Incomplete),
+                                    {translate_fmt(locale, "audit.tab_incomplete", &[("count", &inc_n)])}
+                                }
+                                button {
+                                    class: if *active_tab.read() == AuditTab::MissingFiles { "btn btn-primary" } else { "btn btn-secondary" },
+                                    style: "font-size: 12px; padding: 6px 14px;",
+                                    onclick: move |_| active_tab.set(AuditTab::MissingFiles),
+                                    {translate_fmt(locale, "audit.tab_missing", &[("count", &miss_n)])}
+                                }
+                            }
                         }
                     }
 
@@ -246,7 +254,7 @@ pub fn LibraryAuditModal(
                             AuditTab::Duplicates => rsx! {
                                 if report.duplicate_pairs.is_empty() {
                                     div { style: "text-align: center; padding: 40px; color: var(--text-secondary);",
-                                        "✨ Aucun doublon détecté dans votre bibliothèque !"
+                                        {translate(locale, "audit.no_dups")}
                                     }
                                 } else {
                                     for pair in report.duplicate_pairs.iter() {
@@ -264,7 +272,7 @@ pub fn LibraryAuditModal(
                                                 let p_fmts = pair.primary_book.formats.clone();
                                                 let d_fmts = pair.duplicate_book.formats.clone();
                                                 let reason = pair.reason.clone();
-                                                let pct = (pair.similarity_score * 100.0).round() as u32;
+                                                let pct = ((pair.similarity_score * 100.0).round() as u32).to_string();
 
                                                 let mut merge_a = run_merge.clone();
                                                 let mut merge_b = run_merge.clone();
@@ -278,7 +286,7 @@ pub fn LibraryAuditModal(
                                                         div { style: "display: flex; justify-content: space-between; align-items: center;",
                                                             span {
                                                                 style: "font-size: 12px; font-weight: 700; color: #a78bfa; background: rgba(167, 139, 250, 0.15); padding: 3px 10px; border-radius: 6px;",
-                                                                "🔍 Similarité : {pct}% — {reason}"
+                                                                {translate_fmt(locale, "audit.similarity", &[("pct", &pct), ("reason", &reason)])}
                                                             }
                                                             button {
                                                                 class: "btn btn-secondary",
@@ -288,7 +296,7 @@ pub fn LibraryAuditModal(
                                                                     set.insert(key_c.clone());
                                                                     ign.set(set);
                                                                 },
-                                                                "Ignorer"
+                                                                {translate(locale, "audit.ignore")}
                                                             }
                                                         }
 
@@ -297,9 +305,9 @@ pub fn LibraryAuditModal(
                                                             // Book A
                                                             div { style: "background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;",
                                                                 div {
-                                                                    div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary);", "LIVRE A" }
+                                                                    div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary);", {translate(locale, "audit.book_a")} }
                                                                     div { style: "font-size: 14px; font-weight: 700; color: var(--text-primary); margin-top: 2px;", "{p_title}" }
-                                                                    div { style: "font-size: 12px; color: var(--text-secondary);", "par {p_author}" }
+                                                                    div { style: "font-size: 12px; color: var(--text-secondary);", {translate_fmt(locale, "audit.by_author", &[("author", &p_author)])} }
                                                                     div { style: "display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;",
                                                                         for f in p_fmts.iter() {
                                                                             span { class: "format-badge", "{f.format.to_uppercase()}" }
@@ -315,16 +323,16 @@ pub fn LibraryAuditModal(
                                                                         let d = d_id.clone();
                                                                         move |_| merge_a((p.clone(), d.clone()))
                                                                     },
-                                                                    "⚡ Garder A (Absorber B)"
+                                                                    {translate(locale, "audit.keep_a")}
                                                                 }
                                                             }
 
                                                             // Book B
                                                             div { style: "background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px;",
                                                                 div {
-                                                                    div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary);", "LIVRE B" }
+                                                                    div { style: "font-size: 11px; font-weight: 700; color: var(--text-secondary);", {translate(locale, "audit.book_b")} }
                                                                     div { style: "font-size: 14px; font-weight: 700; color: var(--text-primary); margin-top: 2px;", "{d_title}" }
-                                                                    div { style: "font-size: 12px; color: var(--text-secondary);", "par {d_author}" }
+                                                                    div { style: "font-size: 12px; color: var(--text-secondary);", {translate_fmt(locale, "audit.by_author", &[("author", &d_author)])} }
                                                                     div { style: "display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap;",
                                                                         for f in d_fmts.iter() {
                                                                             span { class: "format-badge", "{f.format.to_uppercase()}" }
@@ -340,7 +348,7 @@ pub fn LibraryAuditModal(
                                                                         let d = d_id.clone();
                                                                         move |_| merge_b((d.clone(), p.clone()))
                                                                     },
-                                                                    "⚡ Garder B (Absorber A)"
+                                                                    {translate(locale, "audit.keep_b")}
                                                                 }
                                                             }
                                                         }
@@ -357,7 +365,7 @@ pub fn LibraryAuditModal(
                             AuditTab::Incomplete => rsx! {
                                 if report.incomplete_issues.is_empty() {
                                     div { style: "text-align: center; padding: 40px; color: var(--text-secondary);",
-                                        "✨ Toutes vos fiches de livres sont parfaitement complètes !"
+                                        {translate(locale, "audit.no_incomplete")}
                                     }
                                 } else {
                                     for issue in report.incomplete_issues.iter() {
@@ -373,22 +381,22 @@ pub fn LibraryAuditModal(
                                                     style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;",
                                                     div { style: "flex: 1;",
                                                         div { style: "font-size: 14px; font-weight: 700; color: var(--text-primary);", "{title}" }
-                                                        div { style: "font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;", "par {author}" }
+                                                        div { style: "font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;", {translate_fmt(locale, "audit.by_author", &[("author", &author)])} }
                                                         div { style: "display: flex; gap: 6px; flex-wrap: wrap;",
                                                             if issue.missing_cover {
-                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #f87171;", "🖼️ Sans couverture" }
+                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #f87171;", {translate(locale, "audit.missing_cover")} }
                                                             }
                                                             if issue.missing_author {
-                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(245, 158, 11, 0.15); color: #fbbf24;", "👤 Auteur manquant" }
+                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(245, 158, 11, 0.15); color: #fbbf24;", {translate(locale, "audit.missing_author")} }
                                                             }
                                                             if issue.missing_description {
-                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(99, 102, 241, 0.15); color: #a5b4fc;", "📄 Sans résumé" }
+                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(99, 102, 241, 0.15); color: #a5b4fc;", {translate(locale, "audit.missing_desc")} }
                                                             }
                                                             if issue.missing_isbn {
-                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(148, 163, 184, 0.15); color: #94a3b8;", "🔢 Sans ISBN" }
+                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(148, 163, 184, 0.15); color: #94a3b8;", {translate(locale, "audit.missing_isbn")} }
                                                             }
                                                             if issue.missing_tags {
-                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(148, 163, 184, 0.15); color: #94a3b8;", "🏷️ Sans tags" }
+                                                                span { style: "font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(148, 163, 184, 0.15); color: #94a3b8;", {translate(locale, "audit.missing_tags")} }
                                                             }
                                                         }
                                                     }
@@ -400,11 +408,7 @@ pub fn LibraryAuditModal(
                                                             let bid = b_id.clone();
                                                             move |_| enr(bid.clone())
                                                         },
-                                                        if is_enriching {
-                                                            "⏳ Recherche..."
-                                                        } else {
-                                                            "🪄 Enrichir (Google Books)"
-                                                        }
+                                                        {if is_enriching { translate(locale, "audit.searching") } else { translate(locale, "audit.enrich_btn") }}
                                                     }
                                                 }
                                             }
@@ -416,7 +420,7 @@ pub fn LibraryAuditModal(
                             AuditTab::MissingFiles => rsx! {
                                 if report.missing_file_issues.is_empty() {
                                     div { style: "text-align: center; padding: 40px; color: var(--text-secondary);",
-                                        "✨ Tous les fichiers de vos formats sont présents et intègres sur le disque !"
+                                        {translate(locale, "audit.all_ok")}
                                     }
                                 } else {
                                     div { style: "display: flex; flex-direction: column; gap: 8px;",
@@ -426,7 +430,7 @@ pub fn LibraryAuditModal(
                                                 div {
                                                     div { style: "font-size: 13px; font-weight: 700; color: #f87171;", "⚠️ {issue.book_title}" }
                                                     div { style: "font-size: 11px; color: var(--text-secondary); font-family: monospace; margin-top: 2px;",
-                                                        "Format {issue.format.to_uppercase()} introuvable : {issue.expected_path}"
+                                                        {translate_fmt(locale, "audit.missing_file", &[("fmt", &issue.format.to_uppercase()), ("path", &issue.expected_path)])}
                                                     }
                                                 }
                                             }
@@ -438,7 +442,7 @@ pub fn LibraryAuditModal(
                     }
                 } else {
                     div { style: "text-align: center; padding: 50px; color: var(--text-secondary);",
-                        "⏳ Analyse de la bibliothèque en cours..."
+                        {translate(locale, "audit.analyzing")}
                     }
                 }
             }

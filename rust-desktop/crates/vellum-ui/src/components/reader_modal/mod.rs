@@ -1,3 +1,4 @@
+mod navigation;
 mod overlays;
 mod search_drawer;
 mod settings_drawer;
@@ -6,8 +7,12 @@ mod toolbar;
 
 use crate::state::ReaderSession;
 use dioxus::prelude::*;
+use vellum_core::i18n::{translate, translate_fmt, Locale};
 use vellum_core::reader_store::{ComicFitMode, ComicReadingMode, SearchResult};
 
+use self::navigation::{
+    format_reader_footers, handle_reader_keydown, step_page, FooterInfo, ReaderKeyContext,
+};
 use self::overlays::ReaderSelectionOverlays;
 use self::search_drawer::ReaderSearchDrawer;
 use self::settings_drawer::ReaderSettingsDrawer;
@@ -30,39 +35,15 @@ pub(super) fn jump_and_notify(
     }
 }
 
-fn step_page(
-    mut session: Signal<Option<ReaderSession>>,
-    on_progress_update: EventHandler<(usize, usize, f64)>,
-    forward: bool,
-) {
-    let mut mut_sess = session.write();
-    if let Some(s) = mut_sess.as_mut() {
-        let step = if s.is_comic() && s.prefs.comic_reading_mode == ComicReadingMode::DoublePage {
-            2
-        } else {
-            1
-        };
-        if forward {
-            if s.current_page + 1 < s.total_pages {
-                s.current_page = (s.current_page + step).min(s.total_pages.saturating_sub(1));
-            }
-        } else {
-            s.current_page = s.current_page.saturating_sub(step);
-        }
-        let (p, tot, pct) = (s.current_page, s.total_pages, s.progress_percent());
-        drop(mut_sess);
-        on_progress_update.call((p, tot, pct));
-    }
-}
-
 #[component]
 pub fn ReaderModal(
     mut session: Signal<Option<ReaderSession>>,
+    locale: Locale,
     on_close: EventHandler<()>,
     on_progress_update: EventHandler<(usize, usize, f64)>,
 ) -> Element {
     let mut show_chrome = use_signal(|| true);
-    let mut active_drawer = use_signal(|| None::<String>);
+    let active_drawer = use_signal(|| None::<String>);
     let drawer_tab = use_signal(|| "toc".to_string());
     let toc_filter = use_signal(String::new);
 
@@ -71,10 +52,10 @@ pub fn ReaderModal(
     let is_searching = use_signal(|| false);
 
     let mut selected_text = use_signal(|| None::<String>);
-    let mut note_mode = use_signal(|| false);
+    let note_mode = use_signal(|| false);
     let note_input = use_signal(String::new);
 
-    let mut ai_modal_open = use_signal(|| false);
+    let ai_modal_open = use_signal(|| false);
     let ai_query = use_signal(String::new);
     let ai_result = use_signal(|| None::<String>);
     let ai_loading = use_signal(|| false);
@@ -214,88 +195,21 @@ pub fn ReaderModal(
 
     let handle_keydown = move |evt: KeyboardEvent| {
         let key_str = evt.key().to_string();
-        let key = key_str.as_str();
-
-        if active_drawer.read().is_some() || *note_mode.read() || *ai_modal_open.read() {
-            if key == "Escape" {
-                if *ai_modal_open.read() {
-                    ai_modal_open.set(false);
-                } else if *note_mode.read() {
-                    note_mode.set(false);
-                } else {
-                    active_drawer.set(None);
-                }
-            }
-            return;
-        }
-
-        match key {
-            "ArrowLeft" | "PageUp" => {
-                let fwd = is_comic && prefs.comic_rtl;
-                step_page(session, on_progress_update, fwd);
-            }
-            "ArrowRight" | "PageDown" | " " | "Enter" => {
-                let fwd = !(is_comic && prefs.comic_rtl && key == "ArrowRight");
-                step_page(session, on_progress_update, fwd);
-            }
-            "Backspace" => {
-                step_page(session, on_progress_update, false);
-            }
-            "Escape" => {
-                if selected_text.read().is_some() {
-                    selected_text.set(None);
-                } else {
-                    on_close.call(());
-                }
-            }
-            "b" | "B" => {
-                let mut mut_sess = session.write();
-                if let Some(s) = mut_sess.as_mut() {
-                    s.toggle_current_bookmark();
-                }
-            }
-            "t" | "T" => {
-                let cur = active_drawer.read().clone();
-                if cur.as_deref() == Some("toc") {
-                    active_drawer.set(None);
-                } else {
-                    active_drawer.set(Some("toc".to_string()));
-                }
-            }
-            "s" | "S" => {
-                let cur = active_drawer.read().clone();
-                if cur.as_deref() == Some("search") {
-                    active_drawer.set(None);
-                } else {
-                    active_drawer.set(Some("search".to_string()));
-                }
-            }
-            "m" | "M" | "f" | "F" => {
-                let cur = *show_chrome.read();
-                show_chrome.set(!cur);
-            }
-            "+" | "=" => {
-                let mut mut_sess = session.write();
-                if let Some(s) = mut_sess.as_mut() {
-                    if s.prefs.font_size < 36 {
-                        s.prefs.font_size += 2;
-                        s.font_size = s.prefs.font_size;
-                        s.save_prefs();
-                    }
-                }
-            }
-            "-" => {
-                let mut mut_sess = session.write();
-                if let Some(s) = mut_sess.as_mut() {
-                    if s.prefs.font_size > 12 {
-                        s.prefs.font_size -= 2;
-                        s.font_size = s.prefs.font_size;
-                        s.save_prefs();
-                    }
-                }
-            }
-            _ => {}
-        }
+        handle_reader_keydown(
+            &key_str,
+            ReaderKeyContext {
+                session,
+                active_drawer,
+                show_chrome,
+                selected_text,
+                note_mode,
+                ai_modal_open,
+                is_comic,
+                comic_rtl: prefs.comic_rtl,
+                on_close,
+                on_progress_update,
+            },
+        );
     };
 
     let query_toc = toc_filter.read().trim().to_lowercase();
@@ -308,58 +222,17 @@ pub fn ReaderModal(
     let is_chrome_visible = *show_chrome.read();
     let current_drawer = active_drawer.read().clone();
 
-    let footer_left = if is_comic {
-        let dir_label = if prefs.comic_rtl {
-            "Sens Manga (D➔G)"
-        } else {
-            "Sens BD (G➔D)"
-        };
-        match prefs.comic_reading_mode {
-            ComicReadingMode::Webtoon => {
-                format!("Défilement Webtoon continu • {} planches", total_pages)
-            }
-            ComicReadingMode::DoublePage => {
-                let next_p = (cur_page + 2).min(total_pages);
-                if next_p > cur_page + 1 {
-                    format!(
-                        "Planches {}-{} sur {} • {}",
-                        cur_page + 1,
-                        next_p,
-                        total_pages,
-                        dir_label
-                    )
-                } else {
-                    format!(
-                        "Planche {} sur {} • {}",
-                        cur_page + 1,
-                        total_pages,
-                        dir_label
-                    )
-                }
-            }
-            ComicReadingMode::SinglePage => {
-                format!(
-                    "Planche {} sur {} • {}",
-                    cur_page + 1,
-                    total_pages,
-                    dir_label
-                )
-            }
-        }
-    } else {
-        format!("Page {page_in_ch} sur {total_in_ch} • {chapter_title}")
-    };
-
-    let footer_right = if is_comic && prefs.comic_reading_mode == ComicReadingMode::Webtoon {
-        format!("{} planches", total_pages)
-    } else {
-        format!(
-            "Page {} / {} ({:.0}%)",
-            cur_page + 1,
-            total_pages.max(1),
-            progress
-        )
-    };
+    let (footer_left, footer_right) = format_reader_footers(FooterInfo {
+        locale,
+        is_comic,
+        prefs: &prefs,
+        cur_page,
+        total_pages,
+        progress,
+        page_in_ch,
+        total_in_ch,
+        chapter_title: &chapter_title,
+    });
 
     rsx! {
         div {
@@ -386,6 +259,7 @@ pub fn ReaderModal(
             if is_chrome_visible {
                 ReaderToolbar {
                     session,
+                    locale,
                     show_chrome,
                     active_drawer,
                     current_drawer: current_drawer.clone(),
@@ -404,6 +278,7 @@ pub fn ReaderModal(
 
             ReaderSelectionOverlays {
                 session,
+                locale,
                 selected_text,
                 note_mode,
                 note_input,
@@ -417,6 +292,7 @@ pub fn ReaderModal(
             if current_drawer.as_deref() == Some("toc") {
                 ReaderTocDrawer {
                     session,
+                    locale,
                     active_drawer,
                     drawer_tab,
                     toc_filter,
@@ -430,6 +306,7 @@ pub fn ReaderModal(
             if current_drawer.as_deref() == Some("search") {
                 ReaderSearchDrawer {
                     session,
+                    locale,
                     active_drawer,
                     search_query,
                     search_results,
@@ -441,6 +318,7 @@ pub fn ReaderModal(
             if current_drawer.as_deref() == Some("settings") {
                 ReaderSettingsDrawer {
                     session,
+                    locale,
                     active_drawer,
                     toast_msg,
                     prefs: prefs.clone(),
@@ -453,7 +331,11 @@ pub fn ReaderModal(
                 if !is_webtoon {
                     div {
                         class: "reader-tap-zone left",
-                        title: if is_comic && prefs.comic_rtl { "Page suivante (Manga D ➔ G)" } else { "Page précédente (Flèche gauche)" },
+                        title: if is_comic && prefs.comic_rtl {
+                            translate(locale, "reader.tap_next_rtl")
+                        } else {
+                            translate(locale, "reader.tap_prev")
+                        },
                         onclick: on_left_click,
                         if is_comic && prefs.comic_rtl {
                             if can_next {
@@ -479,7 +361,7 @@ pub fn ReaderModal(
                         if current_html.trim().is_empty() {
                             div {
                                 style: "margin: auto; text-align: center; color: var(--text-muted); padding: 60px 20px;",
-                                p { style: "font-size: 15px; font-weight: 500;", "Aucun contenu textuel ou graphique disponible pour cette page." }
+                                p { style: "font-size: 15px; font-weight: 500;", {translate(locale, "reader.empty_page")} }
                             }
                         } else {
                             div {
@@ -506,7 +388,11 @@ pub fn ReaderModal(
 
                     div {
                         class: "reader-tap-zone right",
-                        title: if is_comic && prefs.comic_rtl { "Page précédente (Manga D ➔ G)" } else { "Page suivante (Flèche droite / Espace)" },
+                        title: if is_comic && prefs.comic_rtl {
+                            translate(locale, "reader.tap_prev_rtl")
+                        } else {
+                            translate(locale, "reader.tap_next")
+                        },
                         onclick: on_right_click,
                         if is_comic && prefs.comic_rtl {
                             if can_prev {
@@ -525,7 +411,11 @@ pub fn ReaderModal(
                         class: "btn btn-secondary",
                         disabled: if is_comic && prefs.comic_rtl { !can_next } else { !can_prev },
                         onclick: on_left_click,
-                        if is_comic && prefs.comic_rtl { "Suivante ◀ (Manga)" } else { "◀ Page précédente" }
+                        if is_comic && prefs.comic_rtl {
+                            {translate(locale, "reader.nav_next_rtl")}
+                        } else {
+                            {translate(locale, "reader.nav_prev")}
+                        }
                     }
 
                     div { style: "display: flex; align-items: center; gap: 16px; flex: 1; max-width: 540px; margin: 0 20px;",
@@ -561,9 +451,24 @@ pub fn ReaderModal(
                         }
                         span { style: "font-size: 12px; color: var(--text-muted); white-space: nowrap;",
                             if is_webtoon {
-                                "Planche {cur_page + 1} / {total_pages.max(1)}"
+                                {translate_fmt(
+                                    locale,
+                                    "reader.nav_webtoon_page",
+                                    &[
+                                        ("cur", &(cur_page + 1).to_string()),
+                                        ("total", &total_pages.max(1).to_string()),
+                                    ],
+                                )}
                             } else {
-                                "Page {cur_page + 1} / {total_pages.max(1)} ({progress:.1}%)"
+                                {translate_fmt(
+                                    locale,
+                                    "reader.nav_page",
+                                    &[
+                                        ("cur", &(cur_page + 1).to_string()),
+                                        ("total", &total_pages.max(1).to_string()),
+                                        ("pct", &format!("{progress:.1}")),
+                                    ],
+                                )}
                             }
                         }
                     }
@@ -572,7 +477,11 @@ pub fn ReaderModal(
                         class: "btn btn-primary",
                         disabled: if is_comic && prefs.comic_rtl { !can_prev } else { !can_next },
                         onclick: on_right_click,
-                        if is_comic && prefs.comic_rtl { "Précédente ▶ (Manga)" } else { "Page suivante ▶" }
+                        if is_comic && prefs.comic_rtl {
+                            {translate(locale, "reader.nav_prev_rtl")}
+                        } else {
+                            {translate(locale, "reader.nav_next")}
+                        }
                     }
                 }
             }

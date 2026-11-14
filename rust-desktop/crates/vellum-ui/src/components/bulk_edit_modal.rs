@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use vellum_core::{translate, translate_fmt, Locale};
 
 /// Données soumises par la modale d'édition en masse.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,6 +13,7 @@ pub struct BulkEditRequest {
 
 #[component]
 pub fn BulkEditModal(
+    locale: Locale,
     selected_count: usize,
     on_save: EventHandler<BulkEditRequest>,
     on_close: EventHandler<()>,
@@ -21,6 +23,7 @@ pub fn BulkEditModal(
     let mut auto_index = use_signal(|| true);
     let mut add_tags_input = use_signal(String::new);
     let mut remove_tags_input = use_signal(String::new);
+    let count_str = selected_count.to_string();
 
     rsx! {
         div {
@@ -35,7 +38,7 @@ pub fn BulkEditModal(
                 div { class: "drawer-header",
                     div { style: "display: flex; align-items: center; gap: 8px;",
                         span { style: "font-size: 18px;", "✏️" }
-                        h3 { style: "font-size: 16px; font-weight: 700;", "Modification en masse ({selected_count} livres)" }
+                        h3 { style: "font-size: 16px; font-weight: 700;", {translate_fmt(locale, "bulk.edit_title", &[("count", &count_str)])} }
                     }
                     button {
                         class: "btn btn-icon",
@@ -45,15 +48,15 @@ pub fn BulkEditModal(
                 }
 
                 p { style: "font-size: 12px; color: var(--text-secondary); line-height: 1.5;",
-                    "Les champs laissés vides ne modifieront pas les valeurs existantes de vos livres."
+                    {translate(locale, "bulk.edit_hint")}
                 }
 
                 div { style: "display: flex; flex-direction: column; gap: 14px; margin-top: 6px;",
                     div { class: "drawer-form-group",
-                        label { class: "drawer-form-label", "Définir un auteur commun :" }
+                        label { class: "drawer-form-label", {translate(locale, "bulk.common_author")} }
                         input {
                             class: "drawer-input",
-                            placeholder: "Laisser vide pour ne pas modifier l'auteur...",
+                            placeholder: translate(locale, "bulk.author_ph"),
                             value: "{author_input}",
                             oninput: move |e| author_input.set(e.value()),
                         }
@@ -61,10 +64,10 @@ pub fn BulkEditModal(
 
                     div { style: "display: flex; flex-direction: column; gap: 8px; padding: 12px; background: rgba(167, 139, 250, 0.05); border: 1px solid rgba(167, 139, 250, 0.2); border-radius: 8px;",
                         div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Assigner à une série / saga :" }
+                            label { class: "drawer-form-label", {translate(locale, "bulk.assign_series")} }
                             input {
                                 class: "drawer-input",
-                                placeholder: "Ex: Le Cycle de Fondation, Dune...",
+                                placeholder: translate(locale, "bulk.series_ph"),
                                 value: "{series_input}",
                                 oninput: move |e| series_input.set(e.value()),
                             }
@@ -76,25 +79,25 @@ pub fn BulkEditModal(
                                 checked: *auto_index.read(),
                                 onchange: move |e| auto_index.set(e.value() == "true"),
                             }
-                            span { style: "font-weight: 500; color: #c4b5fd;", "Numéroter automatiquement les tomes (T.1, T.2, T.3...)" }
+                            span { style: "font-weight: 500; color: #c4b5fd;", {translate(locale, "bulk.auto_index")} }
                         }
                     }
 
                     div { class: "drawer-form-group",
-                        label { class: "drawer-form-label", "Ajouter ces étiquettes (séparées par virgule) :" }
+                        label { class: "drawer-form-label", {translate(locale, "bulk.add_tags")} }
                         input {
                             class: "drawer-input",
-                            placeholder: "Ex: Science-Fiction, Roman, Coup de cœur...",
+                            placeholder: translate(locale, "bulk.add_tags_ph"),
                             value: "{add_tags_input}",
                             oninput: move |e| add_tags_input.set(e.value()),
                         }
                     }
 
                     div { class: "drawer-form-group",
-                        label { class: "drawer-form-label", "Retirer ces étiquettes (séparées par virgule) :" }
+                        label { class: "drawer-form-label", {translate(locale, "bulk.remove_tags")} }
                         input {
                             class: "drawer-input",
-                            placeholder: "Ex: À trier, Brouillon...",
+                            placeholder: translate(locale, "bulk.remove_tags_ph"),
                             value: "{remove_tags_input}",
                             oninput: move |e| remove_tags_input.set(e.value()),
                         }
@@ -104,7 +107,7 @@ pub fn BulkEditModal(
                         button {
                             class: "btn btn-secondary",
                             onclick: move |_| on_close.call(()),
-                            "Annuler"
+                            {translate(locale, "action.cancel")}
                         }
                         button {
                             class: "btn btn-primary",
@@ -141,7 +144,7 @@ pub fn BulkEditModal(
                                 });
                                 on_close.call(());
                             },
-                            "💾 Appliquer aux {selected_count} livre(s)"
+                            {translate_fmt(locale, "bulk.apply_count", &[("count", &count_str)])}
                         }
                     }
                 }

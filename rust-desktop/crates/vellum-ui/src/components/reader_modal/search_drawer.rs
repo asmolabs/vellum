@@ -1,5 +1,6 @@
 use crate::state::ReaderSession;
 use dioxus::prelude::*;
+use vellum_core::i18n::{translate, translate_fmt, Locale};
 use vellum_core::reader_store::SearchResult;
 
 use super::jump_and_notify;
@@ -26,6 +27,7 @@ fn execute_reader_search(
 #[component]
 pub(super) fn ReaderSearchDrawer(
     session: Signal<Option<ReaderSession>>,
+    locale: Locale,
     mut active_drawer: Signal<Option<String>>,
     mut search_query: Signal<String>,
     search_results: Signal<Vec<SearchResult>>,
@@ -42,7 +44,7 @@ pub(super) fn ReaderSearchDrawer(
                 onclick: move |e| e.stop_propagation(),
 
                 div { style: "padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between;",
-                    span { style: "font-weight: 600; font-size: 14px; color: var(--text-primary);", "Recherche dans le livre" }
+                    span { style: "font-weight: 600; font-size: 14px; color: var(--text-primary);", {translate(locale, "reader.search_header")} }
                     button {
                         class: "btn btn-icon",
                         onclick: move |_| active_drawer.set(None),
@@ -53,7 +55,7 @@ pub(super) fn ReaderSearchDrawer(
                 div { style: "padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; gap: 8px;",
                     input {
                         style: "flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;",
-                        placeholder: "Rechercher un mot, une phrase...",
+                        placeholder: translate(locale, "reader.search_placeholder"),
                         autofocus: true,
                         value: "{search_query}",
                         oninput: move |e| search_query.set(e.value()),
@@ -66,26 +68,30 @@ pub(super) fn ReaderSearchDrawer(
                     button {
                         class: "btn btn-primary",
                         onclick: move |_| execute_reader_search(session, search_query, search_results, is_searching),
-                        "Chercher"
+                        {translate(locale, "reader.search_btn")}
                     }
                 }
 
                 div { style: "flex: 1; overflow-y: auto; padding: 12px 16px;",
                     if *is_searching.read() {
                         div { style: "padding: 30px; text-align: center; color: var(--text-muted); font-size: 12px;",
-                            "Recherche en cours dans l'ensemble des chapitres..."
+                            {translate(locale, "reader.search_loading")}
                         }
                     } else if search_results.read().is_empty() {
                         div { style: "padding: 40px 10px; text-align: center; color: var(--text-muted); font-size: 12px;",
                             if search_query.read().trim().is_empty() {
-                                "Entrez un mot ou une phrase à rechercher dans le livre."
+                                {translate(locale, "reader.search_empty_prompt")}
                             } else {
-                                "Aucun résultat trouvé pour cette recherche."
+                                {translate(locale, "reader.search_no_results")}
                             }
                         }
                     } else {
                         div { style: "font-size: 11px; color: var(--text-muted); margin-bottom: 10px;",
-                            "{search_results.read().len()} occurrences trouvées :"
+                            {translate_fmt(
+                                locale,
+                                "reader.search_results_count",
+                                &[("count", &search_results.read().len().to_string())],
+                            )}
                         }
                         for item in search_results.read().iter() {
                             {

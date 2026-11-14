@@ -19,6 +19,16 @@ pub enum FilterStatus {
 }
 
 impl FilterStatus {
+    pub fn i18n_key(&self) -> &'static str {
+        match self {
+            FilterStatus::All => "nav.all_books",
+            FilterStatus::Reading => "nav.reading",
+            FilterStatus::Finished => "nav.finished",
+            FilterStatus::ToRead => "nav.to_read",
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn label(&self) -> &'static str {
         match self {
             FilterStatus::All => "Tous les livres",

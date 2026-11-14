@@ -4,7 +4,7 @@ mod extras_section;
 mod smtp_section;
 
 use dioxus::prelude::*;
-use vellum_core::{translate, CatalogFormat, Locale};
+use vellum_core::{translate, translate_fmt, CatalogFormat, Locale};
 use vellum_domain::{
     CloudSyncConfig, CustomColumnDefinition, CustomColumnType, PluginDescriptor, SmtpConfig,
 };
@@ -47,26 +47,26 @@ pub fn SettingsModal(
         .sync_folder_path
         .as_ref()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|| "Aucun dossier sélectionné".to_string());
+        .unwrap_or_else(|| translate(locale, "settings.no_folder").to_string());
 
     let (sync_badge_text, sync_badge_style) = if sync_available && sync_config.enabled {
         (
-            "ACTIF",
+            translate(locale, "settings.status_active"),
             "background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);",
         )
     } else if sync_available && !sync_config.enabled {
         (
-            "DÉSACTIVÉ",
+            translate(locale, "settings.status_disabled"),
             "background: rgba(148, 163, 184, 0.2); color: #94a3b8; border-color: rgba(148, 163, 184, 0.3);",
         )
     } else if sync_config.sync_folder_path.is_some() && !sync_available {
         (
-            "DOSSIER INTROUVABLE",
+            translate(locale, "settings.status_folder_missing"),
             "background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);",
         )
     } else {
         (
-            "NON CONFIGURÉ",
+            translate(locale, "settings.status_unconfigured"),
             "background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3);",
         )
     };
@@ -74,7 +74,7 @@ pub fn SettingsModal(
     let last_sync_text = sync_config
         .last_synced_at
         .as_deref()
-        .unwrap_or("Jamais synchronisé");
+        .unwrap_or_else(|| translate(locale, "settings.never_synced"));
 
     rsx! {
         div {
@@ -115,7 +115,7 @@ pub fn SettingsModal(
                     div { style: "display: flex; justify-content: space-between; align-items: center;",
                         div { style: "display: flex; align-items: center; gap: 8px;",
                             span { style: "font-size: 16px;", "☁️" }
-                            span { style: "font-weight: 700; font-size: 14px; color: #93c5fd;", "Synchronisation Google Drive Multi-Postes" }
+                            span { style: "font-weight: 700; font-size: 14px; color: #93c5fd;", {translate(locale, "settings.sync_title")} }
                         }
                         span {
                             class: "format-pill",
@@ -125,13 +125,12 @@ pub fn SettingsModal(
                     }
 
                     p { style: "font-size: 12px; color: var(--text-secondary); line-height: 1.5;",
-                        "Synchronise de manière transparente vos livres (EPUB, PDF, CBZ...) et votre progression de lecture entre plusieurs machines. "
-                        "Architecture décentralisée sécurisée sans risque de corruption de base de données."
+                        {translate(locale, "settings.sync_desc")}
                     }
 
                     // Emplacement du dossier Drive
                     div { style: "display: flex; flex-direction: column; gap: 6px;",
-                        span { style: "font-size: 12px; font-weight: 600; color: var(--text-secondary);", "Dossier de synchronisation Google Drive :" }
+                        span { style: "font-size: 12px; font-weight: 600; color: var(--text-secondary);", {translate(locale, "settings.sync_folder_label")} }
                         div { style: "display: flex; align-items: center; gap: 8px;",
                             div {
                                 style: "flex: 1; font-size: 11px; background: rgba(0,0,0,0.4); padding: 8px 12px; border-radius: 6px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--border-subtle);",
@@ -142,14 +141,14 @@ pub fn SettingsModal(
                                 class: "btn btn-secondary",
                                 style: "font-size: 11px; padding: 6px 10px; white-space: nowrap;",
                                 onclick: move |_| on_select_folder.call(()),
-                                "📁 Choisir..."
+                                {translate(locale, "settings.choose_folder")}
                             }
                             button {
                                 class: "btn btn-secondary",
                                 style: "font-size: 11px; padding: 6px 10px; white-space: nowrap;",
-                                title: "Détecter automatiquement Google Drive sur macOS / Windows",
+                                title: translate(locale, "settings.auto_detect_tooltip"),
                                 onclick: move |_| on_auto_detect_folder.call(()),
-                                "🔍 Auto-détecter"
+                                {translate(locale, "settings.auto_detect_btn")}
                             }
                         }
                     }
@@ -162,7 +161,7 @@ pub fn SettingsModal(
                                 checked: sync_config.enabled,
                                 onchange: move |evt| on_toggle_enabled.call(evt.value() == "true"),
                             }
-                            span { style: "font-weight: 500;", "Activer la synchronisation avec ce dossier" }
+                            span { style: "font-weight: 500;", {translate(locale, "settings.sync_enable")} }
                         }
 
                         label { style: "display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 12px;",
@@ -172,8 +171,8 @@ pub fn SettingsModal(
                                 onchange: move |evt| on_toggle_auto_download.call(evt.value() == "true"),
                             }
                             div { style: "display: flex; flex-direction: column;",
-                                span { style: "font-weight: 500;", "Télécharger automatiquement les nouveaux livres (Miroir complet)" }
-                                span { style: "font-size: 11px; color: var(--text-muted);", "Récupère les fichiers EPUB ajoutés depuis vos autres ordinateurs." }
+                                span { style: "font-weight: 500;", {translate(locale, "settings.sync_auto_download")} }
+                                span { style: "font-size: 11px; color: var(--text-muted);", {translate(locale, "settings.sync_auto_download_desc")} }
                             }
                         }
                     }
@@ -189,8 +188,8 @@ pub fn SettingsModal(
                     // Actions & Pied du bloc Sync
                     div { style: "display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 11px; color: var(--text-muted);",
                         div { style: "display: flex; flex-direction: column; gap: 2px;",
-                            span { "Poste : {sync_config.client_name} ({sync_config.client_id})" }
-                            span { "Dernière synchro : {last_sync_text}" }
+                            span { {translate_fmt(locale, "settings.sync_client", &[("name", &sync_config.client_name), ("id", &sync_config.client_id)])} }
+                            span { {translate_fmt(locale, "settings.sync_last", &[("date", last_sync_text)])} }
                         }
                         button {
                             class: "btn btn-primary",
@@ -198,13 +197,14 @@ pub fn SettingsModal(
                             disabled: is_syncing || !sync_available,
                             onclick: move |_| on_sync_now.call(()),
                             span { if is_syncing { "⏳" } else { "🔄" } }
-                            span { if is_syncing { "Synchro en cours..." } else { "Synchroniser maintenant" } }
+                            span { {if is_syncing { translate(locale, "settings.sync_in_progress") } else { translate(locale, "settings.sync_now") }} }
                         }
                     }
                 }
 
                 // 2. Envoi sans-fil Kindle (Send-to-Kindle via SMTP)
                 SmtpSettingsSection {
+                    locale,
                     smtp_config,
                     is_testing_smtp,
                     smtp_test_message,
@@ -215,15 +215,15 @@ pub fn SettingsModal(
                 // 3. Serveur OPDS
                 div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
                     div { style: "display: flex; justify-content: space-between; align-items: center;",
-                        span { style: "font-weight: 600; font-size: 13px;", "📡 Serveur OPDS v1.2" }
+                        span { style: "font-weight: 600; font-size: 13px;", {translate(locale, "settings.opds_title")} }
                         span {
                             class: "format-pill",
                             style: if opds_running { "background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);" } else { "background: rgba(239, 68, 68, 0.2); color: #f87171;" },
-                            if opds_running { "ACTIF" } else { "ARRÊTÉ" }
+                            {if opds_running { translate(locale, "settings.status_active") } else { translate(locale, "settings.status_stopped") }}
                         }
                     }
                     p { style: "font-size: 12px; color: var(--text-secondary);",
-                        "Partagez votre catalogue local avec vos liseuses physiques et applications mobiles (Kobo, Moon+ Reader, Thorium, Aldiko, Koreader)."
+                        {translate(locale, "settings.opds_desc")}
                     }
                     div { style: "display: flex; align-items: center; justify-content: space-between; font-size: 12px; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; font-family: monospace;",
                         span { "{opds_url}" }
@@ -234,18 +234,19 @@ pub fn SettingsModal(
                 // 4. Litestream
                 div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
                     div { style: "display: flex; justify-content: space-between; align-items: center;",
-                        span { style: "font-weight: 600; font-size: 13px;", "☁️ Réplication SQLite (Litestream)" }
+                        span { style: "font-weight: 600; font-size: 13px;", {translate(locale, "settings.litestream_title")} }
                         span { class: "format-pill", "WAL STREAM" }
                     }
                     p { style: "font-size: 12px; color: var(--text-secondary);",
-                        "Sauvegarde continue et réplication temps réel vers stockage distant ou bucket S3 compatible."
+                        {translate(locale, "settings.litestream_desc")}
                     }
                     div { style: "font-size: 12px; color: var(--text-muted);",
-                        "État : {litestream_status_text}"
+                        {translate_fmt(locale, "settings.litestream_status", &[("status", &litestream_status_text)])}
                     }
                 }
 
                 LibraryToolsSection {
+                    locale,
                     custom_columns,
                     on_create_custom_column,
                     on_delete_custom_column,
@@ -256,7 +257,13 @@ pub fn SettingsModal(
 
                 // 5. Plugins
                 div { style: "display: flex; flex-direction: column; gap: 8px;",
-                    div { class: "sidebar-section-title", "Extensions & Formats Détectés ({plugins.len()})" }
+                    div {
+                        class: "sidebar-section-title",
+                        {
+                            let p_count = plugins.len().to_string();
+                            translate_fmt(locale, "settings.plugins_title", &[("count", &p_count)])
+                        }
+                    }
                     div { style: "display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;",
                         for p in plugins.iter() {
                             div {

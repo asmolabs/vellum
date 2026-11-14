@@ -1,11 +1,12 @@
 //! Sections complémentaires des paramètres : Watch Folder, colonnes personnalisées et export catalogue.
 
 use dioxus::prelude::*;
-use vellum_core::CatalogFormat;
+use vellum_core::{translate, translate_fmt, CatalogFormat, Locale};
 use vellum_domain::{CustomColumnDefinition, CustomColumnType};
 
 #[component]
 pub(super) fn LibraryToolsSection(
+    locale: Locale,
     custom_columns: Vec<CustomColumnDefinition>,
     on_create_custom_column: EventHandler<(String, String, CustomColumnType)>,
     on_delete_custom_column: EventHandler<String>,
@@ -21,16 +22,16 @@ pub(super) fn LibraryToolsSection(
     rsx! {
         // Watch Folder (Auto-Add)
         div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
-            div { style: "font-weight: 600; font-size: 13px;", "📥 Watch Folder (Auto-Add)" }
+            div { style: "font-weight: 600; font-size: 13px;", {translate(locale, "settings.watch_title")} }
             p { style: "font-size: 12px; color: var(--text-secondary);",
-                "Importe automatiquement les nouveaux ebooks déposés dans un dossier et évite les doublons."
+                {translate(locale, "settings.watch_desc")}
             }
             div { style: "display: flex; gap: 8px;",
                 input {
                     class: "search-input",
                     style: "flex: 1; font-size: 12px;",
                     r#type: "text",
-                    placeholder: "/chemin/vers/dossier-a-importer",
+                    placeholder: translate(locale, "settings.watch_placeholder"),
                     value: "{watch_dir_input}",
                     oninput: move |e| watch_dir_input.set(e.value()),
                 }
@@ -43,14 +44,20 @@ pub(super) fn LibraryToolsSection(
                             on_scan_watch_folder.call(dir);
                         }
                     },
-                    "Scanner maintenant"
+                    {translate(locale, "settings.watch_scan")}
                 }
             }
         }
 
         // Colonnes personnalisées
         div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
-            div { style: "font-weight: 600; font-size: 13px;", "🏷️ Colonnes personnalisées ({custom_columns.len()})" }
+            div {
+                style: "font-weight: 600; font-size: 13px;",
+                {
+                    let count_str = custom_columns.len().to_string();
+                    translate_fmt(locale, "settings.custom_cols_title", &[("count", &count_str)])
+                }
+            }
             if !custom_columns.is_empty() {
                 div { style: "display: flex; flex-direction: column; gap: 4px;",
                     for col in custom_columns.iter() {
@@ -76,7 +83,7 @@ pub(super) fn LibraryToolsSection(
                     class: "search-input",
                     style: "flex: 1; min-width: 110px; font-size: 12px;",
                     r#type: "text",
-                    placeholder: "Clé (ex: pages)",
+                    placeholder: translate(locale, "settings.custom_col_key_ph"),
                     value: "{new_col_key}",
                     oninput: move |e| new_col_key.set(e.value()),
                 }
@@ -84,7 +91,7 @@ pub(super) fn LibraryToolsSection(
                     class: "search-input",
                     style: "flex: 1; min-width: 130px; font-size: 12px;",
                     r#type: "text",
-                    placeholder: "Libellé (ex: Pages)",
+                    placeholder: translate(locale, "settings.custom_col_label_ph"),
                     value: "{new_col_label}",
                     oninput: move |e| new_col_label.set(e.value()),
                 }
@@ -96,11 +103,11 @@ pub(super) fn LibraryToolsSection(
                             new_col_type.set(t);
                         }
                     },
-                    option { value: "text", "Texte" }
-                    option { value: "number", "Nombre" }
-                    option { value: "boolean", "Booléen" }
-                    option { value: "date", "Date" }
-                    option { value: "rating", "Note (0-5)" }
+                    option { value: "text", {translate(locale, "settings.type_text")} }
+                    option { value: "number", {translate(locale, "settings.type_number")} }
+                    option { value: "boolean", {translate(locale, "settings.type_boolean")} }
+                    option { value: "date", {translate(locale, "settings.type_date")} }
+                    option { value: "rating", {translate(locale, "settings.type_rating")} }
                 }
                 button {
                     class: "btn btn-primary",
@@ -115,35 +122,35 @@ pub(super) fn LibraryToolsSection(
                             new_col_label.set(String::new());
                         }
                     },
-                    "+ Ajouter"
+                    {translate(locale, "settings.add_btn")}
                 }
             }
         }
 
         // Export du catalogue
         div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
-            div { style: "font-weight: 600; font-size: 13px;", "📚 Export du catalogue" }
+            div { style: "font-weight: 600; font-size: 13px;", {translate(locale, "settings.export_title")} }
             p { style: "font-size: 12px; color: var(--text-secondary);",
-                "Exportez l'ensemble de votre bibliothèque au format CSV, JSON ou BibTeX."
+                {translate(locale, "settings.export_desc")}
             }
             div { style: "display: flex; gap: 8px; flex-wrap: wrap;",
                 button {
                     class: "btn btn-secondary",
                     style: "font-size: 12px;",
                     onclick: move |_| on_export_catalog.call(CatalogFormat::Csv),
-                    "📄 Exporter CSV"
+                    {translate(locale, "settings.export_csv")}
                 }
                 button {
                     class: "btn btn-secondary",
                     style: "font-size: 12px;",
                     onclick: move |_| on_export_catalog.call(CatalogFormat::Json),
-                    "🧾 Exporter JSON"
+                    {translate(locale, "settings.export_json")}
                 }
                 button {
                     class: "btn btn-secondary",
                     style: "font-size: 12px;",
                     onclick: move |_| on_export_catalog.call(CatalogFormat::Bibtex),
-                    "🎓 Exporter BibTeX"
+                    {translate(locale, "settings.export_bibtex")}
                 }
             }
         }

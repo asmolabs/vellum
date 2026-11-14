@@ -1,9 +1,11 @@
 use crate::state::ReaderSession;
 use dioxus::prelude::*;
+use vellum_core::i18n::{translate, translate_fmt, Locale};
 
 #[component]
 pub(super) fn ReaderSelectionOverlays(
     mut session: Signal<Option<ReaderSession>>,
+    locale: Locale,
     mut selected_text: Signal<Option<String>>,
     mut note_mode: Signal<bool>,
     mut note_input: Signal<String>,
@@ -18,14 +20,14 @@ pub(super) fn ReaderSelectionOverlays(
             {
                 let txt = text.clone();
                 let color_choices = [
-                    ("yellow", "#facc15", "Jaune"),
-                    ("green", "#4ade80", "Vert"),
-                    ("blue", "#60a5fa", "Bleu"),
-                    ("pink", "#f472b6", "Rose"),
+                    ("yellow", "#facc15", translate(locale, "reader.color_yellow")),
+                    ("green", "#4ade80", translate(locale, "reader.color_green")),
+                    ("blue", "#60a5fa", translate(locale, "reader.color_blue")),
+                    ("pink", "#f472b6", translate(locale, "reader.color_pink")),
                 ];
                 rsx! {
                     div { class: "reader-selection-bar",
-                        span { style: "font-size: 11px; color: var(--text-muted); margin-right: 4px;", "Surligner :" }
+                        span { style: "font-size: 11px; color: var(--text-muted); margin-right: 4px;", {translate(locale, "reader.highlight_prefix")} }
                         for (color_name, hex, label) in color_choices {
                             {
                                 let t = txt.clone();
@@ -51,15 +53,15 @@ pub(super) fn ReaderSelectionOverlays(
                         button {
                             class: "btn btn-icon",
                             style: "font-size: 11px; padding: 4px 8px; border-radius: 12px;",
-                            title: "Ajouter une note",
+                            title: translate(locale, "reader.add_note_title"),
                             onclick: move |_| note_mode.set(true),
-                            "📝 Note"
+                            {translate(locale, "reader.add_note_btn")}
                         }
 
                         button {
                             class: "btn btn-icon",
                             style: "font-size: 11px; padding: 4px 8px; border-radius: 12px; color: #a855f7;",
-                            title: "Définition ou traduction IA",
+                            title: translate(locale, "reader.ai_define_title"),
                             onclick: {
                                 let t = txt.clone();
                                 move |_| {
@@ -78,15 +80,21 @@ pub(super) fn ReaderSelectionOverlays(
                                         ai_loading.set(false);
                                         match res {
                                             Ok(Ok(content)) => ai_result.set(Some(content)),
-                                            Ok(Err(e)) => ai_result.set(Some(format!(
-                                                "Erreur lors de la requête IA : {e}\n\nVérifiez qu'Ollama est lancé sur votre machine (`ollama run qwen2.5:14b`)."
+                                            Ok(Err(e)) => ai_result.set(Some(translate_fmt(
+                                                locale,
+                                                "reader.ai_error",
+                                                &[("error", &e.to_string())],
                                             ))),
-                                            Err(e) => ai_result.set(Some(format!("Tâche interrompue : {e}"))),
+                                            Err(e) => ai_result.set(Some(translate_fmt(
+                                                locale,
+                                                "reader.ai_task_interrupted",
+                                                &[("error", &e.to_string())],
+                                            ))),
                                         }
                                     });
                                 }
                             },
-                            "✨ Définir / IA"
+                            {translate(locale, "reader.ai_define_btn")}
                         }
 
                         button {
@@ -111,14 +119,14 @@ pub(super) fn ReaderSelectionOverlays(
                             div {
                                 class: "reader-ai-card",
                                 onclick: move |e| e.stop_propagation(),
-                                h3 { style: "font-size: 16px; font-weight: 600;", "Ajouter une note de lecture" }
+                                h3 { style: "font-size: 16px; font-weight: 600;", {translate(locale, "reader.note_modal_title")} }
                                 blockquote { style: "font-size: 12px; color: var(--text-secondary); border-left: 2px solid var(--accent-primary); padding-left: 10px; margin: 4px 0;",
                                     "{text_val}"
                                 }
                                 textarea {
                                     class: "drawer-textarea",
                                     rows: 4,
-                                    placeholder: "Écrivez votre commentaire ou réflexion ici...",
+                                    placeholder: translate(locale, "reader.note_placeholder"),
                                     value: "{note_input}",
                                     oninput: move |e| note_input.set(e.value()),
                                 }
@@ -126,7 +134,7 @@ pub(super) fn ReaderSelectionOverlays(
                                     button {
                                         class: "btn btn-secondary",
                                         onclick: move |_| note_mode.set(false),
-                                        "Annuler"
+                                        {translate(locale, "reader.cancel")}
                                     }
                                     button {
                                         class: "btn btn-primary",
@@ -144,7 +152,7 @@ pub(super) fn ReaderSelectionOverlays(
                                                 selected_text.set(None);
                                             }
                                         },
-                                        "Enregistrer la note"
+                                        {translate(locale, "reader.save_note")}
                                     }
                                 }
                             }
@@ -164,7 +172,7 @@ pub(super) fn ReaderSelectionOverlays(
                     div { style: "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;",
                         div { style: "display: flex; align-items: center; gap: 8px;",
                             span { style: "font-size: 20px;", "✨" }
-                            span { style: "font-weight: 600; font-size: 15px;", "Explication & Définition IA" }
+                            span { style: "font-weight: 600; font-size: 15px;", {translate(locale, "reader.ai_modal_title")} }
                         }
                         button {
                             class: "btn btn-icon",
@@ -180,7 +188,7 @@ pub(super) fn ReaderSelectionOverlays(
                     div { style: "min-height: 90px; max-height: 300px; overflow-y: auto; font-size: 13px; line-height: 1.6; color: var(--text-primary);",
                         if *ai_loading.read() {
                             div { style: "display: flex; align-items: center; gap: 10px; color: var(--text-muted); padding: 20px 0;",
-                                span { style: "animation: pulse 1s infinite;", "Recherche en cours avec Ollama..." }
+                                span { style: "animation: pulse 1s infinite;", {translate(locale, "reader.ai_loading")} }
                             }
                         } else if let Some(ref res) = *ai_result.read() {
                             div { style: "white-space: pre-wrap;", "{res}" }
@@ -191,7 +199,7 @@ pub(super) fn ReaderSelectionOverlays(
                         button {
                             class: "btn btn-secondary",
                             onclick: move |_| ai_modal_open.set(false),
-                            "Fermer"
+                            {translate(locale, "reader.close")}
                         }
                         if let Some(ref res) = *ai_result.read() {
                             {
@@ -206,9 +214,9 @@ pub(super) fn ReaderSelectionOverlays(
                                                 s.add_highlight("blue", &query_text, Some(note_text.clone()));
                                             }
                                             ai_modal_open.set(false);
-                                            toast_msg.set(Some("Enregistré comme note de lecture !".to_string()));
+                                            toast_msg.set(Some(translate(locale, "reader.saved_note_toast").to_string()));
                                         },
-                                        "📌 Garder comme note"
+                                        {translate(locale, "reader.save_ai_note")}
                                     }
                                 }
                             }

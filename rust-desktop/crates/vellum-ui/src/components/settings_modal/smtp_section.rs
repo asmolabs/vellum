@@ -1,10 +1,12 @@
 //! Section des paramètres d'envoi sans-fil Kindle via SMTP.
 
 use dioxus::prelude::*;
+use vellum_core::{translate, Locale};
 use vellum_domain::SmtpConfig;
 
 #[component]
 pub(super) fn SmtpSettingsSection(
+    locale: Locale,
     smtp_config: SmtpConfig,
     is_testing_smtp: bool,
     smtp_test_message: Option<(bool, String)>,
@@ -23,17 +25,17 @@ pub(super) fn SmtpSettingsSection(
         && !smtp_kindle.read().is_empty()
     {
         (
-            "CONFIGURÉ",
+            translate(locale, "settings.status_configured"),
             "background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4);",
         )
     } else if *smtp_enabled.read() {
         (
-            "INCOMPLET",
+            translate(locale, "settings.status_incomplete"),
             "background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);",
         )
     } else {
         (
-            "DÉSACTIVÉ",
+            translate(locale, "settings.status_disabled"),
             "background: rgba(148, 163, 184, 0.2); color: #94a3b8; border-color: rgba(148, 163, 184, 0.3);",
         )
     };
@@ -56,7 +58,7 @@ pub(super) fn SmtpSettingsSection(
             div { style: "display: flex; justify-content: space-between; align-items: center;",
                 div { style: "display: flex; align-items: center; gap: 8px;",
                     span { style: "font-size: 16px;", "✉️" }
-                    span { style: "font-weight: 700; font-size: 14px; color: #fcd34d;", "Envoi sans-fil Kindle (Send-to-Kindle SMTP)" }
+                    span { style: "font-weight: 700; font-size: 14px; color: #fcd34d;", {translate(locale, "settings.smtp_title")} }
                 }
                 span {
                     class: "format-pill",
@@ -66,7 +68,7 @@ pub(super) fn SmtpSettingsSection(
             }
 
             p { style: "font-size: 12px; color: var(--text-secondary); line-height: 1.5;",
-                "Permet d'envoyer vos livres EPUB directement vers votre liseuse Amazon Kindle sans câble USB en passant par votre compte e-mail."
+                {translate(locale, "settings.smtp_desc")}
             }
 
             label { style: "display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 12px;",
@@ -75,14 +77,14 @@ pub(super) fn SmtpSettingsSection(
                     checked: *smtp_enabled.read(),
                     onchange: move |e| smtp_enabled.set(e.value() == "true"),
                 }
-                span { style: "font-weight: 600;", "Activer l'envoi sans-fil vers Kindle" }
+                span { style: "font-weight: 600;", {translate(locale, "settings.smtp_enable")} }
             }
 
             if *smtp_enabled.read() {
                 div { style: "display: flex; flex-direction: column; gap: 10px; margin-top: 4px;",
                     div { style: "display: grid; grid-template-columns: 2fr 1fr; gap: 10px;",
                         div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Serveur SMTP :" }
+                            label { class: "drawer-form-label", {translate(locale, "settings.smtp_host")} }
                             input {
                                 class: "drawer-input",
                                 placeholder: "smtp.gmail.com",
@@ -91,7 +93,7 @@ pub(super) fn SmtpSettingsSection(
                             }
                         }
                         div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Port (587/465) :" }
+                            label { class: "drawer-form-label", {translate(locale, "settings.smtp_port")} }
                             input {
                                 class: "drawer-input",
                                 placeholder: "587",
@@ -103,7 +105,7 @@ pub(super) fn SmtpSettingsSection(
 
                     div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
                         div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Nom d'utilisateur / Email :" }
+                            label { class: "drawer-form-label", {translate(locale, "settings.smtp_user")} }
                             input {
                                 class: "drawer-input",
                                 placeholder: "mon.email@gmail.com",
@@ -112,11 +114,11 @@ pub(super) fn SmtpSettingsSection(
                             }
                         }
                         div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Mot de passe d'application :" }
+                            label { class: "drawer-form-label", {translate(locale, "settings.smtp_pass")} }
                             input {
                                 class: "drawer-input",
                                 r#type: "password",
-                                placeholder: "Mot de passe SMTP...",
+                                placeholder: translate(locale, "settings.smtp_pass_placeholder"),
                                 value: "{smtp_pass}",
                                 oninput: move |e| smtp_pass.set(e.value()),
                             }
@@ -125,7 +127,7 @@ pub(super) fn SmtpSettingsSection(
 
                     div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
                         div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Expéditeur approuvé (From) :" }
+                            label { class: "drawer-form-label", {translate(locale, "settings.smtp_from")} }
                             input {
                                 class: "drawer-input",
                                 placeholder: "mon.email@gmail.com",
@@ -134,7 +136,7 @@ pub(super) fn SmtpSettingsSection(
                             }
                         }
                         div { class: "drawer-form-group",
-                            label { class: "drawer-form-label", "Adresse Kindle destinataire :" }
+                            label { class: "drawer-form-label", {translate(locale, "settings.smtp_kindle")} }
                             input {
                                 class: "drawer-input",
                                 placeholder: "ma_liseuse@kindle.com",
@@ -164,7 +166,7 @@ pub(super) fn SmtpSettingsSection(
                                 let build = build_current_smtp;
                                 move |_| on_test_smtp.call(build())
                             },
-                            if is_testing_smtp { "⏳ Test en cours..." } else { "🔍 Tester la connexion" }
+                            {if is_testing_smtp { translate(locale, "settings.smtp_testing") } else { translate(locale, "settings.smtp_test_btn") }}
                         }
                         button {
                             class: "btn btn-primary",
@@ -173,7 +175,7 @@ pub(super) fn SmtpSettingsSection(
                                 let build = build_current_smtp;
                                 move |_| on_save_smtp.call(build())
                             },
-                            "💾 Enregistrer SMTP"
+                            {translate(locale, "settings.smtp_save_btn")}
                         }
                     }
                 }

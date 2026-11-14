@@ -6,7 +6,7 @@ mod toc_tab;
 use std::sync::Arc;
 
 use dioxus::prelude::*;
-use vellum_core::BookService;
+use vellum_core::{translate, translate_fmt, BookService, Locale};
 use vellum_domain::{Book, EpubDiagnostics, EpubTocEntry};
 
 use lint_tab::EpubLintTab;
@@ -14,6 +14,7 @@ use toc_tab::EpubTocTab;
 
 #[component]
 pub fn EpubEditorModal(
+    locale: Locale,
     book: Book,
     book_service: Arc<BookService>,
     on_close: EventHandler<()>,
@@ -76,10 +77,10 @@ pub fn EpubEditorModal(
                 is_op.set(false);
                 match res {
                     Ok(Ok(generated)) => {
-                        let count = generated.len();
+                        let count = generated.len().to_string();
                         te.set(generated);
                         notif.set(Some((
-                            format!("⚡ {count} chapitres extraits avec succès des titres HTML !"),
+                            translate_fmt(locale, "epub.toc_extracted", &[("count", &count)]),
                             true,
                         )));
                     }
@@ -122,8 +123,7 @@ pub fn EpubEditorModal(
                     Ok(Ok(updated_diag)) => {
                         diag_sig.set(Some(updated_diag));
                         notif.set(Some((
-                            "💾 Table des Matières enregistrée avec succès dans le fichier EPUB !"
-                                .to_string(),
+                            translate(locale, "epub.toc_saved").to_string(),
                             true,
                         )));
                         on_updated.call(());
@@ -168,10 +168,7 @@ pub fn EpubEditorModal(
                     Ok(Ok((new_diag, new_toc))) => {
                         diag_sig.set(Some(new_diag));
                         te.set(new_toc);
-                        notif.set(Some((
-                            "✨ Nettoyage et réparation terminés avec succès (archive re-packagée, DRM/junk purgés) !".to_string(),
-                            true,
-                        )));
+                        notif.set(Some((translate(locale, "epub.repaired").to_string(), true)));
                         on_updated.call(());
                     }
                     Ok(Err(e)) => {
@@ -200,7 +197,7 @@ pub fn EpubEditorModal(
                     div { style: "display: flex; align-items: center; gap: 10px;",
                         span { style: "font-size: 22px;", "🛠️" }
                         div {
-                            h3 { style: "font-size: 16px; font-weight: 700; margin: 0;", "Inspecteur & TOC EPUB" }
+                            h3 { style: "font-size: 16px; font-weight: 700; margin: 0;", {translate(locale, "epub.title")} }
                             p { style: "font-size: 12px; color: var(--text-secondary); margin: 0;", "{book.title} — {book.author}" }
                         }
                     }
@@ -229,13 +226,16 @@ pub fn EpubEditorModal(
                         class: if *active_tab.read() == "diagnostics" { "btn btn-primary" } else { "btn btn-secondary" },
                         style: "font-size: 13px; padding: 6px 14px;",
                         onclick: move |_| active_tab.set("diagnostics".to_string()),
-                        "📋 Diagnostic & Santé EPUB"
+                        {translate(locale, "epub.tab_diag")}
                     }
                     button {
                         class: if *active_tab.read() == "toc" { "btn btn-primary" } else { "btn btn-secondary" },
                         style: "font-size: 13px; padding: 6px 14px;",
                         onclick: move |_| active_tab.set("toc".to_string()),
-                        "📑 Table des Matières ({toc_entries.read().len()})"
+                        {
+                            let toc_len = toc_entries.read().len().to_string();
+                            translate_fmt(locale, "epub.tab_toc", &[("count", &toc_len)])
+                        }
                     }
                 }
 
@@ -243,16 +243,18 @@ pub fn EpubEditorModal(
                 div { style: "flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 14px;",
                     if *is_loading.read() {
                         div { style: "display: flex; align-items: center; justify-content: center; height: 180px; color: var(--text-secondary);",
-                            "⏳ Analyse en cours de la structure EPUB..."
+                            {translate(locale, "epub.analyzing")}
                         }
                     } else if *active_tab.read() == "diagnostics" {
                         EpubLintTab {
+                            locale,
                             diagnostics,
                             is_operating,
                             on_repair: move |_| run_repair_epub(),
                         }
                     } else if *active_tab.read() == "toc" {
                         EpubTocTab {
+                            locale,
                             toc_entries,
                             is_operating,
                             on_auto_generate_toc: {

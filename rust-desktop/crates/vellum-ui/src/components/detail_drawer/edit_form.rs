@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use vellum_core::{translate, Locale};
 
 use super::SaveMetadataRequest;
 
@@ -13,6 +14,7 @@ fn optional_trimmed(value: &str) -> Option<String> {
 
 #[component]
 pub fn MetadataEditForm(
+    locale: Locale,
     book_id: String,
     mut edit_title: Signal<String>,
     mut edit_author: Signal<String>,
@@ -29,7 +31,7 @@ pub fn MetadataEditForm(
     rsx! {
         div { style: "display: flex; flex-direction: column; gap: 14px; padding: 4px 0;",
             div { class: "drawer-form-group",
-                label { class: "drawer-form-label", "Titre :" }
+                label { class: "drawer-form-label", {translate(locale, "drawer.form_title")} }
                 input {
                     class: "drawer-input",
                     value: "{edit_title}",
@@ -38,7 +40,7 @@ pub fn MetadataEditForm(
             }
 
             div { class: "drawer-form-group",
-                label { class: "drawer-form-label", "Auteur :" }
+                label { class: "drawer-form-label", {translate(locale, "drawer.form_author")} }
                 input {
                     class: "drawer-input",
                     value: "{edit_author}",
@@ -48,19 +50,19 @@ pub fn MetadataEditForm(
 
             div { style: "display: grid; grid-template-columns: 2fr 1fr; gap: 10px;",
                 div { class: "drawer-form-group",
-                    label { class: "drawer-form-label", "Série / Saga :" }
+                    label { class: "drawer-form-label", {translate(locale, "drawer.form_series")} }
                     input {
                         class: "drawer-input",
-                        placeholder: "Ex: Le Cycle de Dune",
+                        placeholder: translate(locale, "drawer.form_series_placeholder"),
                         value: "{edit_series}",
                         oninput: move |e| edit_series.set(e.value()),
                     }
                 }
                 div { class: "drawer-form-group",
-                    label { class: "drawer-form-label", "Tome / Numéro :" }
+                    label { class: "drawer-form-label", {translate(locale, "drawer.form_series_index")} }
                     input {
                         class: "drawer-input",
-                        placeholder: "Ex: 1",
+                        placeholder: translate(locale, "drawer.form_series_index_placeholder"),
                         value: "{edit_series_index}",
                         oninput: move |e| edit_series_index.set(e.value()),
                     }
@@ -68,10 +70,10 @@ pub fn MetadataEditForm(
             }
 
             div { class: "drawer-form-group",
-                label { class: "drawer-form-label", "Éditeur :" }
+                label { class: "drawer-form-label", {translate(locale, "drawer.form_publisher")} }
                 input {
                     class: "drawer-input",
-                    placeholder: "Nom de l'éditeur...",
+                    placeholder: translate(locale, "drawer.form_publisher_placeholder"),
                     value: "{edit_publisher}",
                     oninput: move |e| edit_publisher.set(e.value()),
                 }
@@ -79,7 +81,7 @@ pub fn MetadataEditForm(
 
             div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 10px;",
                 div { class: "drawer-form-group",
-                    label { class: "drawer-form-label", "ISBN :" }
+                    label { class: "drawer-form-label", {translate(locale, "drawer.form_isbn")} }
                     input {
                         class: "drawer-input",
                         placeholder: "Ex: 9782207249117",
@@ -88,7 +90,7 @@ pub fn MetadataEditForm(
                     }
                 }
                 div { class: "drawer-form-group",
-                    label { class: "drawer-form-label", "Date de publication :" }
+                    label { class: "drawer-form-label", {translate(locale, "drawer.form_publish_date")} }
                     input {
                         class: "drawer-input",
                         placeholder: "Ex: 1965",
@@ -99,17 +101,17 @@ pub fn MetadataEditForm(
             }
 
             div { class: "drawer-form-group",
-                label { class: "drawer-form-label", "Tags / Catégories (séparés par virgule) :" }
+                label { class: "drawer-form-label", {translate(locale, "drawer.form_tags")} }
                 input {
                     class: "drawer-input",
-                    placeholder: "Roman, Science-Fiction, Hugo Award...",
+                    placeholder: translate(locale, "drawer.form_tags_placeholder"),
                     value: "{edit_tags}",
                     oninput: move |e| edit_tags.set(e.value()),
                 }
             }
 
             div { class: "drawer-form-group",
-                label { class: "drawer-form-label", "Synopsis / Description :" }
+                label { class: "drawer-form-label", {translate(locale, "drawer.form_description")} }
                 textarea {
                     class: "drawer-textarea",
                     rows: "5",
@@ -122,7 +124,7 @@ pub fn MetadataEditForm(
                 button {
                     class: "btn btn-secondary",
                     onclick: move |_| on_cancel.call(()),
-                    "Annuler"
+                    {translate(locale, "action.cancel")}
                 }
                 button {
                     class: "btn btn-primary",
@@ -148,7 +150,7 @@ pub fn MetadataEditForm(
                             tags,
                         });
                     },
-                    "💾 Enregistrer"
+                    {translate(locale, "drawer.form_save")}
                 }
             }
         }

@@ -1,9 +1,13 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
-use vellum_core::{BookService, BulkRegexReport, BulkRegexRequest, RegexTargetField};
+use vellum_core::{
+    translate, translate_fmt, BookService, BulkRegexReport, BulkRegexRequest, Locale,
+    RegexTargetField,
+};
 
 #[component]
 pub fn BulkRegexModal(
+    locale: Locale,
     book_service: Arc<BookService>,
     target_book_ids: Vec<String>,
     on_close: EventHandler<()>,
@@ -22,7 +26,7 @@ pub fn BulkRegexModal(
         move |dry_run: bool| {
             let pat = pattern.read().clone();
             if pat.is_empty() {
-                error_msg.set(Some("Veuillez saisir un motif Regex.".to_string()));
+                error_msg.set(Some(translate(locale, "bulk.regex_empty_err").to_string()));
                 return;
             }
             is_running.set(true);
@@ -53,7 +57,7 @@ pub fn BulkRegexModal(
         }
     };
 
-    let target_count = target_book_ids.len();
+    let target_count = target_book_ids.len().to_string();
 
     rsx! {
         div {
@@ -68,8 +72,8 @@ pub fn BulkRegexModal(
                 div {
                     style: "display: flex; align-items: center; justify-content: space-between;",
                     div {
-                        h2 { style: "margin: 0; font-size: 18px;", "🔤 Recherche & Remplacement Regex en masse" }
-                        p { style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);", "Cible : {target_count} livre(s)" }
+                        h2 { style: "margin: 0; font-size: 18px;", {translate(locale, "bulk.regex_title")} }
+                        p { style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);", {translate_fmt(locale, "bulk.regex_target_count", &[("count", &target_count)])} }
                     }
                     button {
                         class: "btn btn-secondary",
@@ -80,7 +84,7 @@ pub fn BulkRegexModal(
 
                 div {
                     style: "display: grid; grid-template-columns: 160px 1fr; gap: 10px; align-items: center;",
-                    label { style: "font-size: 13px; font-weight: 600;", "Champ cible" }
+                    label { style: "font-size: 13px; font-weight: 600;", {translate(locale, "bulk.regex_field")} }
                     select {
                         class: "form-input",
                         onchange: move |e| {
@@ -92,13 +96,13 @@ pub fn BulkRegexModal(
                             };
                             field.set(next);
                         },
-                        option { value: "title", selected: *field.read() == RegexTargetField::Title, "Titre" }
-                        option { value: "author", selected: *field.read() == RegexTargetField::Author, "Auteur" }
-                        option { value: "series", selected: *field.read() == RegexTargetField::Series, "Série" }
-                        option { value: "publisher", selected: *field.read() == RegexTargetField::Publisher, "Éditeur" }
+                        option { value: "title", selected: *field.read() == RegexTargetField::Title, {translate(locale, "table.col_title")} }
+                        option { value: "author", selected: *field.read() == RegexTargetField::Author, {translate(locale, "table.col_author")} }
+                        option { value: "series", selected: *field.read() == RegexTargetField::Series, {translate(locale, "table.col_series")} }
+                        option { value: "publisher", selected: *field.read() == RegexTargetField::Publisher, {translate(locale, "bulk.field_publisher")} }
                     }
 
-                    label { style: "font-size: 13px; font-weight: 600;", "Motif Regex" }
+                    label { style: "font-size: 13px; font-weight: 600;", {translate(locale, "bulk.regex_pattern")} }
                     input {
                         class: "form-input",
                         placeholder: r"ex: \s*\[.*?\]$",
@@ -106,10 +110,10 @@ pub fn BulkRegexModal(
                         oninput: move |e| pattern.set(e.value()),
                     }
 
-                    label { style: "font-size: 13px; font-weight: 600;", "Remplacement" }
+                    label { style: "font-size: 13px; font-weight: 600;", {translate(locale, "bulk.regex_replacement")} }
                     input {
                         class: "form-input",
-                        placeholder: "ex: $1 (laisser vide pour supprimer)",
+                        placeholder: translate(locale, "bulk.regex_replacement_ph"),
                         value: "{replacement}",
                         oninput: move |e| replacement.set(e.value()),
                     }
@@ -131,7 +135,7 @@ pub fn BulkRegexModal(
                             let mut r = run_op.clone();
                             move |_| r(true)
                         },
-                        "👁️ Prévisualiser (Dry-Run)"
+                        {translate(locale, "bulk.regex_preview")}
                     }
                     button {
                         class: "btn btn-primary",
@@ -140,22 +144,28 @@ pub fn BulkRegexModal(
                             let mut r = run_op.clone();
                             move |_| r(false)
                         },
-                        "✅ Appliquer"
+                        {translate(locale, "bulk.regex_apply")}
                     }
                 }
 
                 if let Some(rep) = report.read().as_ref() {
-                    div {
-                        style: "flex: 1; overflow-y: auto; border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;",
-                        div {
-                            style: "font-size: 13px; font-weight: 600;",
-                            "{rep.matched_count} correspondance(s), {rep.updated_count} mise(s) à jour."
-                        }
-                        for ch in rep.changes.iter() {
+                    {
+                        let matched = rep.matched_count.to_string();
+                        let updated = rep.updated_count.to_string();
+                        rsx! {
                             div {
-                                style: "padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.03); font-size: 12px;",
-                                div { style: "color: #fca5a5;", "− {ch.before}" }
-                                div { style: "color: #86efac;", "+ {ch.after}" }
+                                style: "flex: 1; overflow-y: auto; border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;",
+                                div {
+                                    style: "font-size: 13px; font-weight: 600;",
+                                    {translate_fmt(locale, "bulk.regex_summary", &[("matched", &matched), ("updated", &updated)])}
+                                }
+                                for ch in rep.changes.iter() {
+                                    div {
+                                        style: "padding: 8px 10px; border-radius: 6px; background: rgba(255,255,255,0.03); font-size: 12px;",
+                                        div { style: "color: #fca5a5;", "− {ch.before}" }
+                                        div { style: "color: #86efac;", "+ {ch.after}" }
+                                    }
+                                }
                             }
                         }
                     }

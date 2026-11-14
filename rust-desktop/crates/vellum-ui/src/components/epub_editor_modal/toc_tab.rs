@@ -1,10 +1,12 @@
 //! Onglet d'édition de la table des matières (TOC) d'un EPUB.
 
 use dioxus::prelude::*;
+use vellum_core::{translate, translate_fmt, Locale};
 use vellum_domain::EpubTocEntry;
 
 #[component]
 pub(super) fn EpubTocTab(
+    locale: Locale,
     mut toc_entries: Signal<Vec<EpubTocEntry>>,
     is_operating: Signal<bool>,
     on_auto_generate_toc: EventHandler<()>,
@@ -18,7 +20,7 @@ pub(super) fn EpubTocTab(
                     style: "font-size: 12px; padding: 6px 12px; font-weight: 600;",
                     disabled: *is_operating.read(),
                     onclick: move |_| on_auto_generate_toc.call(()),
-                    "⚡ Auto-détecter depuis les <h1> / <h2>"
+                    {translate(locale, "epub.toc_auto_detect")}
                 }
                 button {
                     class: "btn btn-secondary",
@@ -27,16 +29,17 @@ pub(super) fn EpubTocTab(
                     onclick: move |_| {
                         let mut list = toc_entries.read().clone();
                         let next_idx = list.len() + 1;
+                        let idx_str = next_idx.to_string();
                         list.push(EpubTocEntry {
                             id: format!("navpoint-{next_idx}"),
-                            label: format!("Nouveau Chapitre {next_idx}"),
+                            label: translate_fmt(locale, "epub.toc_new_chapter", &[("idx", &idx_str)]),
                             href: "ch1.xhtml".to_string(),
                             play_order: next_idx,
                             children: Vec::new(),
                         });
                         toc_entries.set(list);
                     },
-                    "➕ Ajouter"
+                    {translate(locale, "epub.toc_add")}
                 }
             }
 
@@ -45,19 +48,19 @@ pub(super) fn EpubTocTab(
                 style: "font-size: 12px; padding: 6px 16px; font-weight: 600;",
                 disabled: *is_operating.read(),
                 onclick: move |_| on_save_toc.call(()),
-                if *is_operating.read() { "⏳ Enregistrement..." } else { "💾 Enregistrer la TOC" }
+                {if *is_operating.read() { translate(locale, "epub.toc_saving") } else { translate(locale, "epub.toc_save") }}
             }
         }
 
         // Chapters list
         if toc_entries.read().is_empty() {
             div { style: "text-align: center; padding: 32px 16px; color: var(--text-secondary);",
-                p { style: "font-size: 14px; margin-bottom: 12px;", "Aucune entrée dans la table des matières." }
+                p { style: "font-size: 14px; margin-bottom: 12px;", {translate(locale, "epub.toc_empty")} }
                 button {
                     class: "btn btn-primary",
                     style: "font-size: 13px;",
                     onclick: move |_| on_auto_generate_toc.call(()),
-                    "⚡ Générer automatiquement à partir des titres HTML"
+                    {translate(locale, "epub.toc_generate")}
                 }
             }
         } else {

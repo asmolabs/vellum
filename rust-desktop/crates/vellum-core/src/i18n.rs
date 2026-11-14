@@ -76,6 +76,21 @@ pub fn translate(locale: Locale, key: &str) -> &str {
 }
 
 /// Retourne la traduction formatée en remplaçant les placeholders `{name}`.
+///
+/// # Exemples
+///
+/// ```
+/// use vellum_core::i18n::{translate_fmt, Locale};
+///
+/// assert_eq!(
+///     translate_fmt(Locale::En, "status.books_count", &[("count", "42")]),
+///     "42 book(s)"
+/// );
+/// assert_eq!(
+///     translate_fmt(Locale::Fr, "status.books_count", &[("count", "7")]),
+///     "7 livre(s)"
+/// );
+/// ```
 pub fn translate_fmt(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
     let mut out = translate(locale, key).to_string();
     for (k, v) in args {
@@ -107,11 +122,22 @@ mod tests {
         assert_eq!(Locale::parse_code("en_US.UTF-8"), Locale::En);
         assert_eq!(Locale::parse_code("fr_FR.UTF-8"), Locale::Fr);
 
-        // Vérifie la parité des clés entre fr.json et en.json
+        // Vérifie la parité bidirectionnelle des clés entre fr.json et en.json
+        assert_eq!(
+            FR_CATALOG.len(),
+            EN_CATALOG.len(),
+            "Nombre de clés différent entre fr.json et en.json"
+        );
         for key in FR_CATALOG.keys() {
             assert!(
                 EN_CATALOG.contains_key(key),
                 "Clé manquante dans en.json: {key}"
+            );
+        }
+        for key in EN_CATALOG.keys() {
+            assert!(
+                FR_CATALOG.contains_key(key),
+                "Clé manquante dans fr.json: {key}"
             );
         }
     }

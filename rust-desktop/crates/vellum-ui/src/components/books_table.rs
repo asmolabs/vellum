@@ -2,10 +2,12 @@ use crate::cover_cache::resolve_cover_src;
 use crate::library_logic::{compute_table_window, TABLE_ROW_HEIGHT_PX};
 use dioxus::prelude::*;
 use std::collections::HashSet;
+use vellum_core::{translate, Locale};
 use vellum_domain::Book;
 
 #[component]
 pub fn BooksTable(
+    locale: Locale,
     books: Vec<Book>,
     show_carousel: bool,
     selected_ids: HashSet<String>,
@@ -78,7 +80,7 @@ pub fn BooksTable(
 
                             button {
                                 class: "coverflow-nav prev",
-                                title: "Précédent",
+                                title: translate(locale, "table.prev"),
                                 disabled: active_idx == 0,
                                 onclick: move |_| {
                                     if active_idx > 0 {
@@ -148,7 +150,7 @@ pub fn BooksTable(
 
                             button {
                                 class: "coverflow-nav next",
-                                title: "Suivant",
+                                title: translate(locale, "table.next"),
                                 disabled: active_idx + 1 >= total,
                                 onclick: move |_| {
                                     if active_idx + 1 < books_next.len() {
@@ -165,13 +167,13 @@ pub fn BooksTable(
                                     class: "btn btn-primary",
                                     style: "padding: 3px 10px; font-size: 11px; border-radius: 6px;",
                                     onclick: move |_| on_read.call(active_read.clone()),
-                                    "📖 Lire"
+                                    {translate(locale, "table.read_btn")}
                                 }
                                 button {
                                     class: "btn btn-secondary",
                                     style: "padding: 3px 10px; font-size: 11px; border-radius: 6px;",
                                     onclick: move |_| on_select.call(active_detail.clone()),
-                                    "ℹ️ Détails"
+                                    {translate(locale, "table.details_btn")}
                                 }
                             }
                         }
@@ -187,13 +189,13 @@ pub fn BooksTable(
                         tr {
                             th { style: "width: 34px;", "" }
                             th { style: "width: 44px;", "" }
-                            th { "Titre" }
-                            th { "Auteur" }
-                            th { "Série" }
-                            th { "Formats" }
-                            th { "Tags" }
-                            th { style: "width: 90px;", "Progrès" }
-                            th { style: "width: 92px; text-align: right;", "Actions" }
+                            th { {translate(locale, "table.col_title")} }
+                            th { {translate(locale, "table.col_author")} }
+                            th { {translate(locale, "table.col_series")} }
+                            th { {translate(locale, "table.col_formats")} }
+                            th { {translate(locale, "table.col_tags")} }
+                            th { style: "width: 90px;", {translate(locale, "table.col_progress")} }
+                            th { style: "width: 92px; text-align: right;", {translate(locale, "table.col_actions")} }
                         }
                     }
                     tbody {
@@ -278,14 +280,14 @@ pub fn BooksTable(
                                                 button {
                                                     class: "btn btn-secondary",
                                                     style: "padding: 4px 8px; font-size: 11px;",
-                                                    title: "Lire",
+                                                    title: translate(locale, "table.read_short"),
                                                     onclick: move |_| on_read.call(b_read.clone()),
                                                     "📖"
                                                 }
                                                 button {
                                                     class: "btn btn-secondary",
                                                     style: "padding: 4px 8px; font-size: 11px;",
-                                                    title: "Détails",
+                                                    title: translate(locale, "table.details_short"),
                                                     onclick: move |_| on_select.call(b_detail.clone()),
                                                     "ℹ️"
                                                 }

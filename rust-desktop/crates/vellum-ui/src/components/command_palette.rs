@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use vellum_core::{translate, translate_fmt, Locale};
 use vellum_domain::Book;
 
 #[derive(Clone, PartialEq)]
@@ -28,6 +29,7 @@ pub enum PaletteAction {
 
 #[component]
 pub fn CommandPalette(
+    locale: Locale,
     books: Vec<Book>,
     series_list: Vec<String>,
     on_close: EventHandler<()>,
@@ -61,99 +63,99 @@ pub fn CommandPalette(
     // Quick built-in actions
     let all_actions = [
         (
-            "⊞ Basculer en vue Grille classique",
+            translate(locale, "palette.act_grid"),
             PaletteAction::SetViewGrid,
             "vue grille grid affichage",
         ),
         (
-            "☰ Basculer en vue Tableau (Calibre)",
+            translate(locale, "palette.act_table"),
             PaletteAction::SetViewTable,
             "vue tableau liste table calibre",
         ),
         (
-            "🎠 Basculer en vue Tableau + Carrousel (Calibre)",
+            translate(locale, "palette.act_carousel"),
             PaletteAction::SetViewTableCarousel,
             "vue tableau carrousel cover browser calibre",
         ),
         (
-            "📋 Basculer en vue Tableau Kanban (Pile à Lire)",
+            translate(locale, "palette.act_kanban"),
             PaletteAction::SetViewKanban,
             "vue kanban pal pile a lire tableau trello colonnes",
         ),
         (
-            "📥 Importer des livres (Fichiers EPUB, PDF, CBZ...)",
+            translate(locale, "palette.act_import"),
             PaletteAction::ImportBooks,
             "import ajouter",
         ),
         (
-            "📦 Importer une bibliothèque Calibre (metadata.db)",
+            translate(locale, "palette.act_calibre"),
             PaletteAction::ImportCalibre,
             "calibre import migration db metadata",
         ),
         (
-            "🛡️ Santé & Audit de la bibliothèque (Doublons, fusion, fiches incomplètes)",
+            translate(locale, "palette.act_audit"),
             PaletteAction::OpenLibraryAudit,
-            "sante audit doublons merge fusion proprete",
+            "sante audit doublons merge fusion proprete health duplicates",
         ),
         (
-            "🔍 Recherche plein texte dans les chapitres (FTS5)",
+            translate(locale, "palette.act_fts"),
             PaletteAction::OpenContentSearch,
-            "fts5 recherche texte chapitre contenu",
+            "fts5 recherche texte chapitre contenu full-text search",
         ),
         (
-            "🔤 Recherche & Remplacement Regex en masse",
+            translate(locale, "palette.act_regex"),
             PaletteAction::OpenBulkRegex,
             "regex masse bulk nettoyer titre auteur",
         ),
         (
-            "⚡ Règles d'import automatiques (Tags, séries, polish)",
+            translate(locale, "palette.act_rules"),
             PaletteAction::OpenImportRules,
-            "regles import automatisation watch folder",
+            "regles import automatisation watch folder rules",
         ),
         (
-            "📊 Statistiques & Habitudes de lecture (Heatmap annuelle, rythme)",
+            translate(locale, "palette.act_stats"),
             PaletteAction::OpenReadingStats,
             "stats statistiques heatmap calendrier lecture rythme wpm",
         ),
         (
-            "📰 Recettes d'actualités (compiler les flux RSS en journal EPUB)",
+            translate(locale, "palette.act_news"),
             PaletteAction::OpenNewsRecipes,
             "news rss actualites journal presse",
         ),
         (
-            "🌐 Ouvrir le Compagnon Web Mobile & OPDS (navigateur)",
+            translate(locale, "palette.act_web"),
             PaletteAction::OpenWebCompanion,
             "web companion mobile lecteur opds phone navigateur",
         ),
         (
-            "☁️ Synchroniser maintenant avec Google Drive",
+            translate(locale, "palette.act_sync"),
             PaletteAction::SyncCloud,
-            "synchro drive cloud gdrive",
+            "synchro drive cloud gdrive sync",
         ),
         (
-            "⚙️ Ouvrir les Paramètres & Diagnostics",
+            translate(locale, "palette.act_settings"),
             PaletteAction::OpenSettings,
             "paramètres settings config",
         ),
         (
-            "📖 Afficher les livres en cours de lecture",
+            translate(locale, "palette.act_reading"),
             PaletteAction::FilterReading,
             "en cours lecture reading",
         ),
         (
-            "✓ Afficher les livres terminés",
+            translate(locale, "palette.act_finished"),
             PaletteAction::FilterFinished,
             "terminés finished lu",
         ),
         (
-            "⏳ Afficher les livres à lire",
+            translate(locale, "palette.act_to_read"),
             PaletteAction::FilterToRead,
             "a lire to read",
         ),
         (
-            "📚 Afficher toute la bibliothèque",
+            translate(locale, "palette.act_all"),
             PaletteAction::FilterAll,
-            "tous all bibliothèque",
+            "tous all bibliothèque library",
         ),
     ];
 
@@ -181,7 +183,7 @@ pub fn CommandPalette(
                     span { style: "font-size: 18px; color: var(--accent-primary);", "⌘" }
                     input {
                         style: "flex: 1; background: transparent; border: none; outline: none; font-size: 15px; color: var(--text-primary); font-family: inherit;",
-                        placeholder: "Rechercher un livre, une saga ou taper une action... (Échap pour fermer)",
+                        placeholder: translate(locale, "palette.placeholder"),
                         autofocus: true,
                         value: "{query}",
                         oninput: move |e| query.set(e.value()),
@@ -200,7 +202,7 @@ pub fn CommandPalette(
                     if !matched_actions.is_empty() {
                         div {
                             style: "font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 6px 12px; letter-spacing: 0.5px;",
-                            "Actions Rapides"
+                            {translate(locale, "palette.quick_actions")}
                         }
                         for (label, action, _) in matched_actions.iter() {
                             {
@@ -214,7 +216,7 @@ pub fn CommandPalette(
                                             on_close.call(());
                                         },
                                         span { "{label}" }
-                                        span { style: "font-size: 11px; color: var(--accent-primary);", "↵ Exécuter" }
+                                        span { style: "font-size: 11px; color: var(--accent-primary);", {translate(locale, "palette.run")} }
                                     }
                                 }
                             }
@@ -225,7 +227,10 @@ pub fn CommandPalette(
                     if !matched_books.is_empty() {
                         div {
                             style: "font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 8px 12px 6px; letter-spacing: 0.5px;",
-                            "Livres & Sagas ({matched_books.len()})"
+                            {
+                                let b_count = matched_books.len().to_string();
+                                translate_fmt(locale, "palette.books_section", &[("count", &b_count)])
+                            }
                         }
                         for b in matched_books.iter() {
                             {
@@ -264,7 +269,7 @@ pub fn CommandPalette(
                                                         on_close.call(());
                                                     }
                                                 },
-                                                "📖 Lire"
+                                                {translate(locale, "palette.read_btn")}
                                             }
                                         }
                                     }
@@ -277,7 +282,7 @@ pub fn CommandPalette(
                 // Footer tips
                 div {
                     style: "display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: rgba(0,0,0,0.3); border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--text-muted);",
-                    span { "Astuce : Appuyez sur ⌘K à tout moment pour ouvrir la palette" }
+                    span { {translate(locale, "palette.tip")} }
                     span { "Vellum v1.0 • Rust Native" }
                 }
             }

@@ -1,11 +1,12 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
-use vellum_core::BookService;
+use vellum_core::{translate, translate_fmt, BookService, Locale};
 use vellum_domain::{Book, ContentSearchHit};
 
 #[component]
 pub fn ContentSearchModal(
+    locale: Locale,
     book_service: Arc<BookService>,
     books: Vec<Book>,
     on_close: EventHandler<()>,
@@ -36,13 +37,14 @@ pub fn ContentSearchModal(
                 is_searching.set(false);
                 match res {
                     Ok(Ok(hits)) => {
-                        let count = hits.len();
+                        let count = hits.len().to_string();
                         results.set(hits);
-                        status_msg.set(Some((format!("{count} passage(s) trouvé(s)."), true)));
+                        status_msg.set(Some((
+                            translate_fmt(locale, "search.hits_found", &[("count", &count)]),
+                            true,
+                        )));
                     }
-                    Ok(Err(e)) => {
-                        status_msg.set(Some((format!("Erreur de recherche : {e}"), false)))
-                    }
+                    Ok(Err(e)) => status_msg.set(Some((format!("Erreur : {e}"), false))),
                     Err(e) => status_msg.set(Some((format!("Erreur asynchrone : {e}"), false))),
                 }
             });
@@ -54,7 +56,10 @@ pub fn ContentSearchModal(
         let ids: Vec<String> = books.iter().map(|b| b.id.clone()).collect();
         move |_| {
             is_indexing.set(true);
-            status_msg.set(Some(("Indexation plein texte en cours…".to_string(), true)));
+            status_msg.set(Some((
+                translate(locale, "search.indexing").to_string(),
+                true,
+            )));
             let bs_task = bs.clone();
             let ids_task = ids.clone();
             spawn(async move {
@@ -75,12 +80,18 @@ pub fn ContentSearchModal(
                 is_indexing.set(false);
                 match res {
                     Ok((b_count, ch_count)) => {
+                        let b_str = b_count.to_string();
+                        let c_str = ch_count.to_string();
                         status_msg.set(Some((
-                            format!("Indexation terminée : {b_count} livre(s), {ch_count} chapitre(s) indexé(s)."),
+                            translate_fmt(
+                                locale,
+                                "search.indexed",
+                                &[("books", &b_str), ("chapters", &c_str)],
+                            ),
                             true,
                         )));
                     }
-                    Err(e) => status_msg.set(Some((format!("Erreur d'indexation : {e}"), false))),
+                    Err(e) => status_msg.set(Some((format!("Erreur : {e}"), false))),
                 }
             });
         }
@@ -99,8 +110,8 @@ pub fn ContentSearchModal(
                 div {
                     style: "display: flex; align-items: center; justify-content: space-between;",
                     div {
-                        h2 { style: "margin: 0; font-size: 18px;", "🔍 Recherche plein texte dans les livres (FTS5)" }
-                        p { style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);", "Recherchez des mots ou citations à l'intérieur des chapitres indexés." }
+                        h2 { style: "margin: 0; font-size: 18px;", {translate(locale, "search.title")} }
+                        p { style: "margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted);", {translate(locale, "search.subtitle")} }
                     }
                     button {
                         class: "btn btn-secondary",
@@ -114,7 +125,7 @@ pub fn ContentSearchModal(
                     input {
                         class: "form-input",
                         style: "flex: 1;",
-                        placeholder: "Mot-clé ou phrase (ex: épice, Arrakis, \"mot exact\")...",
+                        placeholder: translate(locale, "search.placeholder"),
                         value: "{query}",
                         oninput: move |e| query.set(e.value()),
                         onkeydown: {
@@ -133,13 +144,13 @@ pub fn ContentSearchModal(
                             let mut rs = run_search.clone();
                             move |_| rs(())
                         },
-                        if *is_searching.read() { "Recherche…" } else { "Rechercher" }
+                        {if *is_searching.read() { translate(locale, "search.searching") } else { translate(locale, "action.search") }}
                     }
                     button {
                         class: "btn btn-secondary",
                         disabled: *is_indexing.read(),
                         onclick: run_index_all,
-                        if *is_indexing.read() { "Indexation…" } else { "⚡ Indexer tout" }
+                        {if *is_indexing.read() { translate(locale, "search.indexing_btn") } else { translate(locale, "search.index_all") }}
                     }
                 }
 
@@ -163,9 +174,14 @@ pub fn ContentSearchModal(
                                 .as_ref()
                                 .map(|b| format!("{} — {}", b.title, b.author))
                                 .unwrap_or_else(|| hit.book_id.clone());
-                            let ch_idx = hit.chapter_index + 1;
+                            let ch_idx = (hit.chapter_index + 1).to_string();
                             let ch_title = hit.chapter_title.clone();
                             let snippet = hit.snippet.clone();
+                            let chap_label = translate_fmt(
+                                locale,
+                                "search.chap_prefix",
+                                &[("idx", &ch_idx), ("title", &ch_title)],
+                            );
                             rsx! {
                                 div {
                                     style: "padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); cursor: pointer;",
@@ -178,7 +194,7 @@ pub fn ContentSearchModal(
                                     div {
                                         style: "display: flex; justify-content: space-between; font-weight: 600; font-size: 14px; margin-bottom: 4px;",
                                         span { "{title}" }
-                                        span { style: "font-size: 12px; color: var(--text-muted);", "Chap. {ch_idx} : {ch_title}" }
+                                        span { style: "font-size: 12px; color: var(--text-muted);", "{chap_label}" }
                                     }
                                     p {
                                         style: "margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.4;",

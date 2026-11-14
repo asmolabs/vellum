@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use vellum_core::{translate, Locale};
 use vellum_domain::Book;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -11,6 +12,7 @@ pub enum KanbanTargetStatus {
 
 #[component]
 pub fn KanbanBoard(
+    locale: Locale,
     books: Vec<Book>,
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
@@ -53,8 +55,9 @@ pub fn KanbanBoard(
 
             // 1. Colonne : À lire (PAL)
             KanbanColumn {
+                locale: locale,
                 icon: "⏳",
-                title: "À lire (PAL)",
+                title: translate(locale, "kanban.to_read").to_string(),
                 accent_color: "#38bdf8",
                 books: to_read_books,
                 current_col: KanbanTargetStatus::ToRead,
@@ -65,8 +68,9 @@ pub fn KanbanBoard(
 
             // 2. Colonne : En cours
             KanbanColumn {
+                locale: locale,
                 icon: "📖",
-                title: "En cours",
+                title: translate(locale, "kanban.reading").to_string(),
                 accent_color: "#f59e0b",
                 books: reading_books,
                 current_col: KanbanTargetStatus::Reading,
@@ -77,8 +81,9 @@ pub fn KanbanBoard(
 
             // 3. Colonne : Terminés
             KanbanColumn {
+                locale: locale,
                 icon: "✅",
-                title: "Terminés",
+                title: translate(locale, "kanban.finished").to_string(),
                 accent_color: "#10b981",
                 books: finished_books,
                 current_col: KanbanTargetStatus::Finished,
@@ -89,8 +94,9 @@ pub fn KanbanBoard(
 
             // 4. Colonne : Coups de cœur
             KanbanColumn {
+                locale: locale,
                 icon: "⭐",
-                title: "Coups de cœur",
+                title: translate(locale, "kanban.favorites").to_string(),
                 accent_color: "#c084fc",
                 books: favorite_books,
                 current_col: KanbanTargetStatus::Favorite,
@@ -104,8 +110,9 @@ pub fn KanbanBoard(
 
 #[component]
 fn KanbanColumn(
+    locale: Locale,
     icon: &'static str,
-    title: &'static str,
+    title: String,
     accent_color: &'static str,
     books: Vec<Book>,
     current_col: KanbanTargetStatus,
@@ -139,12 +146,13 @@ fn KanbanColumn(
                 if books.is_empty() {
                     div {
                         style: "text-align: center; padding: 30px 10px; color: var(--text-secondary); font-size: 12px; font-style: italic;",
-                        "Aucun livre dans cette colonne"
+                        {translate(locale, "kanban.empty_col")}
                     }
                 } else {
                     for book in books.into_iter() {
                         KanbanCard {
                             key: "{book.id}",
+                            locale: locale,
                             book: book,
                             current_col: current_col,
                             on_select: on_select,
@@ -160,6 +168,7 @@ fn KanbanColumn(
 
 #[component]
 fn KanbanCard(
+    locale: Locale,
     book: Book,
     current_col: KanbanTargetStatus,
     on_select: EventHandler<Book>,
@@ -236,7 +245,7 @@ fn KanbanCard(
             if current_col == KanbanTargetStatus::Reading {
                 div { style: "margin-top: 2px;",
                     div { style: "display: flex; justify-content: space-between; font-size: 10px; color: #f59e0b; font-weight: 600; margin-bottom: 2px;",
-                        span { "Progression" }
+                        span { {translate(locale, "kanban.progress")} }
                         span { "{progress as i32}%" }
                     }
                     div { style: "width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;",
@@ -256,12 +265,12 @@ fn KanbanCard(
                 button {
                     class: "btn btn-secondary",
                     style: "font-size: 11px; padding: 3px 8px; display: flex; align-items: center; gap: 4px;",
-                    title: "Ouvrir dans le lecteur",
+                    title: translate(locale, "kanban.open_reader"),
                     onclick: {
                         let book = book.clone();
                         move |_| on_read.call(book.clone())
                     },
-                    "📖 Lire"
+                    {translate(locale, "kanban.read_btn")}
                 }
 
                 // Transition button based on current status
@@ -274,7 +283,7 @@ fn KanbanCard(
                                 class: "btn btn-primary",
                                 style: "font-size: 10px; padding: 3px 8px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4);",
                                 onclick: move |_| ch.call((id.clone(), KanbanTargetStatus::Reading)),
-                                "▶ Commencer"
+                                {translate(locale, "kanban.start")}
                             }
                         }
                     },
@@ -286,7 +295,7 @@ fn KanbanCard(
                                 class: "btn btn-primary",
                                 style: "font-size: 10px; padding: 3px 8px; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);",
                                 onclick: move |_| ch.call((id.clone(), KanbanTargetStatus::Finished)),
-                                "✔ Terminé"
+                                {translate(locale, "kanban.finish")}
                             }
                         }
                     },
@@ -298,7 +307,7 @@ fn KanbanCard(
                                 class: "btn btn-secondary",
                                 style: "font-size: 10px; padding: 3px 8px; color: #c084fc;",
                                 onclick: move |_| ch.call((id.clone(), KanbanTargetStatus::Favorite)),
-                                "⭐ Coup de cœur"
+                                {translate(locale, "kanban.favorite")}
                             }
                         }
                     },
@@ -310,7 +319,7 @@ fn KanbanCard(
                                 class: "btn btn-secondary",
                                 style: "font-size: 10px; padding: 3px 8px;",
                                 onclick: move |_| ch.call((id.clone(), KanbanTargetStatus::ToRead)),
-                                "↩ À lire"
+                                {translate(locale, "kanban.move_to_read")}
                             }
                         }
                     },

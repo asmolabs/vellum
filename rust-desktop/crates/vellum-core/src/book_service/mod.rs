@@ -148,6 +148,17 @@ impl BookService {
         Ok(())
     }
 
+    /// Nettoie un nom de fichier ou dossier pour éviter les caractères interdits et le path traversal.
+    ///
+    /// # Exemples
+    ///
+    /// ```
+    /// use vellum_core::book_service::BookService;
+    ///
+    /// assert_eq!(BookService::sanitize_filename("Dune: Messiah?"), "Dune_ Messiah_");
+    /// assert_eq!(BookService::sanitize_filename("../../etc/passwd"), "_.._etc_passwd");
+    /// assert_eq!(BookService::sanitize_filename("..."), "Sans nom");
+    /// ```
     pub fn sanitize_filename(name: &str) -> String {
         let trimmed = name.trim();
         if trimmed.is_empty() {

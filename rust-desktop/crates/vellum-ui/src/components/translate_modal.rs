@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use vellum_core::{translate, Locale};
 use vellum_domain::Book;
 
 #[derive(Clone, Debug)]
@@ -14,6 +15,7 @@ pub struct TranslationRequest {
 
 #[component]
 pub fn TranslateModal(
+    locale: Locale,
     book: Book,
     on_close: EventHandler<()>,
     on_start_translate: EventHandler<TranslationRequest>,
@@ -46,7 +48,7 @@ pub fn TranslateModal(
 
                 div { class: "drawer-header",
                     div { style: "display: flex; flex-direction: column;",
-                        span { style: "font-weight: 700; font-size: 16px;", "🌐 Traduction IA Multi-Agents" }
+                        span { style: "font-weight: 700; font-size: 16px;", {translate(locale, "translate.title")} }
                         span { style: "font-size: 11px; color: var(--text-muted);", "{book_title}" }
                     }
                     if !is_translating {
@@ -61,30 +63,30 @@ pub fn TranslateModal(
                 div { style: "display: flex; flex-direction: column; gap: 16px; padding: 4px 0;",
                     // Info Banner
                     div { style: "background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 12px 14px; font-size: 12px; line-height: 1.5; color: var(--text-secondary);",
-                        "Ce pipeline préserve la mise en page, les styles, les balises XHTML et les images du livre. Un agent éditorial analyse le style avant d'appliquer les règles de traduction."
+                        {translate(locale, "translate.banner")}
                     }
 
                     // 1. Langue cible
                     div { style: "display: flex; flex-direction: column; gap: 6px;",
-                        label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", "Langue de traduction cible :" }
+                        label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", {translate(locale, "translate.target_lang")} }
                         select {
                             style: "padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;",
                             value: "{target_lang}",
                             disabled: is_translating,
                             onchange: move |e| target_lang.set(e.value()),
                             option { value: "Français", "🇫🇷 Français" }
-                            option { value: "Anglais", "🇬🇧 Anglais" }
-                            option { value: "Espagnol", "🇪🇸 Espagnol" }
-                            option { value: "Allemand", "🇩🇪 Allemand" }
-                            option { value: "Italien", "🇮🇹 Italien" }
-                            option { value: "Japonais", "🇯🇵 Japonais" }
-                            option { value: "Portugais", "🇵🇹 Portugais" }
+                            option { value: "Anglais", "🇬🇧 English" }
+                            option { value: "Espagnol", "🇪🇸 Español" }
+                            option { value: "Allemand", "🇩🇪 Deutsch" }
+                            option { value: "Italien", "🇮🇹 Italiano" }
+                            option { value: "Japonais", "🇯🇵 日本語" }
+                            option { value: "Portugais", "🇵🇹 Português" }
                         }
                     }
 
                     // 2. Fournisseur d'IA
                     div { style: "display: flex; flex-direction: column; gap: 6px;",
-                        label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", "Moteur d'IA :" }
+                        label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", {translate(locale, "translate.provider")} }
                         select {
                             style: "padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;",
                             value: "{provider}",
@@ -100,16 +102,16 @@ pub fn TranslateModal(
                                     model.set("gpt-4o-mini".to_string());
                                 }
                             },
-                            option { value: "Ollama (Local - Gratuit)", "🦙 Ollama (Local, 100% privé, gratuit)" }
-                            option { value: "OpenAI (API)", "⚡ OpenAI (gpt-4o / gpt-4o-mini)" }
-                            option { value: "Autre serveur compatible OpenAI", "🔗 Autre (LM Studio, vLLM, DeepSeek)" }
+                            option { value: "Ollama (Local - Gratuit)", {translate(locale, "translate.provider_ollama")} }
+                            option { value: "OpenAI (API)", {translate(locale, "translate.provider_openai")} }
+                            option { value: "Autre serveur compatible OpenAI", {translate(locale, "translate.provider_other")} }
                         }
                     }
 
                     // 3. Modèle et Endpoint
                     div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 12px;",
                         div { style: "display: flex; flex-direction: column; gap: 6px;",
-                            label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", "Nom du modèle :" }
+                            label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", {translate(locale, "translate.model")} }
                             input {
                                 style: "padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;",
                                 value: "{model}",
@@ -118,7 +120,7 @@ pub fn TranslateModal(
                             }
                         }
                         div { style: "display: flex; flex-direction: column; gap: 6px;",
-                            label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", "URL de l'API :" }
+                            label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", {translate(locale, "translate.api_url")} }
                             input {
                                 style: "padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;",
                                 value: "{custom_url}",
@@ -131,7 +133,7 @@ pub fn TranslateModal(
                     // Clé API si OpenAI
                     if is_openai || !is_ollama {
                         div { style: "display: flex; flex-direction: column; gap: 6px;",
-                            label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", "Clé API (Optionnelle si local) :" }
+                            label { style: "font-size: 12px; font-weight: 600; color: var(--text-muted);", {translate(locale, "translate.api_key")} }
                             input {
                                 style: "padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;",
                                 type: "password",
@@ -158,17 +160,17 @@ pub fn TranslateModal(
                             style: "cursor: pointer;",
                         }
                         div { style: "display: flex; flex-direction: column;",
-                            span { style: "font-size: 13px; font-weight: 500;", "Générer une édition bilingue" }
-                            span { style: "font-size: 11px; color: var(--text-muted);", "Affiche le paragraphe original suivi de sa traduction (idéal pour l'apprentissage)." }
+                            span { style: "font-size: 13px; font-weight: 500;", {translate(locale, "translate.bilingual_title")} }
+                            span { style: "font-size: 11px; color: var(--text-muted);", {translate(locale, "translate.bilingual_desc")} }
                         }
                     }
 
                     // Statut de traduction
                     if is_translating {
                         div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(99, 102, 241, 0.1); border: 1px solid var(--accent-primary); border-radius: 8px; align-items: center;",
-                            div { style: "font-size: 13px; font-weight: 600; color: var(--accent-primary);", "⏳ Traduction en cours..." }
+                            div { style: "font-size: 13px; font-weight: 600; color: var(--accent-primary);", {translate(locale, "translate.in_progress")} }
                             div { style: "font-size: 11px; color: var(--text-secondary); text-align: center;",
-                                "Analyse de la charte éditoriale, traduction des chapitres et relecture QA en cours. Veuillez patienter..."
+                                {translate(locale, "translate.in_progress_desc")}
                             }
                         }
                     }
@@ -180,7 +182,7 @@ pub fn TranslateModal(
                         button {
                             class: "btn btn-secondary",
                             onclick: move |_| on_close.call(()),
-                            "Annuler"
+                            {translate(locale, "action.cancel")}
                         }
                         button {
                             class: "btn btn-primary",
@@ -199,10 +201,10 @@ pub fn TranslateModal(
                                     on_start_translate.call(req);
                                 }
                             },
-                            "🚀 Démarrer la traduction"
+                            {translate(locale, "translate.start")}
                         }
                     } else {
-                        span { style: "font-size: 12px; color: var(--text-muted); align-self: center;", "Traitement en tâche de fond..." }
+                        span { style: "font-size: 12px; color: var(--text-muted); align-self: center;", {translate(locale, "translate.bg_running")} }
                     }
                 }
             }
