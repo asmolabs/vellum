@@ -7,7 +7,7 @@ use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
 /// Transforms a standard EPUB into a KEPUB (Kobo EPUB) by injecting koboSpan tags
-/// into paragraph elements (<p>), allowing the Kobo ACCESS rendering engine to handle
+/// into paragraph elements (`<p>`), allowing the Kobo ACCESS rendering engine to handle
 /// per-chapter page numbering, micro-measurements, and instant bookmarking.
 pub fn convert_epub_to_kepub(input_epub: &Path, output_kepub: &Path) -> VellumResult<()> {
     let file = File::open(input_epub)

@@ -50,8 +50,16 @@ pub fn BulkRegexModal(
                             on_updated.call(());
                         }
                     }
-                    Ok(Err(e)) => error_msg.set(Some(format!("Erreur : {e}"))),
-                    Err(e) => error_msg.set(Some(format!("Erreur asynchrone : {e}"))),
+                    Ok(Err(e)) => error_msg.set(Some(translate_fmt(
+                        locale,
+                        "common.error",
+                        &[("error", &e.to_string())],
+                    ))),
+                    Err(e) => error_msg.set(Some(translate_fmt(
+                        locale,
+                        "common.async_error",
+                        &[("error", &e.to_string())],
+                    ))),
                 }
             });
         }

@@ -62,7 +62,11 @@ pub fn BulkConvertModal(
                     target_format: String::new(),
                     converted_count: 0,
                     skipped_count: 0,
-                    errors: vec![format!("Erreur asynchrone : {e}")],
+                    errors: vec![translate_fmt(
+                        locale,
+                        "common.async_error",
+                        &[("error", &e.to_string())],
+                    )],
                     cancelled: false,
                 });
 

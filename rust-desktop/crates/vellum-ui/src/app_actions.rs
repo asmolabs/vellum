@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use dioxus::prelude::*;
 use vellum_core::book_service::BookService;
-use vellum_core::{DeviceService, FolderSyncBackend, MailService, SyncService};
+use vellum_core::{
+    translate, translate_fmt, DeviceService, FolderSyncBackend, Locale, MailService, SyncService,
+};
 use vellum_domain::{Book, DeviceKind, SmtpConfig};
 
 use crate::app_modals::OverlayHandlers;
@@ -47,6 +49,8 @@ pub(crate) struct AppActionContext {
     pub content_search_open: Signal<bool>,
     pub bulk_regex_open: Signal<bool>,
     pub import_rules_open: Signal<bool>,
+    pub ui_locale: Signal<Locale>,
+    pub toast_msg: Signal<Option<(String, bool)>>,
 }
 
 pub(crate) struct AppActions {
@@ -81,6 +85,21 @@ fn persist_sync_config(
     sync_config.set(cfg);
 }
 
+pub(crate) fn show_toast(mut toast_msg: Signal<Option<(String, bool)>>, msg: String, ok: bool) {
+    let expected = msg.clone();
+    toast_msg.set(Some((msg, ok)));
+    spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        if toast_msg
+            .read()
+            .as_ref()
+            .is_some_and(|(cur, _)| cur == &expected)
+        {
+            toast_msg.set(None);
+        }
+    });
+}
+
 pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let bs = ctx.book_service.clone();
     let mut books_sig = ctx.books;
@@ -93,10 +112,11 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_import = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |()| {
+            let locale = *ctx.ui_locale.read();
             let files = rfd::FileDialog::new()
-                .set_title("Importer des livres ou bandes dessinées dans Vellum")
+                .set_title(translate(locale, "actions.import_title"))
                 .add_filter(
-                    "Fichiers pris en charge",
+                    translate(locale, "actions.import_filter"),
                     &[
                         "epub", "pdf", "cbz", "cbr", "mobi", "azw3", "txt", "mp3", "m4b",
                     ],
@@ -104,18 +124,61 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 .pick_files();
 
             if let Some(paths) = files {
+                let mut ok_count = 0usize;
+                let mut err_count = 0usize;
+                let mut last_title = String::new();
+                let mut last_err = String::new();
                 for path in paths {
                     tracing::info!("Importing file: {:?}", path);
                     match bs.import_book(&path) {
-                        Ok(book) => tracing::info!(
-                            "Livre importé avec succès: {} par {}",
-                            book.title,
-                            book.author
-                        ),
-                        Err(e) => tracing::error!("Erreur lors de l'import de {:?}: {}", path, e),
+                        Ok(book) => {
+                            ok_count += 1;
+                            last_title = book.title;
+                        }
+                        Err(e) => {
+                            err_count += 1;
+                            last_err = e.to_string();
+                            tracing::error!("Import error for {:?}: {}", path, e);
+                        }
                     }
                 }
                 on_refresh.call(());
+                if err_count == 0 && ok_count == 1 {
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "actions.import_one_ok", &[("title", &last_title)]),
+                        true,
+                    );
+                } else if err_count == 0 && ok_count > 1 {
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(
+                            locale,
+                            "toolbar.drop_ok",
+                            &[("count", &ok_count.to_string())],
+                        ),
+                        true,
+                    );
+                } else if ok_count == 0 && err_count > 0 {
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "common.error", &[("error", &last_err)]),
+                        false,
+                    );
+                } else if err_count > 0 {
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(
+                            locale,
+                            "toolbar.drop_partial",
+                            &[
+                                ("ok", &ok_count.to_string()),
+                                ("err", &err_count.to_string()),
+                            ],
+                        ),
+                        false,
+                    );
+                }
             }
         }
     });
@@ -123,21 +186,22 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_import_calibre = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |()| {
+            let locale = *ctx.ui_locale.read();
             let folder = rfd::FileDialog::new()
-                .set_title("Sélectionner le dossier de votre bibliothèque Calibre (ou fichier metadata.db)")
+                .set_title(translate(locale, "actions.import_calibre_folder"))
                 .pick_folder();
 
             let target_path = if let Some(f) = folder {
                 Some(f)
             } else {
                 rfd::FileDialog::new()
-                    .set_title("Sélectionner le fichier metadata.db de Calibre")
-                    .add_filter("Base de données Calibre", &["db"])
+                    .set_title(translate(locale, "actions.import_calibre_db"))
+                    .add_filter(translate(locale, "actions.import_calibre_filter"), &["db"])
                     .pick_file()
             };
 
             if let Some(path) = target_path {
-                tracing::info!("Importation de la bibliothèque Calibre depuis: {:?}", path);
+                tracing::info!("Importing Calibre library from: {:?}", path);
                 let bs_cloned = bs.clone();
                 spawn(async move {
                     let path_cloned = path.clone();
@@ -148,17 +212,40 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
 
                     match res {
                         Ok(Ok(report)) => {
-                            tracing::info!(
-                                "Migration Calibre terminée avec succès : {} livres importés, {} formats, {} séries, {} tags",
-                                report.books_imported,
-                                report.formats_imported,
-                                report.series_count,
-                                report.tags_count
+                            show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(
+                                    locale,
+                                    "actions.import_calibre_ok",
+                                    &[
+                                        ("books", &report.books_imported.to_string()),
+                                        ("formats", &report.formats_imported.to_string()),
+                                    ],
+                                ),
+                                true,
                             );
                             on_refresh.call(());
                         }
-                        Ok(Err(e)) => tracing::error!("Erreur lors de l'import Calibre: {e}"),
-                        Err(e) => tracing::error!("Tâche de fond interrompue: {e}"),
+                        Ok(Err(e)) => {
+                            tracing::error!("Calibre import error: {e}");
+                            show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                                false,
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("Background task interrupted: {e}");
+                            show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(
+                                    locale,
+                                    "common.task_interrupted",
+                                    &[("error", &e.to_string())],
+                                ),
+                                false,
+                            );
+                        }
                     }
                 });
             }
@@ -194,10 +281,24 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_delete = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |id: String| {
-            let _ = bs.delete_book(&id, true);
-            cover_cache::invalidate_book_cover(&id);
-            ctx.selected_book.set(None);
-            on_refresh.call(());
+            let locale = *ctx.ui_locale.read();
+            match bs.delete_book(&id, true) {
+                Ok(()) => {
+                    cover_cache::invalidate_book_cover(&id);
+                    ctx.selected_book.set(None);
+                    on_refresh.call(());
+                    show_toast(
+                        ctx.toast_msg,
+                        translate(locale, "actions.deleted_one").to_string(),
+                        true,
+                    );
+                }
+                Err(e) => show_toast(
+                    ctx.toast_msg,
+                    translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                    false,
+                ),
+            }
         }
     });
 
@@ -216,6 +317,7 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_bulk_edit_save = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |req: BulkEditRequest| {
+            let locale = *ctx.ui_locale.read();
             let set = ctx.selected_ids.read().clone();
             let all = ctx.books.read();
             let ordered_ids: Vec<String> = all
@@ -225,6 +327,7 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 .collect();
 
             if !ordered_ids.is_empty() {
+                let count = ordered_ids.len().to_string();
                 let _ = bs.bulk_update_books(
                     &ordered_ids,
                     req.author.as_deref(),
@@ -235,6 +338,11 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 );
                 on_refresh.call(());
                 ctx.selected_ids.set(HashSet::new());
+                show_toast(
+                    ctx.toast_msg,
+                    translate_fmt(locale, "actions.bulk_updated", &[("count", &count)]),
+                    true,
+                );
             }
         }
     });
@@ -242,9 +350,11 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_bulk_delete = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |()| {
+            let locale = *ctx.ui_locale.read();
             let set = ctx.selected_ids.read().clone();
             let ids: Vec<String> = set.into_iter().collect();
             if !ids.is_empty() {
+                let count = ids.len().to_string();
                 let _ = bs.bulk_delete_books(&ids, true);
                 for id in &ids {
                     cover_cache::invalidate_book_cover(id);
@@ -252,6 +362,11 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 ctx.selected_ids.set(HashSet::new());
                 ctx.selected_book.set(None);
                 on_refresh.call(());
+                show_toast(
+                    ctx.toast_msg,
+                    translate_fmt(locale, "actions.bulk_deleted", &[("count", &count)]),
+                    true,
+                );
             }
         }
     });
@@ -259,6 +374,7 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_change_book_status = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |(book_id, target_status): (String, KanbanTargetStatus)| {
+            let locale = *ctx.ui_locale.read();
             if let Ok(Some(mut b)) = bs.book_repo().find_by_id(&book_id) {
                 match target_status {
                     KanbanTargetStatus::ToRead => {
@@ -280,9 +396,10 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                     }
                     KanbanTargetStatus::Favorite => {
                         b.rating = Some(5);
-                        let fav_tag = vellum_domain::Tag::new("Coup de cœur");
+                        let fav_name = translate(locale, "actions.favorite_tag");
+                        let fav_tag = vellum_domain::Tag::new(fav_name);
                         let _ = bs.tag_repo().save(&fav_tag);
-                        if !b.tags.iter().any(|t| t.name == "Coup de cœur") {
+                        if !b.tags.iter().any(|t| t.name == fav_name) {
                             b.add_tag(fav_tag);
                         }
                     }
@@ -295,22 +412,39 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
 
     let on_convert = EventHandler::new({
         let bs = ctx.book_service.clone();
-        move |(b_id, target_fmt): (String, String)| match bs
-            .convert_book_to_format(&b_id, &target_fmt)
-        {
-            Ok(updated) => {
-                tracing::info!("Conversion réussie vers le format {target_fmt}");
-                ctx.selected_book.set(Some(updated));
-                on_refresh.call(());
+        move |(b_id, target_fmt): (String, String)| {
+            let locale = *ctx.ui_locale.read();
+            match bs.convert_book_to_format(&b_id, &target_fmt) {
+                Ok(updated) => {
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(
+                            locale,
+                            "actions.convert_ok",
+                            &[("format", &target_fmt), ("title", &updated.title)],
+                        ),
+                        true,
+                    );
+                    ctx.selected_book.set(Some(updated));
+                    on_refresh.call(());
+                }
+                Err(e) => {
+                    tracing::error!("Conversion error to {target_fmt}: {e}");
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                        false,
+                    );
+                }
             }
-            Err(e) => tracing::error!("Erreur lors de la conversion en {target_fmt}: {e}"),
         }
     });
 
     let on_save_metadata = EventHandler::new({
         let bs = ctx.book_service.clone();
-        move |req: SaveMetadataRequest| match bs.update_book_metadata_full(
-            vellum_core::UpdateMetadataRequest {
+        move |req: SaveMetadataRequest| {
+            let locale = *ctx.ui_locale.read();
+            match bs.update_book_metadata_full(vellum_core::UpdateMetadataRequest {
                 book_id: &req.book_id,
                 title: &req.title,
                 author: &req.author,
@@ -321,50 +455,95 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 series: req.series.as_deref(),
                 series_index: req.series_index,
                 tag_names: req.tags,
-            },
-        ) {
-            Ok(updated) => {
-                tracing::info!(
-                    "Métadonnées mises à jour avec succès pour: {}",
-                    updated.title
-                );
-                cover_cache::invalidate_book_cover(&updated.id);
-                ctx.selected_book.set(Some(updated));
-                on_refresh.call(());
+            }) {
+                Ok(updated) => {
+                    cover_cache::invalidate_book_cover(&updated.id);
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(
+                            locale,
+                            "actions.metadata_saved",
+                            &[("title", &updated.title)],
+                        ),
+                        true,
+                    );
+                    ctx.selected_book.set(Some(updated));
+                    on_refresh.call(());
+                }
+                Err(e) => {
+                    tracing::error!("Metadata update error: {e}");
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                        false,
+                    );
+                }
             }
-            Err(e) => tracing::error!("Erreur lors de la mise à jour des métadonnées: {e}"),
         }
     });
 
     let on_enrich_metadata = EventHandler::new({
         let bs = ctx.book_service.clone();
-        move |b_id: String| match bs.enrich_book(&b_id) {
-            Ok(updated) => {
-                tracing::info!("Métadonnées enrichies avec succès pour: {}", updated.title);
-                cover_cache::invalidate_book_cover(&updated.id);
-                ctx.selected_book.set(Some(updated));
-                on_refresh.call(());
+        move |b_id: String| {
+            let locale = *ctx.ui_locale.read();
+            match bs.enrich_book(&b_id) {
+                Ok(updated) => {
+                    cover_cache::invalidate_book_cover(&updated.id);
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "actions.enriched_ok", &[("title", &updated.title)]),
+                        true,
+                    );
+                    ctx.selected_book.set(Some(updated));
+                    on_refresh.call(());
+                }
+                Err(e) => {
+                    tracing::error!("Metadata enrich error: {e}");
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                        false,
+                    );
+                }
             }
-            Err(e) => tracing::error!("Erreur lors de l'enrichissement des métadonnées: {e}"),
         }
     });
 
     let on_change_cover = EventHandler::new({
         let bs = ctx.book_service.clone();
-        move |(b_id, path): (String, PathBuf)| match bs.update_book_cover(&b_id, &path) {
-            Ok(updated) => {
-                tracing::info!("Couverture mise à jour avec succès pour: {}", updated.title);
-                cover_cache::invalidate_book_cover(&updated.id);
-                ctx.selected_book.set(Some(updated));
-                on_refresh.call(());
+        move |(b_id, path): (String, PathBuf)| {
+            let locale = *ctx.ui_locale.read();
+            match bs.update_book_cover(&b_id, &path) {
+                Ok(updated) => {
+                    cover_cache::invalidate_book_cover(&updated.id);
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(
+                            locale,
+                            "actions.cover_updated",
+                            &[("title", &updated.title)],
+                        ),
+                        true,
+                    );
+                    ctx.selected_book.set(Some(updated));
+                    on_refresh.call(());
+                }
+                Err(e) => {
+                    tracing::error!("Cover update error: {e}");
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                        false,
+                    );
+                }
             }
-            Err(e) => tracing::error!("Erreur lors du changement de couverture: {e}"),
         }
     });
 
     let on_start_translate = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |req: TranslationRequest| {
+            let locale = *ctx.ui_locale.read();
             ctx.is_translating.set(true);
             let bs_cloned = bs.clone();
             spawn(async move {
@@ -384,13 +563,39 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 ctx.is_translating.set(false);
                 match res {
                     Ok(Ok(translated_book)) => {
-                        tracing::info!("Livre traduit avec succès: {}", translated_book.title);
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(
+                                locale,
+                                "actions.translated_ok",
+                                &[("title", &translated_book.title)],
+                            ),
+                            true,
+                        );
                         ctx.translating_book.set(None);
                         ctx.selected_book.set(Some(translated_book));
                         on_refresh.call(());
                     }
-                    Ok(Err(e)) => tracing::error!("Erreur lors de la traduction: {e}"),
-                    Err(e) => tracing::error!("Erreur de tâche en arrière-plan: {e}"),
+                    Ok(Err(e)) => {
+                        tracing::error!("Translation error: {e}");
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!("Background translation task error: {e}");
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(
+                                locale,
+                                "common.async_error",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        );
+                    }
                 }
             });
         }
@@ -398,18 +603,36 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
 
     let on_export_to_device = EventHandler::new({
         let ds = ctx.device_service.clone();
-        move |(b_id, kind): (String, DeviceKind)| match ds.export_book_to_device(&b_id, kind, None)
-        {
-            Ok(dest) => tracing::info!("Livre exporté avec succès vers {:?}: {:?}", kind, dest),
-            Err(e) => tracing::error!("Erreur lors de l'exportation vers {:?}: {e}", kind),
+        move |(b_id, kind): (String, DeviceKind)| {
+            let locale = *ctx.ui_locale.read();
+            match ds.export_book_to_device(&b_id, kind, None) {
+                Ok(_) => show_toast(
+                    ctx.toast_msg,
+                    translate_fmt(
+                        locale,
+                        "actions.device_exported",
+                        &[("device", &format!("{kind:?}"))],
+                    ),
+                    true,
+                ),
+                Err(e) => {
+                    tracing::error!("Device export error ({kind:?}): {e}");
+                    show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                        false,
+                    );
+                }
+            }
         }
     });
 
     let on_export_file = EventHandler::new({
         let bs = ctx.book_service.clone();
         move |(b_id, pref_fmt): (String, Option<String>)| {
+            let locale = *ctx.ui_locale.read();
             let folder = rfd::FileDialog::new()
-                .set_title("Choisir le dossier de destination pour l'export")
+                .set_title(translate(locale, "actions.export_folder_title"))
                 .pick_folder();
 
             if let Some(dest_dir) = folder {
@@ -427,10 +650,36 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
 
                     match res {
                         Ok(Ok(out_path)) => {
-                            tracing::info!("Livre exporté avec succès dans: {:?}", out_path)
+                            let name = out_path
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| out_path.display().to_string());
+                            show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(locale, "actions.file_exported", &[("name", &name)]),
+                                true,
+                            );
                         }
-                        Ok(Err(e)) => tracing::error!("Erreur lors de l'export: {e}"),
-                        Err(e) => tracing::error!("Tâche de fond interrompue: {e}"),
+                        Ok(Err(e)) => {
+                            tracing::error!("File export error: {e}");
+                            show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                                false,
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("Export task interrupted: {e}");
+                            show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(
+                                    locale,
+                                    "common.task_interrupted",
+                                    &[("error", &e.to_string())],
+                                ),
+                                false,
+                            );
+                        }
                     }
                 });
             }
@@ -440,10 +689,20 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_sync_device = EventHandler::new({
         let ds = ctx.device_service.clone();
         move |kind: DeviceKind| {
+            let locale = *ctx.ui_locale.read();
             let _ = ds.sync_reading_progress(kind, None);
             let _ = ds.import_books_from_device(kind, None);
             on_refresh.call(());
             ctx.connected_devices.set(ds.detect_connected_devices());
+            show_toast(
+                ctx.toast_msg,
+                translate_fmt(
+                    locale,
+                    "actions.device_synced",
+                    &[("device", &format!("{kind:?}"))],
+                ),
+                true,
+            );
         }
     });
 
@@ -454,10 +713,10 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
             if *ctx.is_syncing.read() {
                 return;
             }
+            let locale = *ctx.ui_locale.read();
             ctx.is_syncing.set(true);
-            ctx.sync_message.set(Some(
-                "Synchronisation avec Google Drive en cours...".to_string(),
-            ));
+            ctx.sync_message
+                .set(Some(translate(locale, "actions.sync_running").to_string()));
             let ss_cloned = ss.clone();
             let pr_cloned = pr.clone();
             spawn(async move {
@@ -475,23 +734,32 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 match res {
                     Ok((Ok(report), updated_cfg)) => {
                         ctx.sync_config.set(updated_cfg);
-                        let msg = format!(
-                            "Synchro réussie : {} envoyé(s), {} reçu(s), {} événement(s)",
-                            report.uploaded_books, report.downloaded_books, report.pulled_events
+                        let msg = translate_fmt(
+                            locale,
+                            "actions.sync_ok",
+                            &[
+                                ("uploaded", &report.uploaded_books.to_string()),
+                                ("downloaded", &report.downloaded_books.to_string()),
+                                ("events", &report.pulled_events.to_string()),
+                            ],
                         );
                         tracing::info!("{msg}");
-                        ctx.sync_message.set(Some(msg));
+                        ctx.sync_message.set(Some(msg.clone()));
+                        show_toast(ctx.toast_msg, msg, true);
                         on_refresh.call(());
                     }
                     Ok((Err(e), _)) => {
-                        let err_msg = format!("Erreur de synchronisation : {e}");
+                        let err_msg =
+                            translate_fmt(locale, "actions.sync_err", &[("error", &e.to_string())]);
                         tracing::error!("{err_msg}");
-                        ctx.sync_message.set(Some(err_msg));
+                        ctx.sync_message.set(Some(err_msg.clone()));
+                        show_toast(ctx.toast_msg, err_msg, false);
                     }
                     Err(e) => {
-                        tracing::error!("Erreur de tâche asynchrone : {e}");
-                        ctx.sync_message
-                            .set(Some("Erreur inattendue lors de la synchro".to_string()));
+                        tracing::error!("Async sync task error: {e}");
+                        let msg = translate(locale, "actions.sync_unexpected").to_string();
+                        ctx.sync_message.set(Some(msg.clone()));
+                        show_toast(ctx.toast_msg, msg, false);
                     }
                 }
             });
@@ -502,14 +770,15 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         let ss = ctx.sync_service.clone();
         let bs = ctx.book_service.clone();
         move |()| {
+            let locale = *ctx.ui_locale.read();
             if let Some(folder) = rfd::FileDialog::new()
-                .set_title("Sélectionner le dossier de synchronisation Google Drive")
+                .set_title(translate(locale, "actions.sync_folder_title"))
                 .pick_folder()
             {
                 if ss.set_sync_folder(folder).is_ok() {
                     persist_sync_config(&ss, &bs, ctx.sync_config);
                     ctx.sync_message.set(Some(
-                        "Dossier Google Drive configuré avec succès !".to_string(),
+                        translate(locale, "actions.sync_folder_ok").to_string(),
                     ));
                 }
             }
@@ -520,17 +789,17 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         let ss = ctx.sync_service.clone();
         let bs = ctx.book_service.clone();
         move |()| {
+            let locale = *ctx.ui_locale.read();
             if let Some(folder) = FolderSyncBackend::auto_detect_google_drive() {
                 if ss.set_sync_folder(folder).is_ok() {
                     persist_sync_config(&ss, &bs, ctx.sync_config);
                     ctx.sync_message.set(Some(
-                        "Dossier Google Drive détecté et configuré !".to_string(),
+                        translate(locale, "actions.sync_folder_detected").to_string(),
                     ));
                 }
             } else {
                 ctx.sync_message.set(Some(
-                    "Google Drive n'a pas été détecté automatiquement dans les chemins standards."
-                        .to_string(),
+                    translate(locale, "actions.sync_folder_not_found").to_string(),
                 ));
             }
         }
@@ -567,6 +836,7 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_test_smtp = EventHandler::new({
         let ms = ctx.mail_service.clone();
         move |cfg: SmtpConfig| {
+            let locale = *ctx.ui_locale.read();
             ctx.is_testing_smtp.set(true);
             ctx.smtp_test_message.set(None);
             let ms_cloned = ms.clone();
@@ -576,11 +846,13 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 match res {
                     Ok(()) => ctx.smtp_test_message.set(Some((
                         true,
-                        "Connexion SMTP établie et authentifiée avec succès !".into(),
+                        translate(locale, "actions.smtp_ok").to_string(),
                     ))),
                     Err(e) => {
-                        ctx.smtp_test_message
-                            .set(Some((false, format!("Échec du test SMTP : {e}"))));
+                        ctx.smtp_test_message.set(Some((
+                            false,
+                            translate_fmt(locale, "actions.smtp_err", &[("error", &e.to_string())]),
+                        )));
                     }
                 }
             });
@@ -590,6 +862,7 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
     let on_send_to_kindle = EventHandler::new({
         let ms = ctx.mail_service.clone();
         move |b: Book| {
+            let locale = *ctx.ui_locale.read();
             let cfg = ctx.smtp_config.read().clone();
             ctx.is_sending_kindle.set(true);
             let ms_cloned = ms.clone();
@@ -597,8 +870,19 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
                 let res = ms_cloned.send_to_kindle(&b, &cfg, None).await;
                 ctx.is_sending_kindle.set(false);
                 match res {
-                    Ok(()) => tracing::info!("Livre '{}' envoyé avec succès à la Kindle", b.title),
-                    Err(e) => tracing::error!("Erreur lors de l'envoi vers Kindle: {e}"),
+                    Ok(()) => show_toast(
+                        ctx.toast_msg,
+                        translate_fmt(locale, "actions.kindle_sent", &[("title", &b.title)]),
+                        true,
+                    ),
+                    Err(e) => {
+                        tracing::error!("Kindle send error: {e}");
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        );
+                    }
                 }
             });
         }

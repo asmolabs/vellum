@@ -56,7 +56,10 @@ pub fn NewsRecipesModal(
                         on_imported.call(());
                     }
                     Err(e) => {
-                        notif.set(Some((format!("Erreur : {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        )));
                     }
                 }
             });

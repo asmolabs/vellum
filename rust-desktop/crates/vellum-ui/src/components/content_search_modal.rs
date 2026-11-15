@@ -44,8 +44,14 @@ pub fn ContentSearchModal(
                             true,
                         )));
                     }
-                    Ok(Err(e)) => status_msg.set(Some((format!("Erreur : {e}"), false))),
-                    Err(e) => status_msg.set(Some((format!("Erreur asynchrone : {e}"), false))),
+                    Ok(Err(e)) => status_msg.set(Some((
+                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                        false,
+                    ))),
+                    Err(e) => status_msg.set(Some((
+                        translate_fmt(locale, "common.async_error", &[("error", &e.to_string())]),
+                        false,
+                    ))),
                 }
             });
         }
@@ -91,7 +97,10 @@ pub fn ContentSearchModal(
                             true,
                         )));
                     }
-                    Err(e) => status_msg.set(Some((format!("Erreur : {e}"), false))),
+                    Err(e) => status_msg.set(Some((
+                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                        false,
+                    ))),
                 }
             });
         }

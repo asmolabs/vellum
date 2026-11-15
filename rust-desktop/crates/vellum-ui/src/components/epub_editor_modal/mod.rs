@@ -86,12 +86,23 @@ pub fn EpubEditorModal(
                     }
                     Ok(Err(e)) => {
                         notif.set(Some((
-                            format!("Erreur lors de la détection des titres: {e}"),
+                            translate_fmt(
+                                locale,
+                                "epub.toc_detect_err",
+                                &[("error", &e.to_string())],
+                            ),
                             false,
                         )));
                     }
                     Err(e) => {
-                        notif.set(Some((format!("Tâche interrompue: {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(
+                                locale,
+                                "common.task_interrupted",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        )));
                     }
                 }
             });
@@ -130,12 +141,23 @@ pub fn EpubEditorModal(
                     }
                     Ok(Err(e)) => {
                         notif.set(Some((
-                            format!("Erreur d'enregistrement de la TOC: {e}"),
+                            translate_fmt(
+                                locale,
+                                "epub.toc_save_err",
+                                &[("error", &e.to_string())],
+                            ),
                             false,
                         )));
                     }
                     Err(e) => {
-                        notif.set(Some((format!("Tâche interrompue: {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(
+                                locale,
+                                "common.task_interrupted",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        )));
                     }
                 }
             });
@@ -172,10 +194,20 @@ pub fn EpubEditorModal(
                         on_updated.call(());
                     }
                     Ok(Err(e)) => {
-                        notif.set(Some((format!("Erreur lors de la réparation: {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(locale, "epub.repair_err", &[("error", &e.to_string())]),
+                            false,
+                        )));
                     }
                     Err(e) => {
-                        notif.set(Some((format!("Tâche interrompue: {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(
+                                locale,
+                                "common.task_interrupted",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        )));
                     }
                 }
             });

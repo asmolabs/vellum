@@ -23,7 +23,9 @@ mod library_logic;
 mod state;
 mod styles;
 
-use components::{BookCard, BooksTable, DetailDrawer, Header, KanbanBoard, Sidebar};
+use components::{
+    BookCard, BooksTable, DetailDrawer, Header, KanbanBoard, LibraryToolbar, Sidebar,
+};
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
 
@@ -74,10 +76,10 @@ fn App() -> Element {
     });
 
     let current_filter = use_signal(|| FilterStatus::All);
-    let mut current_sort = use_signal(|| SortOption::RecentAdded);
-    let mut view_mode = use_signal(|| ViewMode::Grid);
-    let mut selected_tag = use_signal(|| None::<String>);
-    let mut selected_series = use_signal(|| None::<String>);
+    let current_sort = use_signal(|| SortOption::RecentAdded);
+    let view_mode = use_signal(|| ViewMode::Grid);
+    let selected_tag = use_signal(|| None::<String>);
+    let selected_series = use_signal(|| None::<String>);
     let search_query = use_signal(String::new);
     let mut selected_book = use_signal(|| None::<Book>);
     let mut focused_book_id = use_signal(|| None::<String>);
@@ -87,7 +89,7 @@ fn App() -> Element {
     let mut palette_open = use_signal(|| false);
     let mut bulk_edit_open = use_signal(|| false);
     let mut bulk_convert_open = use_signal(|| false);
-    let mut selected_ids = use_signal(std::collections::HashSet::<String>::new);
+    let selected_ids = use_signal(std::collections::HashSet::<String>::new);
     let mut translating_book = use_signal(|| None::<Book>);
     let is_translating = use_signal(|| false);
     let mut epub_editing_book = use_signal(|| None::<Book>);
@@ -98,7 +100,7 @@ fn App() -> Element {
     let mut bulk_regex_open = use_signal(|| false);
     let mut import_rules_open = use_signal(|| false);
     let mut is_dragging_files = use_signal(|| false);
-    let mut toast_msg = use_signal(|| None::<(String, bool)>);
+    let toast_msg = use_signal(|| None::<(String, bool)>);
 
     let news_service = services.news_service.clone();
     let mail_service = services.mail_service.clone();
@@ -169,6 +171,8 @@ fn App() -> Element {
         content_search_open,
         bulk_regex_open,
         import_rules_open,
+        ui_locale,
+        toast_msg,
     });
 
     // Grid virtualization scroll + resize observer (rAF-throttled)
@@ -491,19 +495,31 @@ fn App() -> Element {
                                 .await
                                 .unwrap_or((0, 1));
                                 on_refresh.call(());
+                                let loc = *ui_locale.read();
                                 if err_count == 0 {
-                                    toast_msg.set(Some((
-                                        format!("✅ {ok_count} livre(s) importé(s) avec succès"),
+                                    app_actions::show_toast(
+                                        toast_msg,
+                                        translate_fmt(
+                                            loc,
+                                            "toolbar.drop_ok",
+                                            &[("count", &ok_count.to_string())],
+                                        ),
                                         true,
-                                    )));
+                                    );
                                 } else {
-                                    toast_msg.set(Some((
-                                        format!("⚠️ {ok_count} importé(s), {err_count} échec(s)"),
+                                    app_actions::show_toast(
+                                        toast_msg,
+                                        translate_fmt(
+                                            loc,
+                                            "toolbar.drop_partial",
+                                            &[
+                                                ("ok", &ok_count.to_string()),
+                                                ("err", &err_count.to_string()),
+                                            ],
+                                        ),
                                         false,
-                                    )));
+                                    );
                                 }
-                                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
-                                toast_msg.set(None);
                             });
                         }
                     }
@@ -578,136 +594,16 @@ fn App() -> Element {
                 main {
                     id: "vellum-library-scroll",
                     class: "library-area",
-                    div { class: "library-header",
-                        div { class: "library-title-group",
-                            div { style: "display: flex; align-items: center; gap: 10px;",
-                                h2 { {translate(*ui_locale.read(), current_filter.read().i18n_key())} }
-                                if let Some(ref s) = *selected_series.read() {
-                                    div {
-                                        style: "display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(167, 139, 250, 0.2); border: 1px solid rgba(167, 139, 250, 0.4); font-size: 12px; color: #c4b5fd;",
-                                        span { "📚 {s}" }
-                                        button {
-                                            style: "background: none; border: none; color: inherit; cursor: pointer; padding: 0 2px;",
-                                            onclick: move |_| selected_series.set(None),
-                                            "✕"
-                                        }
-                                    }
-                                }
-                                if let Some(ref t) = *selected_tag.read() {
-                                    div {
-                                        style: "display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); font-size: 12px; color: #a5b4fc;",
-                                        span { "🏷️ {t}" }
-                                        button {
-                                            style: "background: none; border: none; color: inherit; cursor: pointer; padding: 0 2px;",
-                                            onclick: move |_| selected_tag.set(None),
-                                            "✕"
-                                        }
-                                    }
-                                }
-                            }
-                            div { class: "library-count",
-                                {
-                                    let count_str = filtered_books.len().to_string();
-                                    translate_fmt(*ui_locale.read(), "toolbar.books_displayed", &[("count", &count_str)])
-                                }
-                            }
-                        }
-
-                        div { style: "display: flex; align-items: center; gap: 8px;",
-                            // View Mode Toggle (Grid vs Kanban PAL)
-                            div { style: "display: flex; align-items: center; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 2px; border: 1px solid var(--border-subtle); margin-right: 4px;",
-                                button {
-                                    style: if *view_mode.read() == ViewMode::Grid {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
-                                    } else {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
-                                    },
-                                    onclick: move |_| view_mode.set(ViewMode::Grid),
-                                    {translate(*ui_locale.read(), "toolbar.view_grid")}
-                                }
-                                button {
-                                    style: if *view_mode.read() == ViewMode::Table {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
-                                    } else {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
-                                    },
-                                    onclick: move |_| view_mode.set(ViewMode::Table),
-                                    {translate(*ui_locale.read(), "toolbar.view_table")}
-                                }
-                                button {
-                                    style: if *view_mode.read() == ViewMode::TableCarousel {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
-                                    } else {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
-                                    },
-                                    onclick: move |_| view_mode.set(ViewMode::TableCarousel),
-                                    {translate(*ui_locale.read(), "toolbar.view_carousel")}
-                                }
-                                button {
-                                    style: if *view_mode.read() == ViewMode::Kanban {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
-                                    } else {
-                                        "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
-                                    },
-                                    onclick: move |_| view_mode.set(ViewMode::Kanban),
-                                    {translate(*ui_locale.read(), "toolbar.view_kanban")}
-                                }
-                            }
-
-                            if !filtered_books.is_empty() {
-                                {
-                                    let all_selected = filtered_books.iter().all(|b| selected_ids.read().contains(&b.id));
-                                    let current_ids: Vec<String> = filtered_books.iter().map(|b| b.id.clone()).collect();
-                                    rsx! {
-                                        button {
-                                            class: "btn btn-secondary",
-                                            style: "padding: 6px 12px; font-size: 12px; border-radius: 8px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
-                                            onclick: move |_| {
-                                                let mut set = selected_ids.read().clone();
-                                                if all_selected {
-                                                    for id in &current_ids {
-                                                        set.remove(id);
-                                                    }
-                                                } else {
-                                                    for id in &current_ids {
-                                                        set.insert(id.clone());
-                                                    }
-                                                }
-                                                selected_ids.set(set);
-                                            },
-                                            {if all_selected { translate(*ui_locale.read(), "toolbar.deselect_all") } else { translate(*ui_locale.read(), "toolbar.select_all") }}
-                                        }
-                                    }
-                                }
-                            }
-                            span { style: "font-size: 12px; color: var(--text-muted); font-weight: 500;", {translate(*ui_locale.read(), "toolbar.sort_by")} }
-                            select {
-                                style: "padding: 6px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
-                                value: match *current_sort.read() {
-                                    SortOption::RecentAdded => "recent",
-                                    SortOption::TitleAsc => "title_asc",
-                                    SortOption::TitleDesc => "title_desc",
-                                    SortOption::AuthorAsc => "author_asc",
-                                    SortOption::ProgressDesc => "progress",
-                                },
-                                onchange: move |evt| {
-                                    let val = evt.value();
-                                    let sort = match val.as_str() {
-                                        "title_asc" => SortOption::TitleAsc,
-                                        "title_desc" => SortOption::TitleDesc,
-                                        "author_asc" => SortOption::AuthorAsc,
-                                        "progress" => SortOption::ProgressDesc,
-                                        _ => SortOption::RecentAdded,
-                                    };
-                                    current_sort.set(sort);
-                                },
-                                option { value: "recent", {translate(*ui_locale.read(), "toolbar.sort_recent")} }
-                                option { value: "title_asc", {translate(*ui_locale.read(), "toolbar.sort_title_asc")} }
-                                option { value: "title_desc", {translate(*ui_locale.read(), "toolbar.sort_title_desc")} }
-                                option { value: "author_asc", {translate(*ui_locale.read(), "toolbar.sort_author_asc")} }
-                                option { value: "progress", {translate(*ui_locale.read(), "toolbar.sort_progress")} }
-                            }
-                        }
+                    LibraryToolbar {
+                        locale: *ui_locale.read(),
+                        current_filter,
+                        selected_series,
+                        selected_tag,
+                        filtered_count: filtered_books.len(),
+                        filtered_ids: filtered_books.iter().map(|b| b.id.clone()).collect(),
+                        selected_ids,
+                        view_mode,
+                        current_sort,
                     }
 
                     if *view_mode.read() == ViewMode::Kanban {

@@ -55,10 +55,20 @@ pub fn LibraryAuditModal(
                         on_upd.call(());
                     }
                     Ok(Err(e)) => {
-                        notif.set(Some((format!("Erreur : {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        )));
                     }
                     Err(e) => {
-                        notif.set(Some((format!("Erreur asynchrone : {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(
+                                locale,
+                                "common.async_error",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        )));
                     }
                 }
             });
@@ -92,10 +102,20 @@ pub fn LibraryAuditModal(
                         on_upd.call(());
                     }
                     Ok(Err(e)) => {
-                        notif.set(Some((format!("Erreur : {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        )));
                     }
                     Err(e) => {
-                        notif.set(Some((format!("Erreur asynchrone : {e}"), false)));
+                        notif.set(Some((
+                            translate_fmt(
+                                locale,
+                                "common.async_error",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        )));
                     }
                 }
             });
@@ -116,7 +136,10 @@ pub fn LibraryAuditModal(
                 )));
             }
             Err(e) => {
-                notif.set(Some((format!("Erreur : {e}"), false)));
+                notif.set(Some((
+                    translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                    false,
+                )));
             }
         }
     };

@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
-use vellum_core::{translate, BookService, ImportRule, ImportRuleTarget, Locale};
+use vellum_core::{translate, translate_fmt, BookService, ImportRule, ImportRuleTarget, Locale};
 
 #[component]
 pub fn ImportRulesModal(
@@ -24,7 +24,10 @@ pub fn ImportRulesModal(
                 rules.set(next);
                 status_msg.set(Some((translate(locale, "rules.saved").to_string(), true)));
             }
-            Err(e) => status_msg.set(Some((format!("Erreur : {e}"), false))),
+            Err(e) => status_msg.set(Some((
+                translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                false,
+            ))),
         }
     };
 
