@@ -679,8 +679,10 @@ fn test_web_companion_assets_security_and_dom_invariants() {
     assert!(lib_html.contains("function escapeHtml(str)"));
     assert!(lib_html.contains("escapeHtml(b.title)"));
     assert!(lib_html.contains("/api/books"));
+    assert!(lib_html.contains("/api/i18n"));
 
     assert!(reader_html.contains("<!DOCTYPE html>"));
     assert!(reader_html.contains("function escapeHtml(str)"));
     assert!(reader_html.contains("/api/books/${bookId}/chapter/"));
+    assert!(reader_html.contains("/api/i18n"));
 }

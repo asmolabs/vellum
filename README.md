@@ -24,7 +24,8 @@ library/
 │       ├── vellum-domain/   # Entités métier, ports et erreurs (0 dépendance infra)
 │       ├── vellum-storage/  # Persistance SQLite WAL (requêtes paramétrées)
 │       ├── vellum-plugins/  # Formats, convertisseurs, enrichissement, liseuses, traduction
-│       ├── vellum-core/     # Services applicatifs, lecteur, OPDS/Web Companion, presse
+│       ├── vellum-core/     # Services applicatifs, lecteur, i18n FR/EN, OPDS/Web Companion
+│       ├── vellum-cli/      # Interface ligne de commande (import, audit, indexation, export)
 │       └── vellum-ui/       # Application desktop Dioxus
 └── TODO.md
 ```
@@ -32,19 +33,22 @@ library/
 ## Démarrage rapide
 
 ### Prérequis
-- Rust (toolchain stable récente, testé avec `rustc 1.99`)
+- Rust (toolchain stable avec `clippy` et `rustfmt`)
 
 ### Tests et qualité
 
 ```bash
-# Lancer l'ensemble des tests du workspace (58 tests)
+# Vérifier le formatage
+cargo fmt --manifest-path rust-desktop/Cargo.toml --all -- --check
+
+# Lancer l'ensemble des tests du workspace (unitaires, intégration et doc-tests)
 cargo test --manifest-path rust-desktop/Cargo.toml
 
-# Vérifier Clippy sur toutes les cibles
-cargo clippy --manifest-path rust-desktop/Cargo.toml --workspace --all-targets
+# Vérifier Clippy sur toutes les cibles (zéro warning)
+cargo clippy --manifest-path rust-desktop/Cargo.toml --workspace --all-targets -- -D warnings
 
-# Générer la documentation Rustdoc locale
-cargo doc --manifest-path rust-desktop/Cargo.toml --no-deps
+# Générer la documentation Rustdoc locale (zéro warning)
+RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path rust-desktop/Cargo.toml --workspace --no-deps
 ```
 
 ### Lancer l'application desktop

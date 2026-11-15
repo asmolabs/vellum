@@ -279,7 +279,7 @@
     <div class="book-grid" id="books-container">
       <div class="empty-state">
         <span>⏳</span>
-        Chargement de la bibliothèque...
+        <span id="loading-label">Chargement de la bibliothèque...</span>
       </div>
     </div>
   </main>
@@ -287,11 +287,48 @@
   <script>
     let allBooks = [];
     let selectedSeries = null;
+    let i18nMessages = {
+      'web.search_ph': 'Rechercher par titre, auteur, saga, tag...',
+      'web.loading_library': 'Chargement de la bibliothèque...',
+      'web.load_error': 'Impossible de charger les livres',
+      'web.connection_error': 'Erreur de connexion au serveur Vellum : {error}',
+      'web.all_series': 'Toutes les séries',
+      'web.books_count': '{count} livre(s)',
+      'web.empty_search': 'Aucun livre ne correspond à votre recherche.',
+      'web.read_btn': '📖 Lire',
+      'web.download_title': 'Télécharger ({format})'
+    };
+
+    function t(key, vars = {}) {
+      let text = i18nMessages[key] || key;
+      for (const [k, v] of Object.entries(vars)) {
+        text = text.replace(`{${k}}`, String(v));
+      }
+      return text;
+    }
+
+    async function loadI18n() {
+      try {
+        const res = await fetch('/api/i18n');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.locale) {
+          document.documentElement.lang = data.locale;
+        }
+        if (data && data.messages) {
+          i18nMessages = { ...i18nMessages, ...data.messages };
+        }
+        document.getElementById('search-box').placeholder = t('web.search_ph');
+        const loadingEl = document.getElementById('loading-label');
+        if (loadingEl) loadingEl.textContent = t('web.loading_library');
+      } catch (_) {}
+    }
 
     async function loadLibrary() {
+      await loadI18n();
       try {
         const res = await fetch('/api/books');
-        if (!res.ok) throw new Error('Impossible de charger les livres');
+        if (!res.ok) throw new Error(t('web.load_error'));
         allBooks = await res.json();
         renderSeriesChips();
         renderBooks();
@@ -299,7 +336,7 @@
         document.getElementById('books-container').innerHTML = `
           <div class="empty-state">
             <span>⚠️</span>
-            Erreur de connexion au serveur Vellum : ${escapeHtml(e.message)}
+            ${escapeHtml(t('web.connection_error', { error: e.message }))}
           </div>
         `;
       }
@@ -318,7 +355,7 @@
       }
 
       container.style.display = 'flex';
-      let html = `<div class="chip ${selectedSeries === null ? 'active' : ''}" onclick="filterSeries(null)">Toutes les séries</div>`;
+      let html = `<div class="chip ${selectedSeries === null ? 'active' : ''}" onclick="filterSeries(null)">${escapeHtml(t('web.all_series'))}</div>`;
       seriesSet.forEach(s => {
         const active = selectedSeries === s ? 'active' : '';
         html += `<div class="chip ${active}" onclick="filterSeries('${escapeHtml(s)}')">${escapeHtml(s)}</div>`;
@@ -346,14 +383,14 @@
         return inTitle || inAuthor || inSeries || inTags;
       });
 
-      document.getElementById('book-count').textContent = `${filtered.length} livre${filtered.length > 1 ? 's' : ''}`;
+      document.getElementById('book-count').textContent = t('web.books_count', { count: filtered.length });
 
       const container = document.getElementById('books-container');
       if (filtered.length === 0) {
         container.innerHTML = `
           <div class="empty-state" style="grid-column: 1 / -1;">
             <span>📖</span>
-            Aucun livre ne correspond à votre recherche.
+            ${escapeHtml(t('web.empty_search'))}
           </div>
         `;
         return;
@@ -382,8 +419,8 @@
               <div class="book-title" title="${escapeHtml(b.title)}">${escapeHtml(b.title)}</div>
               <div class="book-author" title="${escapeHtml(b.author)}">${escapeHtml(b.author)}</div>
               <div class="book-actions">
-                <a class="btn btn-read" href="/read/${b.id}">📖 Lire</a>
-                <a class="btn btn-download" href="/opds/download/${b.id}/${primaryFormat}" title="Télécharger (${primaryFormat.toUpperCase()})">⬇️</a>
+                <a class="btn btn-read" href="/read/${b.id}">${escapeHtml(t('web.read_btn'))}</a>
+                <a class="btn btn-download" href="/opds/download/${b.id}/${primaryFormat}" title="${escapeHtml(t('web.download_title', { format: primaryFormat.toUpperCase() }))}">⬇️</a>
               </div>
             </div>
           </div>

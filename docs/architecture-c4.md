@@ -29,7 +29,9 @@ Le workspace `rust-desktop` est découpé en **5 crates** suivant le principe d'
 ```mermaid
 flowchart TD
     UI["vellum-ui (Dioxus Desktop)"] --> Core["vellum-core (Services & Axum HTTP)"]
-    UI -.->|"À restreindre à terme"| Domain["vellum-domain (Entités & Ports)"]
+    UI --> Domain["vellum-domain (Entités & Ports)"]
+    CLI["vellum-cli (CLI)"] --> Core
+    CLI --> Domain
     Core --> Domain
     Core --> Storage["vellum-storage (SQLite WAL)"]
     Core --> Plugins["vellum-plugins (Adaptateurs)"]
@@ -45,7 +47,8 @@ flowchart TD
 | `vellum-domain` | Entités, traits/ports, configurations, `VellumError` | `serde`, `chrono`, `uuid`, `thiserror`, `dirs` |
 | `vellum-storage` | Dépôts SQLite WAL (`BookRepository`, `TagRepository`, `ParamRepository`, `SyncRepository`) | `rusqlite` |
 | `vellum-plugins` | Formats, convertisseurs, enrichissement, Kobo/Kindle, traduction, plugins CLI externes | `reqwest`, `zip`, `rusqlite` (RO Kobo) |
-| `vellum-core` | Cas d'usage métier, lecteur, sanitisation `ammonia`, serveur OPDS/Web Companion | `axum`, `tower-http`, `ammonia`, `zip`, `lettre`, `rusqlite` (RO Calibre) |
+| `vellum-core` | Cas d'usage métier, lecteur, sanitisation `ammonia`, i18n FR/EN, serveur OPDS/Web Companion | `axum`, `tower-http`, `ammonia`, `zip`, `lettre`, `rusqlite` (RO Calibre) |
+| `vellum-cli` | Automatisation CLI (`import`, `list`, `audit`, `index`, `search-content`, `convert`, `export`) | `vellum-core`, `vellum-domain` |
 | `vellum-ui` | Interface desktop réactive Dioxus, composants modaux, CSS | `dioxus` |
 
 ---
@@ -101,7 +104,7 @@ flowchart LR
 
 - **Pureté du domaine** : `vellum-domain` ne doit jamais importer `rusqlite`, `axum`, `zip` ou `dioxus`. Les erreurs techniques (`zip::result::ZipError`, erreurs SQLite) sont converties en `VellumError` dans les couches adaptateur/application.
 - **Accès SQLite externes en lecture seule** : `vellum-core` (`calibre_importer.rs`) et `vellum-plugins` (`ereader/kobo.rs`) utilisent `rusqlite` exclusivement avec `OpenFlags::SQLITE_OPEN_READ_ONLY` pour lire des bases tierces (`metadata.db`, `KoboReader.sqlite`). Toute écriture applicative passe par `vellum-storage`.
-- **Dette d'architecture identifiée** :
-  - `vellum-ui/Cargo.toml` référence encore `vellum-storage` et `vellum-plugins` ; ces dépendances directes peuvent être supprimées dès que `vellum-ui` passe exclusivement par `vellum-core` et `vellum-domain`.
-  - Certains fichiers volumineux (> 1 200 lignes : `reader_modal.rs`, `book_service.rs`, `main.rs`, `epub_editor.rs`, `reader_provider.rs`) gagnent à être découpés en sous-modules au fil des évolutions.
+- **Découpage et modularité** :
+  - `vellum-ui/Cargo.toml` dépend exclusivement de `vellum-core` et `vellum-domain` (aucune dépendance directe vers `vellum-storage` ou `vellum-plugins`).
+  - Les services et composants majeurs sont découpés en sous-modules thématiques (`book_service/`, `epub_editor/`, `reader_provider/`, `opds_server/`, `sync_service/`, `reader_modal/`, `detail_drawer/`, `settings_modal/`, `epub_editor_modal/`).
 

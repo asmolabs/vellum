@@ -6,7 +6,8 @@ use std::sync::Arc;
 use dioxus::prelude::*;
 use vellum_core::book_service::BookService;
 use vellum_core::{
-    CatalogExporter, CatalogFormat, CustomColumnService, Locale, NewsService, SyncService,
+    translate, translate_fmt, CatalogExporter, CatalogFormat, CustomColumnService, Locale,
+    NewsService, SyncService,
 };
 use vellum_domain::{
     Book, CloudSyncConfig, CustomColumnDefinition, CustomColumnType, PluginDescriptor,
@@ -212,6 +213,7 @@ pub(crate) fn render_app_overlays(
                 on_scan_watch_folder: {
                     let bs = book_service.clone();
                     move |dir: String| {
+                        let locale = *st.ui_locale.read();
                         let _ = bs.param_repo().set_value("watch_folder_path", &dir);
                         st.watch_folder_path.set(dir.clone());
                         match vellum_core::WatchFolderService::scan_once(
@@ -220,21 +222,28 @@ pub(crate) fn render_app_overlays(
                             true,
                         ) {
                             Ok(report) => {
-                                st.sync_message.set(Some(format!(
-                                    "📥 Watch Folder : {} importé(s), {} doublon(s) ignoré(s)",
-                                    report.imported_book_ids.len(),
-                                    report.skipped_duplicates
+                                st.sync_message.set(Some(translate_fmt(
+                                    locale,
+                                    "actions.watch_folder_ok",
+                                    &[
+                                        ("imported", &report.imported_book_ids.len().to_string()),
+                                        ("skipped", &report.skipped_duplicates.to_string()),
+                                    ],
                                 )));
                                 hd.on_refresh.call(());
                             }
                             Err(e) => {
-                                st.sync_message
-                                    .set(Some(format!("Erreur Watch Folder : {e}")));
+                                st.sync_message.set(Some(translate_fmt(
+                                    locale,
+                                    "actions.watch_folder_err",
+                                    &[("error", &e.to_string())],
+                                )));
                             }
                         }
                     }
                 },
                 on_export_catalog: move |fmt: CatalogFormat| {
+                    let locale = *st.ui_locale.read();
                     let (default_name, ext) = match fmt {
                         CatalogFormat::Csv => ("vellum-catalogue.csv", "csv"),
                         CatalogFormat::Json => ("vellum-catalogue.json", "json"),
@@ -242,21 +251,27 @@ pub(crate) fn render_app_overlays(
                     };
                     if let Some(dest) = rfd::FileDialog::new()
                         .set_file_name(default_name)
-                        .add_filter("Catalogue", &[ext])
+                        .add_filter(translate(locale, "actions.catalog_filter"), &[ext])
                         .save_file()
                     {
                         let all_books = st.books.read().clone();
                         match CatalogExporter::export_to_file(&all_books, fmt, &dest) {
                             Ok(()) => {
-                                st.sync_message.set(Some(format!(
-                                    "📚 Catalogue exporté ({} livres) : {}",
-                                    all_books.len(),
-                                    dest.display()
+                                st.sync_message.set(Some(translate_fmt(
+                                    locale,
+                                    "actions.catalog_exported",
+                                    &[
+                                        ("count", &all_books.len().to_string()),
+                                        ("path", &dest.display().to_string()),
+                                    ],
                                 )));
                             }
                             Err(e) => {
-                                st.sync_message
-                                    .set(Some(format!("Erreur export catalogue : {e}")));
+                                st.sync_message.set(Some(translate_fmt(
+                                    locale,
+                                    "actions.catalog_export_err",
+                                    &[("error", &e.to_string())],
+                                )));
                             }
                         }
                     }

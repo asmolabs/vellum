@@ -59,7 +59,7 @@ fn App() -> Element {
 
     let sync_config = use_signal(|| sync_service.config());
     let is_syncing = use_signal(|| false);
-    let mut sync_message = use_signal(|| None::<String>);
+    let sync_message = use_signal(|| None::<String>);
     let ui_locale = use_signal(|| book_service.get_ui_locale());
 
     let books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
@@ -367,15 +367,19 @@ fn App() -> Element {
         });
     }
 
-    let litestream_status_str = match litestream.status() {
-        vellum_core::litestream_service::LitestreamStatus::Running => "En cours de synchronisation",
-        vellum_core::litestream_service::LitestreamStatus::Stopped => "Arrêté (en attente)",
-        vellum_core::litestream_service::LitestreamStatus::Disabled => "Désactivé",
-        vellum_core::litestream_service::LitestreamStatus::BinaryNotFound => {
-            "Exécutable introuvable"
-        }
-        vellum_core::litestream_service::LitestreamStatus::Error => "Erreur de processus",
-    }
+    let cur_locale = *ui_locale.read();
+    let litestream_status_str = translate(
+        cur_locale,
+        match litestream.status() {
+            vellum_core::litestream_service::LitestreamStatus::Running => "litestream.running",
+            vellum_core::litestream_service::LitestreamStatus::Stopped => "litestream.stopped",
+            vellum_core::litestream_service::LitestreamStatus::Disabled => "litestream.disabled",
+            vellum_core::litestream_service::LitestreamStatus::BinaryNotFound => {
+                "litestream.binary_not_found"
+            }
+            vellum_core::litestream_service::LitestreamStatus::Error => "litestream.error",
+        },
+    )
     .to_string();
 
     let plugin_descriptors = book_service.plugin_service().list_descriptors();
@@ -717,19 +721,31 @@ fn App() -> Element {
                             on_export_notes_md: {
                                 let bs = book_service.clone();
                                 move |b_id: String| {
+                                    let locale = *ui_locale.read();
                                     if let Some(dest) = rfd::FileDialog::new()
                                         .set_file_name("notes.md")
                                         .add_filter("Markdown", &["md"])
                                         .save_file()
                                     {
                                         match bs.export_book_notes_markdown(&b_id, Some(&dest)) {
-                                            Ok(_) => sync_message.set(Some(format!(
-                                                "📝 Notes exportées : {}",
-                                                dest.display()
-                                            ))),
-                                            Err(e) => sync_message.set(Some(format!(
-                                                "Erreur export notes : {e}"
-                                            ))),
+                                            Ok(_) => app_actions::show_toast(
+                                                toast_msg,
+                                                translate_fmt(
+                                                    locale,
+                                                    "actions.notes_exported",
+                                                    &[("path", &dest.display().to_string())],
+                                                ),
+                                                true,
+                                            ),
+                                            Err(e) => app_actions::show_toast(
+                                                toast_msg,
+                                                translate_fmt(
+                                                    locale,
+                                                    "actions.notes_export_err",
+                                                    &[("error", &e.to_string())],
+                                                ),
+                                                false,
+                                            ),
                                         }
                                     }
                                 }
@@ -738,19 +754,34 @@ fn App() -> Element {
                             on_polish_epub: {
                                 let bs = book_service.clone();
                                 move |b_id: String| {
+                                    let locale = *ui_locale.read();
                                     match bs.polish_book(&b_id, vellum_core::PolishOptions::default()) {
-                                        Ok(report) => {
-                                            sync_message.set(Some(format!(
-                                                "✨ Polish EPUB terminé (métadonnées: {}, couverture: {}, chapitres: {}, TOC: {})",
-                                                report.metadata_updated,
-                                                report.cover_embedded,
-                                                report.chapters_smartened,
-                                                report.toc_rebuilt
-                                            )));
-                                        }
-                                        Err(e) => {
-                                            sync_message.set(Some(format!("Erreur Polish EPUB : {e}")));
-                                        }
+                                        Ok(report) => app_actions::show_toast(
+                                            toast_msg,
+                                            translate_fmt(
+                                                locale,
+                                                "actions.polish_ok",
+                                                &[
+                                                    ("meta", &report.metadata_updated.to_string()),
+                                                    ("cover", &report.cover_embedded.to_string()),
+                                                    (
+                                                        "chapters",
+                                                        &report.chapters_smartened.to_string(),
+                                                    ),
+                                                    ("toc", &report.toc_rebuilt.to_string()),
+                                                ],
+                                            ),
+                                            true,
+                                        ),
+                                        Err(e) => app_actions::show_toast(
+                                            toast_msg,
+                                            translate_fmt(
+                                                locale,
+                                                "actions.polish_err",
+                                                &[("error", &e.to_string())],
+                                            ),
+                                            false,
+                                        ),
                                     }
                                 }
                             },
@@ -759,8 +790,17 @@ fn App() -> Element {
                             on_save_custom_value: {
                                 let ccs = custom_column_service.clone();
                                 move |(b_id, key, val): (String, String, String)| {
+                                    let locale = *ui_locale.read();
                                     if let Err(e) = ccs.set_book_value(&b_id, &key, &val) {
-                                        sync_message.set(Some(format!("Erreur colonne '{key}': {e}")));
+                                        app_actions::show_toast(
+                                            toast_msg,
+                                            translate_fmt(
+                                                locale,
+                                                "actions.custom_column_err",
+                                                &[("key", &key), ("error", &e.to_string())],
+                                            ),
+                                            false,
+                                        );
                                     }
                                 }
                             },

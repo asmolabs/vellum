@@ -210,7 +210,7 @@
 
   <div id="toc-drawer">
     <div class="drawer-header">
-      <span>📑 Table des matières</span>
+      <span id="toc-heading">📑 Table des matières</span>
       <button class="btn-icon" onclick="toggleToc(false)">✕</button>
     </div>
     <div class="drawer-body" id="toc-list"></div>
@@ -218,27 +218,27 @@
 
   <header>
     <div class="nav-left">
-      <a class="btn-icon" href="/"><span class="label">← Bibliothèque</span><span style="font-size:18px">📚</span></a>
-      <button class="btn-icon" onclick="toggleToc(true)">📑 <span class="label">TOC</span></button>
+      <a class="btn-icon" href="/"><span class="label" id="back-library-label">← Bibliothèque</span><span style="font-size:18px">📚</span></a>
+      <button class="btn-icon" onclick="toggleToc(true)">📑 <span class="label" id="toc-btn-label">TOC</span></button>
     </div>
     <div class="chapter-title-header" id="header-chapter-title">Chargement...</div>
     <div class="nav-right">
       <button class="btn-icon" onclick="changeFontSize(-1)">A-</button>
       <button class="btn-icon" onclick="changeFontSize(1)">A+</button>
-      <button class="btn-icon" onclick="cycleTheme()" title="Changer le thème">🌓</button>
+      <button class="btn-icon" id="theme-btn" onclick="cycleTheme()" title="Changer le thème">🌓</button>
     </div>
   </header>
 
   <main>
     <div id="reader-content">
-      <p style="text-align:center; padding: 40px 0; color: gray;">Chargement du livre...</p>
+      <p style="text-align:center; padding: 40px 0; color: gray;" id="loading-book-label">Chargement du livre...</p>
     </div>
   </main>
 
   <footer>
-    <button class="btn-icon" id="btn-prev" onclick="goToChapter(currentChapter - 1)">◀ <span class="label">Précédent</span></button>
+    <button class="btn-icon" id="btn-prev" onclick="goToChapter(currentChapter - 1)">◀ <span class="label" id="prev-label">Précédent</span></button>
     <div class="progress-text" id="progress-indicator">- / -</div>
-    <button class="btn-icon" id="btn-next" onclick="goToChapter(currentChapter + 1)"><span class="label">Suivant</span> ▶</button>
+    <button class="btn-icon" id="btn-next" onclick="goToChapter(currentChapter + 1)"><span class="label" id="next-label">Suivant</span> ▶</button>
   </footer>
 
   <script>
@@ -250,6 +250,51 @@
     let tocEntries = [];
     let currentFontSize = parseInt(localStorage.getItem('vellum_reader_fs') || '19');
     let currentTheme = localStorage.getItem('vellum_reader_theme') || 'dark';
+    let i18nMessages = {
+      'web.toc_heading': '📑 Table des matières',
+      'web.back_library': '← Bibliothèque',
+      'web.toc_btn': 'TOC',
+      'web.loading': 'Chargement...',
+      'web.loading_book': 'Chargement du livre...',
+      'web.change_theme': 'Changer le thème',
+      'web.prev': 'Précédent',
+      'web.next': 'Suivant',
+      'web.toc_empty': 'Aucune table des matières disponible.',
+      'web.chapter_not_found': 'Chapitre introuvable',
+      'web.chapter_num': 'Chapitre {num}',
+      'common.error': 'Erreur : {error}'
+    };
+
+    function t(key, vars = {}) {
+      let text = i18nMessages[key] || key;
+      for (const [k, v] of Object.entries(vars)) {
+        text = text.replace(`{${k}}`, String(v));
+      }
+      return text;
+    }
+
+    async function loadI18n() {
+      try {
+        const res = await fetch('/api/i18n');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.locale) {
+          document.documentElement.lang = data.locale;
+        }
+        if (data && data.messages) {
+          i18nMessages = { ...i18nMessages, ...data.messages };
+        }
+        document.getElementById('toc-heading').textContent = t('web.toc_heading');
+        document.getElementById('back-library-label').textContent = t('web.back_library');
+        document.getElementById('toc-btn-label').textContent = t('web.toc_btn');
+        document.getElementById('header-chapter-title').textContent = t('web.loading');
+        const loadingBook = document.getElementById('loading-book-label');
+        if (loadingBook) loadingBook.textContent = t('web.loading_book');
+        document.getElementById('theme-btn').title = t('web.change_theme');
+        document.getElementById('prev-label').textContent = t('web.prev');
+        document.getElementById('next-label').textContent = t('web.next');
+      } catch (_) {}
+    }
 
     function applyTheme(theme) {
       document.body.className = `theme-${theme}`;
@@ -277,6 +322,7 @@
     async function initReader() {
       applyTheme(currentTheme);
       document.documentElement.style.setProperty('--font-size', `${currentFontSize}px`);
+      await loadI18n();
 
       try {
         // Load TOC
@@ -292,7 +338,7 @@
         await goToChapter(startCh);
       } catch (e) {
         document.getElementById('reader-content').innerHTML = `
-          <p style="color:red; text-align:center;">Erreur de chargement: ${escapeHtml(e.message)}</p>
+          <p style="color:red; text-align:center;">${escapeHtml(t('common.error', { error: e.message }))}</p>
         `;
       }
     }
@@ -300,7 +346,7 @@
     function renderToc() {
       const list = document.getElementById('toc-list');
       if (!tocEntries || tocEntries.length === 0) {
-        list.innerHTML = '<p style="padding:16px; color:gray;">Aucune table des matières disponible.</p>';
+        list.innerHTML = `<p style="padding:16px; color:gray;">${escapeHtml(t('web.toc_empty'))}</p>`;
         return;
       }
       list.innerHTML = tocEntries.map((item, idx) => `
@@ -315,18 +361,18 @@
       if (totalChapters > 0 && idx >= totalChapters) return;
 
       document.getElementById('reader-content').innerHTML = `
-        <p style="text-align:center; padding: 40px 0; color: gray;">Chargement...</p>
+        <p style="text-align:center; padding: 40px 0; color: gray;">${escapeHtml(t('web.loading'))}</p>
       `;
 
       try {
         const res = await fetch(`/api/books/${bookId}/chapter/${idx}`);
-        if (!res.ok) throw new Error('Chapitre introuvable');
+        if (!res.ok) throw new Error(t('web.chapter_not_found'));
         const data = await res.json();
 
         currentChapter = data.chapter_index;
         totalChapters = data.total_chapters;
 
-        document.getElementById('header-chapter-title').textContent = data.title || `Chapitre ${currentChapter + 1}`;
+        document.getElementById('header-chapter-title').textContent = data.title || t('web.chapter_num', { num: currentChapter + 1 });
         document.getElementById('reader-content').innerHTML = data.html;
         document.getElementById('progress-indicator').textContent = `${currentChapter + 1} / ${totalChapters}`;
 
@@ -349,7 +395,7 @@
 
       } catch (e) {
         document.getElementById('reader-content').innerHTML = `
-          <p style="color:red; text-align:center;">Erreur : ${escapeHtml(e.message)}</p>
+          <p style="color:red; text-align:center;">${escapeHtml(t('common.error', { error: e.message }))}</p>
         `;
       }
     }
