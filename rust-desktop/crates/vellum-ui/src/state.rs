@@ -27,16 +27,6 @@ impl FilterStatus {
             FilterStatus::ToRead => "nav.to_read",
         }
     }
-
-    #[allow(dead_code)]
-    pub fn label(&self) -> &'static str {
-        match self {
-            FilterStatus::All => "Tous les livres",
-            FilterStatus::Reading => "En cours",
-            FilterStatus::Finished => "Terminés",
-            FilterStatus::ToRead => "À lire",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,19 +36,6 @@ pub enum SortOption {
     AuthorAsc,
     RecentAdded,
     ProgressDesc,
-}
-
-impl SortOption {
-    #[allow(dead_code)]
-    pub fn label(&self) -> &'static str {
-        match self {
-            SortOption::TitleAsc => "Titre (A → Z)",
-            SortOption::TitleDesc => "Titre (Z → A)",
-            SortOption::AuthorAsc => "Auteur (A → Z)",
-            SortOption::RecentAdded => "Récemment ajoutés",
-            SortOption::ProgressDesc => "Progression",
-        }
-    }
 }
 
 use vellum_core::reader_store::{

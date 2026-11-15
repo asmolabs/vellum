@@ -140,5 +140,34 @@ mod tests {
                 "Clé manquante dans fr.json: {key}"
             );
         }
+
+        // Vérifie la parité des placeholders {name} entre fr.json et en.json
+        fn extract_placeholders(value: &str) -> std::collections::BTreeSet<String> {
+            let mut out = std::collections::BTreeSet::new();
+            let mut rest = value;
+            while let Some(start) = rest.find('{') {
+                let after = &rest[start + 1..];
+                if let Some(end) = after.find('}') {
+                    let name = &after[..end];
+                    if !name.is_empty()
+                        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                    {
+                        out.insert(name.to_string());
+                    }
+                    rest = &after[end + 1..];
+                } else {
+                    break;
+                }
+            }
+            out
+        }
+        for (key, fr_val) in FR_CATALOG.iter() {
+            let en_val = &EN_CATALOG[key];
+            assert_eq!(
+                extract_placeholders(fr_val),
+                extract_placeholders(en_val),
+                "Placeholders différents pour la clé {key}"
+            );
+        }
     }
 }

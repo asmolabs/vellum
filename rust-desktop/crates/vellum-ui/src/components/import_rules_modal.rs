@@ -117,7 +117,7 @@ pub fn ImportRulesModal(
                         }
                         input {
                             class: "form-input",
-                            placeholder: "Regex (ex: (?i)dune)",
+                            placeholder: translate(locale, "rules.regex_ph"),
                             value: "{match_regex}",
                             oninput: move |e| match_regex.set(e.value()),
                         }

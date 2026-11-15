@@ -8,14 +8,12 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
-use std::path::PathBuf;
-
 use dioxus::desktop::{Config, WindowBuilder};
-use dioxus::html::HasFileData;
 use dioxus::prelude::*;
-use vellum_core::{translate, translate_fmt};
+use vellum_core::{init_services, translate, Locale};
 
 mod app_actions;
+mod app_effects;
 mod app_modals;
 mod components;
 mod cover_cache;
@@ -29,15 +27,15 @@ use components::{
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
 
-use vellum_core::init_services;
 use vellum_domain::Book;
 
 fn main() {
     tracing_subscriber::fmt::init();
 
+    let window_title = translate(Locale::detect_system(), "app.title");
     let cfg = Config::new().with_window(
         WindowBuilder::new()
-            .with_title("Vellum — Bibliothèque Personnelle & Liseuse")
+            .with_title(window_title)
             .with_inner_size(dioxus::desktop::LogicalSize::new(1200.0, 800.0))
             .with_min_inner_size(dioxus::desktop::LogicalSize::new(960.0, 640.0)),
     );
@@ -82,13 +80,13 @@ fn App() -> Element {
     let selected_series = use_signal(|| None::<String>);
     let search_query = use_signal(String::new);
     let mut selected_book = use_signal(|| None::<Book>);
-    let mut focused_book_id = use_signal(|| None::<String>);
-    let mut grid_scroll_metrics = use_signal(|| (0.0_f64, 920.0_f64, 720.0_f64));
+    let focused_book_id = use_signal(|| None::<String>);
+    let grid_scroll_metrics = use_signal(|| (0.0_f64, 920.0_f64, 720.0_f64));
     let active_reader = use_signal(|| None::<ReaderSession>);
     let mut settings_open = use_signal(|| false);
     let mut palette_open = use_signal(|| false);
-    let mut bulk_edit_open = use_signal(|| false);
-    let mut bulk_convert_open = use_signal(|| false);
+    let bulk_edit_open = use_signal(|| false);
+    let bulk_convert_open = use_signal(|| false);
     let selected_ids = use_signal(std::collections::HashSet::<String>::new);
     let mut translating_book = use_signal(|| None::<Book>);
     let is_translating = use_signal(|| false);
@@ -175,212 +173,52 @@ fn App() -> Element {
         toast_msg,
     });
 
-    // Grid virtualization scroll + resize observer (rAF-throttled)
-    use_effect(move || {
-        let mut eval = document::eval(
-            r#"
-            const scroller = document.getElementById('vellum-library-scroll');
-            if (!scroller) return;
-            let rafId = 0;
-            const emit = () => {
-                rafId = 0;
-                const grid = document.getElementById('vellum-books-grid');
-                const width = grid ? grid.clientWidth : Math.max(scroller.clientWidth - 48, 200);
-                dioxus.send([scroller.scrollTop, width, scroller.clientHeight]);
-            };
-            const schedule = () => {
-                if (!rafId) rafId = requestAnimationFrame(emit);
-            };
-            scroller.addEventListener('scroll', schedule, { passive: true });
-            const ro = new ResizeObserver(schedule);
-            ro.observe(scroller);
-            emit();
-        "#,
-        );
-        spawn(async move {
-            while let Ok(vals) = eval.recv::<Vec<f64>>().await {
-                if vals.len() == 3 {
-                    grid_scroll_metrics.set((vals[0], vals[1], vals[2]));
-                }
-            }
-        });
-    });
+    let kb_ctx = app_effects::KeyboardNavContext {
+        books,
+        virtual_libraries,
+        active_virtual_library_id,
+        current_filter,
+        current_sort,
+        selected_tag,
+        selected_series,
+        search_query,
+        active_reader,
+        focused_book_id,
+        selected_book,
+        palette_open,
+        settings_open,
+        bulk_edit_open,
+        bulk_convert_open,
+        bulk_regex_open,
+        content_search_open,
+        import_rules_open,
+        news_recipes_open,
+        audit_open,
+        stats_open,
+        translating_book,
+        epub_editing_book,
+        on_read: actions.on_read,
+    };
 
-    // Global keyboard shortcuts (Cmd/Ctrl+K palette, Escape to close, Arrows/Enter/Space in library)
-    {
-        let hr = actions.on_read;
-        use_effect(move || {
-            let hr_spawn = hr;
-            let mut eval = document::eval(
-                r#"
-            window.addEventListener('keydown', (e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-                    e.preventDefault();
-                    dioxus.send('toggle_palette');
-                    return;
-                }
-                const tag = e.target?.tagName;
-                const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable;
-                if (e.key === 'Escape') {
-                    dioxus.send('escape');
-                    return;
-                }
-                if (isEditable) return;
-                if (document.querySelector('.reader-modal, .modal-backdrop, .palette-overlay')) return;
-                if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    dioxus.send('prev');
-                } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    dioxus.send('next');
-                } else if (e.key === 'Enter' && tag !== 'BUTTON' && tag !== 'A') {
-                    e.preventDefault();
-                    dioxus.send('open_reader');
-                } else if (e.key === ' ' && tag !== 'BUTTON' && tag !== 'A') {
-                    e.preventDefault();
-                    dioxus.send('toggle_detail');
-                }
-            });
-        "#,
-            );
-            spawn(async move {
-                let current_filtered = || {
-                    let active_vl_query =
-                        active_virtual_library_id.peek().as_ref().and_then(|id| {
-                            virtual_libraries
-                                .peek()
-                                .iter()
-                                .find(|vl| &vl.id == id)
-                                .map(|vl| vl.query.clone())
-                        });
-                    library_logic::filter_and_sort_books(
-                        &books.peek(),
-                        *current_filter.peek(),
-                        *current_sort.peek(),
-                        selected_tag.peek().as_deref(),
-                        selected_series.peek().as_deref(),
-                        &search_query.peek(),
-                        active_vl_query.as_deref(),
-                    )
-                };
-
-                while let Ok(cmd) = eval.recv::<String>().await {
-                    if active_reader.peek().is_some() {
-                        continue;
-                    }
-                    match cmd.as_str() {
-                        "toggle_palette" => {
-                            let cur = *palette_open.peek();
-                            palette_open.set(!cur);
-                        }
-                        "escape" => {
-                            if *palette_open.peek() {
-                                palette_open.set(false);
-                            } else if *bulk_convert_open.peek() {
-                                bulk_convert_open.set(false);
-                            } else if *bulk_edit_open.peek() {
-                                bulk_edit_open.set(false);
-                            } else if *bulk_regex_open.peek() {
-                                bulk_regex_open.set(false);
-                            } else if *settings_open.peek() {
-                                settings_open.set(false);
-                            } else if *audit_open.peek() {
-                                audit_open.set(false);
-                            } else if *stats_open.peek() {
-                                stats_open.set(false);
-                            } else if *content_search_open.peek() {
-                                content_search_open.set(false);
-                            } else if *import_rules_open.peek() {
-                                import_rules_open.set(false);
-                            } else if *news_recipes_open.peek() {
-                                news_recipes_open.set(false);
-                            } else if epub_editing_book.peek().is_some() {
-                                epub_editing_book.set(None);
-                            } else if translating_book.peek().is_some() {
-                                translating_book.set(None);
-                            } else if selected_book.peek().is_some() {
-                                selected_book.set(None);
-                            }
-                        }
-                        "prev" | "next" => {
-                            let delta = if cmd == "prev" { -1 } else { 1 };
-                            let list = current_filtered();
-                            let next_id = {
-                                let cur_focused = focused_book_id.peek();
-                                let sel_book = selected_book.peek();
-                                let fallback_id = cur_focused
-                                    .as_deref()
-                                    .or_else(|| sel_book.as_ref().map(|b| b.id.as_str()));
-                                library_logic::next_focused_book_id(&list, fallback_id, delta)
-                            };
-                            if let Some(ref id) = next_id {
-                                focused_book_id.set(Some(id.clone()));
-                                if selected_book.peek().is_some() {
-                                    if let Some(b) = list.iter().find(|b| &b.id == id).cloned() {
-                                        selected_book.set(Some(b));
-                                    }
-                                }
-                            }
-                        }
-                        "open_reader" => {
-                            let list = current_filtered();
-                            let idx = {
-                                let cur_focused = focused_book_id.peek();
-                                let sel_book = selected_book.peek();
-                                let target_id = cur_focused
-                                    .as_deref()
-                                    .or_else(|| sel_book.as_ref().map(|b| b.id.as_str()));
-                                library_logic::resolve_active_index(&list, target_id)
-                            };
-                            if let Some(book) = idx.and_then(|i| list.get(i).cloned()) {
-                                focused_book_id.set(Some(book.id.clone()));
-                                hr_spawn.call(book);
-                            }
-                        }
-                        "toggle_detail" => {
-                            let list = current_filtered();
-                            let idx = {
-                                let cur_focused = focused_book_id.peek();
-                                let sel_book = selected_book.peek();
-                                let target_id = cur_focused
-                                    .as_deref()
-                                    .or_else(|| sel_book.as_ref().map(|b| b.id.as_str()));
-                                library_logic::resolve_active_index(&list, target_id)
-                            };
-                            if let Some(book) = idx.and_then(|i| list.get(i).cloned()) {
-                                focused_book_id.set(Some(book.id.clone()));
-                                let already_open = selected_book
-                                    .peek()
-                                    .as_ref()
-                                    .is_some_and(|b| b.id == book.id);
-                                if already_open {
-                                    selected_book.set(None);
-                                } else {
-                                    selected_book.set(Some(book));
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            });
-        });
-    }
+    app_effects::use_grid_scroll_observer(grid_scroll_metrics);
+    app_effects::use_keyboard_shortcuts(kb_ctx.clone());
 
     let cur_locale = *ui_locale.read();
-    let litestream_status_str = translate(
-        cur_locale,
-        match litestream.status() {
-            vellum_core::litestream_service::LitestreamStatus::Running => "litestream.running",
-            vellum_core::litestream_service::LitestreamStatus::Stopped => "litestream.stopped",
-            vellum_core::litestream_service::LitestreamStatus::Disabled => "litestream.disabled",
-            vellum_core::litestream_service::LitestreamStatus::BinaryNotFound => {
-                "litestream.binary_not_found"
-            }
-            vellum_core::litestream_service::LitestreamStatus::Error => "litestream.error",
-        },
-    )
-    .to_string();
+    let litestream_status_str =
+        app_effects::litestream_status_label(cur_locale, litestream.status());
+    let detail_extra = app_effects::build_detail_extra_handlers(
+        book_service.clone(),
+        custom_column_service.clone(),
+        ui_locale,
+        toast_msg,
+    );
+    let drop_handler = app_effects::build_drop_handler(
+        book_service.clone(),
+        is_dragging_files,
+        ui_locale,
+        toast_msg,
+        actions.overlay_handlers.on_refresh,
+    );
 
     let plugin_descriptors = book_service.plugin_service().list_descriptors();
 
@@ -431,27 +269,7 @@ fn App() -> Element {
             class: "app-container",
             tabindex: "0",
             onkeydown: move |evt: KeyboardEvent| {
-                if evt.key() == Key::Escape {
-                    palette_open.set(false);
-                    selected_book.set(None);
-                    settings_open.set(false);
-                    bulk_edit_open.set(false);
-                    bulk_convert_open.set(false);
-                    bulk_regex_open.set(false);
-                    content_search_open.set(false);
-                    import_rules_open.set(false);
-                    news_recipes_open.set(false);
-                    audit_open.set(false);
-                    stats_open.set(false);
-                    translating_book.set(None);
-                    epub_editing_book.set(None);
-                } else if (evt.modifiers().meta() || evt.modifiers().ctrl())
-                    && matches!(evt.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("k"))
-                {
-                    evt.prevent_default();
-                    let cur = *palette_open.read();
-                    palette_open.set(!cur);
-                }
+                app_effects::handle_container_keydown(evt, kb_ctx.clone());
             },
             ondragenter: move |evt: DragEvent| {
                 evt.prevent_default();
@@ -463,72 +281,7 @@ fn App() -> Element {
             ondragleave: move |_| {
                 is_dragging_files.set(false);
             },
-            ondrop: {
-                let bs = book_service.clone();
-                let on_refresh = actions.overlay_handlers.on_refresh;
-                move |evt: DragEvent| {
-                    evt.prevent_default();
-                    is_dragging_files.set(false);
-                    if let Some(file_engine) = evt.files() {
-                        let paths: Vec<PathBuf> = file_engine
-                            .files()
-                            .into_iter()
-                            .map(PathBuf::from)
-                            .collect();
-                        if !paths.is_empty() {
-                            let bs_task = bs.clone();
-                            spawn(async move {
-                                let (ok_count, err_count) = tokio::task::spawn_blocking(move || {
-                                    let mut ok = 0usize;
-                                    let mut err = 0usize;
-                                    for path in paths {
-                                        match bs_task.import_book(&path) {
-                                            Ok(_) => ok += 1,
-                                            Err(e) => {
-                                                err += 1;
-                                                tracing::error!(
-                                                    "Drag & drop import failed for {}: {}",
-                                                    path.display(),
-                                                    e
-                                                );
-                                            }
-                                        }
-                                    }
-                                    (ok, err)
-                                })
-                                .await
-                                .unwrap_or((0, 1));
-                                on_refresh.call(());
-                                let loc = *ui_locale.read();
-                                if err_count == 0 {
-                                    app_actions::show_toast(
-                                        toast_msg,
-                                        translate_fmt(
-                                            loc,
-                                            "toolbar.drop_ok",
-                                            &[("count", &ok_count.to_string())],
-                                        ),
-                                        true,
-                                    );
-                                } else {
-                                    app_actions::show_toast(
-                                        toast_msg,
-                                        translate_fmt(
-                                            loc,
-                                            "toolbar.drop_partial",
-                                            &[
-                                                ("ok", &ok_count.to_string()),
-                                                ("err", &err_count.to_string()),
-                                            ],
-                                        ),
-                                        false,
-                                    );
-                                }
-                            });
-                        }
-                    }
-                }
-            },
+            ondrop: move |evt| drop_handler.call(evt),
             if *is_dragging_files.read() {
                 div { class: "drop-zone-overlay",
                     div { class: "drop-zone-box",
@@ -718,92 +471,12 @@ fn App() -> Element {
                             is_sending_kindle: *is_sending_kindle.read(),
                             on_send_to_kindle: actions.on_send_to_kindle,
                             on_export_file: actions.on_export_file,
-                            on_export_notes_md: {
-                                let bs = book_service.clone();
-                                move |b_id: String| {
-                                    let locale = *ui_locale.read();
-                                    if let Some(dest) = rfd::FileDialog::new()
-                                        .set_file_name("notes.md")
-                                        .add_filter("Markdown", &["md"])
-                                        .save_file()
-                                    {
-                                        match bs.export_book_notes_markdown(&b_id, Some(&dest)) {
-                                            Ok(_) => app_actions::show_toast(
-                                                toast_msg,
-                                                translate_fmt(
-                                                    locale,
-                                                    "actions.notes_exported",
-                                                    &[("path", &dest.display().to_string())],
-                                                ),
-                                                true,
-                                            ),
-                                            Err(e) => app_actions::show_toast(
-                                                toast_msg,
-                                                translate_fmt(
-                                                    locale,
-                                                    "actions.notes_export_err",
-                                                    &[("error", &e.to_string())],
-                                                ),
-                                                false,
-                                            ),
-                                        }
-                                    }
-                                }
-                            },
+                            on_export_notes_md: detail_extra.on_export_notes_md,
                             on_open_epub_editor: move |b| epub_editing_book.set(Some(b)),
-                            on_polish_epub: {
-                                let bs = book_service.clone();
-                                move |b_id: String| {
-                                    let locale = *ui_locale.read();
-                                    match bs.polish_book(&b_id, vellum_core::PolishOptions::default()) {
-                                        Ok(report) => app_actions::show_toast(
-                                            toast_msg,
-                                            translate_fmt(
-                                                locale,
-                                                "actions.polish_ok",
-                                                &[
-                                                    ("meta", &report.metadata_updated.to_string()),
-                                                    ("cover", &report.cover_embedded.to_string()),
-                                                    (
-                                                        "chapters",
-                                                        &report.chapters_smartened.to_string(),
-                                                    ),
-                                                    ("toc", &report.toc_rebuilt.to_string()),
-                                                ],
-                                            ),
-                                            true,
-                                        ),
-                                        Err(e) => app_actions::show_toast(
-                                            toast_msg,
-                                            translate_fmt(
-                                                locale,
-                                                "actions.polish_err",
-                                                &[("error", &e.to_string())],
-                                            ),
-                                            false,
-                                        ),
-                                    }
-                                }
-                            },
+                            on_polish_epub: detail_extra.on_polish_epub,
                             custom_columns: custom_columns.read().clone(),
                             custom_values: custom_vals,
-                            on_save_custom_value: {
-                                let ccs = custom_column_service.clone();
-                                move |(b_id, key, val): (String, String, String)| {
-                                    let locale = *ui_locale.read();
-                                    if let Err(e) = ccs.set_book_value(&b_id, &key, &val) {
-                                        app_actions::show_toast(
-                                            toast_msg,
-                                            translate_fmt(
-                                                locale,
-                                                "actions.custom_column_err",
-                                                &[("key", &key), ("error", &e.to_string())],
-                                            ),
-                                            false,
-                                        );
-                                    }
-                                }
-                            },
+                            on_save_custom_value: detail_extra.on_save_custom_value,
                         }
 
                     }

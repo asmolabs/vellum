@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use vellum_core::{translate, ConnectedDevice, Locale};
+use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
 use vellum_domain::DeviceKind;
 
 #[component]
@@ -94,7 +94,7 @@ pub fn Header(
                             button {
                                 class: "btn btn-secondary",
                                 style: "border-color: rgba(16, 185, 129, 0.4); color: #34d399;",
-                                title: "Synchroniser avec {name}",
+                                title: translate_fmt(locale, "header.sync_device_tooltip", &[("name", &name)]),
                                 onclick: move |_| on_sync_device.call(kind),
                                 span { "{icon}" }
                                 span { "{name}" }

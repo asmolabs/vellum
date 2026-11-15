@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used, unused_imports)]
+#![allow(clippy::unwrap_used)]
 
 mod common;
 
@@ -7,16 +7,9 @@ use std::io::Write;
 use tempfile::TempDir;
 
 use common::create_test_services;
-use vellum_core::book_service::BookService;
-use vellum_core::conversion_service::ConversionService;
-use vellum_core::litestream_service::{LitestreamService, LitestreamStatus};
-use vellum_core::metadata_service::MetadataService;
-use vellum_core::plugin_service::PluginService;
 use vellum_core::reader_provider::{
     create_content_provider, BookContentProvider, TextContentProvider,
 };
-use vellum_domain::{LitestreamConfig, Tag};
-use vellum_storage::{BookRepository, Database, ParamRepository, TagRepository};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 

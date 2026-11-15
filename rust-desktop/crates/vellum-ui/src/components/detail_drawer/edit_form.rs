@@ -84,7 +84,7 @@ pub fn MetadataEditForm(
                     label { class: "drawer-form-label", {translate(locale, "drawer.form_isbn")} }
                     input {
                         class: "drawer-input",
-                        placeholder: "Ex: 9782207249117",
+                        placeholder: translate(locale, "drawer.form_isbn_placeholder"),
                         value: "{edit_isbn}",
                         oninput: move |e| edit_isbn.set(e.value()),
                     }
@@ -93,7 +93,7 @@ pub fn MetadataEditForm(
                     label { class: "drawer-form-label", {translate(locale, "drawer.form_publish_date")} }
                     input {
                         class: "drawer-input",
-                        placeholder: "Ex: 1965",
+                        placeholder: translate(locale, "drawer.form_publish_date_placeholder"),
                         value: "{edit_publish_date}",
                         oninput: move |e| edit_publish_date.set(e.value()),
                     }

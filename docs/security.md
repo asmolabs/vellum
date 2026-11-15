@@ -22,15 +22,15 @@ Ce document recense la surface d'attaque de **Vellum**, les contrôles de sécur
 - `rust-desktop/Cargo.toml` interdit strictement tout bloc `unsafe` dans l'ensemble des crates du workspace via `[workspace.lints.rust] unsafe_code = "forbid"`.
 
 ### B. Protection anti-XSS par liste blanche (`ammonia`)
-- **Lecteur interne (`vellum-core/src/reader_provider.rs`)** :
+- **Lecteur interne (`vellum-core/src/reader_provider/html.rs`)** :
   - `sanitize_reader_html` s'appuie sur `ammonia::Builder` (analyseur HTML5 `html5ever`, liste blanche stricte de balises/attributs).
   - Bloque `<script>`, `<iframe>`, `<svg>`, `onerror`/`onload`, `javascript:` tout en autorisant les schémas `data:` pour les images embarquées et les attributs `class`, `id`, `alt`, `title`, `src`, `width`, `height`, `loading`.
-- **Générateur de presse RSS/Atom (`vellum-core/src/news_service.rs`)** :
+- **Générateur de presse RSS/Atom (`vellum-core/src/news_service/feed_parser.rs`)** :
   - `sanitize_article_html` supprime les pixels de suivi `1×1` puis passe le contenu dans `ammonia::Builder` avant l'écriture dans l'EPUB généré.
-- **Web Companion (`vellum-core/src/web_companion_assets.rs`)** :
-  - Les messages d'erreur injectés dans le DOM passent par `escapeHtml(e.message)`.
+- **Web Companion (`vellum-core/src/opds_server/web_companion_assets.rs` et `assets/web_companion/{library,reader}.html`)** :
+  - Les données dynamiques et messages d'erreur injectés dans le DOM passent par `escapeHtml(...)`.
 
-### C. Durcissement du serveur OPDS & Web Companion (`vellum-core/src/opds_server.rs`)
+### C. Durcissement du serveur OPDS & Web Companion (`vellum-core/src/opds_server/mod.rs`)
 - **Authentification Bearer optionnelle** :
   - `OpdsServer::run_server` lit la variable d'environnement `VELLUM_OPDS_TOKEN`.
   - Lorsque défini (ou via `OpdsServer::router_with_token`), le middleware `auth_and_security_headers` exige l'en-tête `Authorization: Bearer <token>` et retourne `401 Unauthorized` sinon.
@@ -43,7 +43,7 @@ Ce document recense la surface d'attaque de **Vellum**, les contrôles de sécur
   - L'en-tête `Content-Disposition` sanitise le nom de fichier via `BookService::sanitize_filename`.
 
 ### D. Protection contre le Path Traversal
-- `BookService::sanitize_filename` (`vellum-core/src/book_service.rs`) :
+- `BookService::sanitize_filename` (`vellum-core/src/book_service/mod.rs`) :
   - Remplace les séparateurs et caractères interdits (`/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|`) ainsi que les caractères de contrôle (`c.is_control()`).
   - Supprime les points en début/fin (`.trim_matches('.')`) et rejette explicitement `.` et `..` en retournant un nom de repli sûr (`book`).
 
