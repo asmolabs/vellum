@@ -15,18 +15,17 @@ Gestionnaire de bibliothèque numérique desktop écrit en **Rust** (Dioxus + SQ
 
 ```text
 library/
+├── Cargo.toml               # Workspace Rust (unsafe_code = "forbid")
+├── crates/
+│   ├── vellum-domain/       # Entités métier, ports et erreurs (0 dépendance infra)
+│   ├── vellum-storage/      # Persistance SQLite WAL (requêtes paramétrées)
+│   ├── vellum-plugins/      # Formats, convertisseurs, enrichissement, liseuses, traduction
+│   ├── vellum-core/         # Services applicatifs, lecteur, i18n FR/EN, OPDS/Web Companion
+│   ├── vellum-cli/          # Interface ligne de commande (import, audit, indexation, export)
+│   └── vellum-ui/           # Application desktop Dioxus
 ├── docs/
 │   ├── architecture-c4.md   # Modèle C4 (Contexte, Conteneurs, Composants, Dépendances)
 │   └── security.md          # Modèle de menaces, contrôles et durcissement
-├── rust-desktop/
-│   ├── Cargo.toml           # Workspace Rust (unsafe_code = "forbid")
-│   └── crates/
-│       ├── vellum-domain/   # Entités métier, ports et erreurs (0 dépendance infra)
-│       ├── vellum-storage/  # Persistance SQLite WAL (requêtes paramétrées)
-│       ├── vellum-plugins/  # Formats, convertisseurs, enrichissement, liseuses, traduction
-│       ├── vellum-core/     # Services applicatifs, lecteur, i18n FR/EN, OPDS/Web Companion
-│       ├── vellum-cli/      # Interface ligne de commande (import, audit, indexation, export)
-│       └── vellum-ui/       # Application desktop Dioxus
 └── TODO.md
 ```
 
@@ -39,16 +38,16 @@ library/
 
 ```bash
 # Vérifier le formatage
-cargo fmt --manifest-path rust-desktop/Cargo.toml --all -- --check
+cargo fmt --all -- --check
 
 # Lancer l'ensemble des tests du workspace (unitaires, intégration et doc-tests)
-cargo test --manifest-path rust-desktop/Cargo.toml
+cargo test
 
 # Vérifier Clippy sur toutes les cibles (zéro warning)
-cargo clippy --manifest-path rust-desktop/Cargo.toml --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 
 # Générer la documentation Rustdoc locale (zéro warning)
-RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path rust-desktop/Cargo.toml --workspace --no-deps
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
 ### Lancer l'application desktop
@@ -57,7 +56,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path rust-desktop/Cargo.toml --w
 # Optionnel : protéger le serveur OPDS / Web Companion par un token Bearer
 export VELLUM_OPDS_TOKEN="votre-secret-long"
 
-cargo run --manifest-path rust-desktop/Cargo.toml -p vellum-ui
+cargo run -p vellum-ui
 ```
 
 ## Documentation détaillée

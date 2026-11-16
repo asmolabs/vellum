@@ -5,10 +5,10 @@ description: Procédure pour créer, enregistrer et tester un nouveau plugin Vel
 
 # Création d'un plugin dans Vellum
 
-Utilise ce skill pour ajouter un nouveau plugin intégré dans `rust-desktop/crates/vellum-plugins/`.
+Utilise ce skill pour ajouter un nouveau plugin intégré dans `crates/vellum-plugins/`.
 
 ## 1. Choisir le contrat dans `vellum-domain`
-Les traits sont définis dans `rust-desktop/crates/vellum-domain/src/plugin.rs` :
+Les traits sont définis dans `crates/vellum-domain/src/plugin.rs` :
 - **Format de livre** : `BookFormatPlugin` (détection, extraction de métadonnées et couverture)
 - **Convertisseur** : `BookConverterPlugin` (conversion directe ou vers/depuis le format pivot `epub`)
 - **Enrichisseur** : `MetadataEnricherPlugin` (recherche de métadonnées distantes)
@@ -23,15 +23,15 @@ Les traits sont définis dans `rust-desktop/crates/vellum-domain/src/plugin.rs` 
    - `src/converter/`
    - `src/ereader/`
    - ou un module dédié (ex. `src/enricher.rs`)
-2. Exposer et enregistrer le plugin dans `rust-desktop/crates/vellum-plugins/src/lib.rs` via la fonction correspondante (`built_in_format_plugins`, `built_in_converter_plugins`, `built_in_device_plugins`, etc.).
+2. Exposer et enregistrer le plugin dans `crates/vellum-plugins/src/lib.rs` via la fonction correspondante (`built_in_format_plugins`, `built_in_converter_plugins`, `built_in_device_plugins`, etc.).
 3. Mapper toute erreur ZIP ou I/O technique vers `VellumError` (`vellum_domain::VellumError`).
 
 ## 3. Tester et valider
-1. Ajouter des tests unitaires ou d'intégration dans `rust-desktop/crates/vellum-plugins/tests/`.
+1. Ajouter des tests unitaires ou d'intégration dans `crates/vellum-plugins/tests/`.
 2. Vérifier :
 ```bash
-cargo test --manifest-path rust-desktop/Cargo.toml -p vellum-plugins
-cargo test --manifest-path rust-desktop/Cargo.toml -p vellum-core
-cargo clippy --manifest-path rust-desktop/Cargo.toml --workspace --all-targets
+cargo test -p vellum-plugins
+cargo test -p vellum-core
+cargo clippy --workspace --all-targets
 ```
 

@@ -24,7 +24,7 @@ flowchart LR
 
 ## 2. Niveau C2 — Conteneurs
 
-Le workspace `rust-desktop` est découpé en **5 crates** suivant le principe d'inversion de dépendances (Clean Architecture) :
+Le workspace Rust (`Cargo.toml` / `crates/`) est découpé suivant le principe d'inversion de dépendances (Clean Architecture) :
 
 ```mermaid
 flowchart TD

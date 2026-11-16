@@ -19,7 +19,7 @@ Ce document recense la surface d'attaque de **Vellum**, les contrôles de sécur
 ## 2. Contrôles de sécurité implémentés
 
 ### A. Sûreté mémoire (`unsafe_code = "forbid"`)
-- `rust-desktop/Cargo.toml` interdit strictement tout bloc `unsafe` dans l'ensemble des crates du workspace via `[workspace.lints.rust] unsafe_code = "forbid"`.
+- `Cargo.toml` (à la racine du workspace) interdit strictement tout bloc `unsafe` dans l'ensemble des crates du workspace via `[workspace.lints.rust] unsafe_code = "forbid"`.
 
 ### B. Protection anti-XSS par liste blanche (`ammonia`)
 - **Lecteur interne (`vellum-core/src/reader_provider/html.rs`)** :

@@ -1,7 +1,7 @@
 # Vellum — Règles projet pour les agents
 
 ## Architecture en couches (Clean Architecture)
-Le workspace Rust (`rust-desktop/`) est découpé en 5 crates avec sens de dépendance strict :
+Le workspace Rust (`crates/`) est découpé en 5 crates avec sens de dépendance strict :
 1. `vellum-domain` : entités, traits/ports, erreurs (`VellumError`), configurations. **Interdiction** d'y ajouter des dépendances d'infrastructure (`rusqlite`, `axum`, `dioxus`, `zip`, `reqwest`).
 2. `vellum-storage` : dépôts SQLite WAL (`rusqlite` uniquement avec requêtes paramétrées `params!`).
 3. `vellum-plugins` : formats, convertisseurs, enrichisseurs, liseuses (`KoboReader.sqlite` en `SQLITE_OPEN_READ_ONLY` uniquement), traduction, plugins externes.
@@ -17,8 +17,8 @@ Le workspace Rust (`rust-desktop/`) est découpé en 5 crates avec sens de dépe
 
 ## Qualité & Validation avant commit
 - Toujours exécuter :
-  - `cargo test --manifest-path rust-desktop/Cargo.toml`
-  - `cargo clippy --manifest-path rust-desktop/Cargo.toml --workspace --all-targets`
-- Surveiller la taille de `rust-desktop/target/` (éviter l'accumulation inutile d'artefacts debug).
+  - `cargo test`
+  - `cargo clippy --workspace --all-targets`
+- Surveiller la taille de `target/` (éviter l'accumulation inutile d'artefacts debug).
 - Documentation technique : [README.md](README.md), [docs/architecture-c4.md](docs/architecture-c4.md), [docs/security.md](docs/security.md).
 

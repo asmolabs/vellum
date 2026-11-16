@@ -126,7 +126,7 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 
 ---
 
-## 🦀 6. Version Native Rust (`rust-desktop`)
+## 🦀 6. Version Native Rust
 
 - [x] **Architecture Multi-Crates & Fondations**
   - [x] Workspace Cargo (`vellum-domain`, `vellum-storage`, `vellum-plugins`, `vellum-core`, `vellum-ui`).
