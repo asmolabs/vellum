@@ -62,6 +62,10 @@ pub enum CloudSyncMode {
     GoogleDriveApi,
 }
 
+fn default_gdrive_folder_name() -> String {
+    "Vellum".to_string()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloudSyncConfig {
     pub enabled: bool,
@@ -71,6 +75,14 @@ pub struct CloudSyncConfig {
     pub sync_folder_path: Option<PathBuf>,
     pub auto_download_books: bool,
     pub last_synced_at: Option<String>,
+    #[serde(default)]
+    pub google_client_id: Option<String>,
+    #[serde(default)]
+    pub google_client_secret: Option<String>,
+    #[serde(default = "default_gdrive_folder_name")]
+    pub google_drive_folder_name: String,
+    #[serde(default)]
+    pub google_account_email: Option<String>,
 }
 
 impl Default for CloudSyncConfig {
@@ -89,6 +101,10 @@ impl Default for CloudSyncConfig {
             sync_folder_path: None,
             auto_download_books: true,
             last_synced_at: None,
+            google_client_id: None,
+            google_client_secret: None,
+            google_drive_folder_name: default_gdrive_folder_name(),
+            google_account_email: None,
         }
     }
 }

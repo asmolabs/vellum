@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use vellum_core::book_service::BookService;
 use vellum_core::{translate, translate_fmt, FolderSyncBackend, SyncService};
-use vellum_domain::{Book, DeviceKind, SmtpConfig};
+use vellum_domain::{Book, CloudSyncMode, DeviceKind, SmtpConfig};
 
 use super::{show_toast, AppActionContext};
 
@@ -15,6 +15,10 @@ pub(super) struct SyncAndDeviceHandlers {
     pub on_auto_detect_folder: EventHandler<()>,
     pub on_toggle_auto_download: EventHandler<bool>,
     pub on_toggle_sync_enabled: EventHandler<bool>,
+    pub on_set_sync_mode: EventHandler<CloudSyncMode>,
+    pub on_save_gdrive_creds: EventHandler<(String, String, String)>,
+    pub on_connect_gdrive: EventHandler<()>,
+    pub on_disconnect_gdrive: EventHandler<()>,
     pub on_save_smtp: EventHandler<SmtpConfig>,
     pub on_test_smtp: EventHandler<SmtpConfig>,
     pub on_send_to_kindle: EventHandler<Book>,
@@ -199,6 +203,98 @@ pub(super) fn build_sync_handlers(
         }
     });
 
+    let on_set_sync_mode = EventHandler::new({
+        let ss = ctx.sync_service.clone();
+        let bs = ctx.book_service.clone();
+        move |mode: CloudSyncMode| {
+            ss.set_sync_mode(mode);
+            persist_sync_config(&ss, &bs, ctx.sync_config);
+        }
+    });
+
+    let on_save_gdrive_creds = EventHandler::new({
+        let ss = ctx.sync_service.clone();
+        let bs = ctx.book_service.clone();
+        move |(client_id, client_secret, folder_name): (String, String, String)| {
+            let locale = *ctx.ui_locale.read();
+            let secret_opt = if client_secret.trim().is_empty() {
+                None
+            } else {
+                Some(client_secret)
+            };
+            ss.set_google_drive_credentials(client_id, secret_opt, folder_name);
+            persist_sync_config(&ss, &bs, ctx.sync_config);
+            ctx.sync_message.set(Some(
+                translate(locale, "actions.gdrive_creds_saved").to_string(),
+            ));
+        }
+    });
+
+    let on_connect_gdrive = EventHandler::new({
+        let ss = ctx.sync_service.clone();
+        let pr = ctx.book_service.param_repo().clone();
+        move |()| {
+            let locale = *ctx.ui_locale.read();
+            ctx.sync_message.set(Some(
+                translate(locale, "settings.gdrive_connecting").to_string(),
+            ));
+            let ss_cloned = ss.clone();
+            let pr_cloned = pr.clone();
+            spawn(async move {
+                let res = tokio::task::spawn_blocking(move || {
+                    let r = ss_cloned.connect_google_drive();
+                    let cfg = ss_cloned.config();
+                    if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+                        let _ = pr_cloned.set_value("cloud_sync_config", &cfg_json);
+                    }
+                    (r, cfg)
+                })
+                .await;
+
+                match res {
+                    Ok((Ok(_email), updated_cfg)) => {
+                        ctx.sync_config.set(updated_cfg);
+                        let msg = translate(locale, "actions.gdrive_connected").to_string();
+                        ctx.sync_message.set(Some(msg.clone()));
+                        show_toast(ctx.toast_msg, msg, true);
+                    }
+                    Ok((Err(e), _)) => {
+                        let msg = translate_fmt(
+                            locale,
+                            "actions.gdrive_connect_err",
+                            &[("error", &e.to_string())],
+                        );
+                        ctx.sync_message.set(Some(msg.clone()));
+                        show_toast(ctx.toast_msg, msg, false);
+                    }
+                    Err(e) => {
+                        let msg = translate_fmt(
+                            locale,
+                            "actions.gdrive_connect_err",
+                            &[("error", &e.to_string())],
+                        );
+                        ctx.sync_message.set(Some(msg.clone()));
+                        show_toast(ctx.toast_msg, msg, false);
+                    }
+                }
+            });
+        }
+    });
+
+    let on_disconnect_gdrive = EventHandler::new({
+        let ss = ctx.sync_service.clone();
+        let bs = ctx.book_service.clone();
+        move |()| {
+            let locale = *ctx.ui_locale.read();
+            if ss.disconnect_google_drive().is_ok() {
+                persist_sync_config(&ss, &bs, ctx.sync_config);
+                let msg = translate(locale, "actions.gdrive_disconnected").to_string();
+                ctx.sync_message.set(Some(msg.clone()));
+                show_toast(ctx.toast_msg, msg, true);
+            }
+        }
+    });
+
     let on_save_smtp = EventHandler::new({
         let pr = ctx.book_service.param_repo().clone();
         move |cfg: SmtpConfig| {
@@ -272,6 +368,10 @@ pub(super) fn build_sync_handlers(
         on_auto_detect_folder,
         on_toggle_auto_download,
         on_toggle_sync_enabled,
+        on_set_sync_mode,
+        on_save_gdrive_creds,
+        on_connect_gdrive,
+        on_disconnect_gdrive,
         on_save_smtp,
         on_test_smtp,
         on_send_to_kindle,

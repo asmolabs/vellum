@@ -163,6 +163,10 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         on_auto_detect_folder: sync.on_auto_detect_folder,
         on_toggle_auto_download: sync.on_toggle_auto_download,
         on_toggle_sync_enabled: sync.on_toggle_sync_enabled,
+        on_set_sync_mode: sync.on_set_sync_mode,
+        on_save_gdrive_creds: sync.on_save_gdrive_creds,
+        on_connect_gdrive: sync.on_connect_gdrive,
+        on_disconnect_gdrive: sync.on_disconnect_gdrive,
         on_save_smtp: sync.on_save_smtp,
         on_test_smtp: sync.on_test_smtp,
     };

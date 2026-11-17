@@ -1,18 +1,23 @@
 //! Service principal de synchronisation décentralisée (journal d'événements et deltas).
 
 mod folder_backend;
+pub mod gdrive_api_backend;
+pub mod gdrive_oauth;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use chrono::Utc;
 use tracing::{debug, info, warn};
 use vellum_domain::{
-    CloudSyncConfig, SyncAction, SyncDelta, SyncEvent, SyncReport, VellumError, VellumResult,
+    CloudSyncConfig, CloudSyncMode, SyncAction, SyncDelta, SyncEvent, SyncReport, VellumError,
+    VellumResult,
 };
 use vellum_storage::{BookRepository, SyncRepository, TagRepository};
 
 pub use folder_backend::{CloudSyncBackend, FolderSyncBackend};
+pub use gdrive_api_backend::GoogleDriveApiBackend;
+pub use gdrive_oauth::GoogleDriveTokens;
 
 /// Service principal de synchronisation décentralisée
 #[derive(Clone)]
@@ -22,6 +27,7 @@ pub struct SyncService {
     book_repo: BookRepository,
     tag_repo: TagRepository,
     library_path: PathBuf,
+    tokens_path: PathBuf,
     backend: Arc<RwLock<Option<Box<dyn CloudSyncBackend>>>>,
 }
 
@@ -34,15 +40,16 @@ impl SyncService {
         library_path: PathBuf,
     ) -> Self {
         let mut config = config;
-        let mut backend_opt: Option<Box<dyn CloudSyncBackend>> = None;
+        let tokens_path = gdrive_oauth::default_tokens_path();
 
-        if let Some(ref folder) = config.sync_folder_path {
-            backend_opt = Some(Box::new(FolderSyncBackend::new(folder.clone())));
-        } else if let Some(detected) = FolderSyncBackend::auto_detect_google_drive() {
-            config.sync_folder_path = Some(detected.clone());
-            config.enabled = true;
-            backend_opt = Some(Box::new(FolderSyncBackend::new(detected)));
+        if config.mode == CloudSyncMode::GoogleDriveFolder && config.sync_folder_path.is_none() {
+            if let Some(detected) = FolderSyncBackend::auto_detect_google_drive() {
+                config.sync_folder_path = Some(detected);
+                config.enabled = true;
+            }
         }
+
+        let backend_opt = Self::build_backend(&config, &tokens_path);
 
         Self {
             config: Arc::new(RwLock::new(config)),
@@ -50,7 +57,48 @@ impl SyncService {
             book_repo,
             tag_repo,
             library_path,
+            tokens_path,
             backend: Arc::new(RwLock::new(backend_opt)),
+        }
+    }
+
+    pub fn with_tokens_path(mut self, tokens_path: PathBuf) -> Self {
+        self.tokens_path = tokens_path;
+        self.refresh_backend();
+        self
+    }
+
+    fn build_backend(
+        config: &CloudSyncConfig,
+        tokens_path: &Path,
+    ) -> Option<Box<dyn CloudSyncBackend>> {
+        match config.mode {
+            CloudSyncMode::GoogleDriveFolder => config.sync_folder_path.as_ref().map(|folder| {
+                Box::new(FolderSyncBackend::new(folder.clone())) as Box<dyn CloudSyncBackend>
+            }),
+            CloudSyncMode::GoogleDriveApi => {
+                let client_id = config
+                    .google_client_id
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())?;
+                GoogleDriveApiBackend::new(
+                    client_id.to_string(),
+                    config.google_client_secret.clone(),
+                    config.google_drive_folder_name.clone(),
+                    tokens_path.to_path_buf(),
+                )
+                .ok()
+                .map(|b| Box::new(b) as Box<dyn CloudSyncBackend>)
+            }
+        }
+    }
+
+    fn refresh_backend(&self) {
+        let cfg = self.config();
+        let new_backend = Self::build_backend(&cfg, &self.tokens_path);
+        if let Ok(mut b) = self.backend.write() {
+            *b = new_backend;
         }
     }
 
@@ -58,9 +106,71 @@ impl SyncService {
         self.config.read().map(|c| c.clone()).unwrap_or_default()
     }
 
+    pub fn set_sync_mode(&self, mode: CloudSyncMode) {
+        if let Ok(mut cfg) = self.config.write() {
+            cfg.mode = mode;
+        }
+        self.refresh_backend();
+    }
+
+    pub fn set_google_drive_credentials(
+        &self,
+        client_id: String,
+        client_secret: Option<String>,
+        folder_name: String,
+    ) {
+        if let Ok(mut cfg) = self.config.write() {
+            let trimmed_id = client_id.trim().to_string();
+            cfg.google_client_id = if trimmed_id.is_empty() {
+                None
+            } else {
+                Some(trimmed_id)
+            };
+            cfg.google_client_secret = client_secret
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+            let trimmed_folder = folder_name.trim().to_string();
+            cfg.google_drive_folder_name = if trimmed_folder.is_empty() {
+                "Vellum".to_string()
+            } else {
+                trimmed_folder
+            };
+        }
+        self.refresh_backend();
+    }
+
+    pub fn connect_google_drive(&self) -> VellumResult<Option<String>> {
+        let cfg = self.config();
+        let client_id = cfg.google_client_id.unwrap_or_default();
+        let tokens = gdrive_oauth::authorize_interactive(
+            &client_id,
+            cfg.google_client_secret.as_deref(),
+            &self.tokens_path,
+        )?;
+        let email = tokens.account_email.clone();
+
+        if let Ok(mut write_cfg) = self.config.write() {
+            write_cfg.mode = CloudSyncMode::GoogleDriveApi;
+            write_cfg.enabled = true;
+            write_cfg.google_account_email = email.clone();
+        }
+        self.refresh_backend();
+        Ok(email)
+    }
+
+    pub fn disconnect_google_drive(&self) -> VellumResult<()> {
+        gdrive_oauth::delete_tokens(&self.tokens_path)?;
+        if let Ok(mut cfg) = self.config.write() {
+            cfg.google_account_email = None;
+        }
+        self.refresh_backend();
+        Ok(())
+    }
+
     pub fn set_sync_folder(&self, folder: PathBuf) -> VellumResult<()> {
         let backend = FolderSyncBackend::new(folder.clone());
         if let Ok(mut cfg) = self.config.write() {
+            cfg.mode = CloudSyncMode::GoogleDriveFolder;
             cfg.sync_folder_path = Some(folder);
             cfg.enabled = true;
         }

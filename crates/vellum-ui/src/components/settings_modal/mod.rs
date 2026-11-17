@@ -6,7 +6,8 @@ mod smtp_section;
 use dioxus::prelude::*;
 use vellum_core::{translate, translate_fmt, CatalogFormat, Locale};
 use vellum_domain::{
-    CloudSyncConfig, CustomColumnDefinition, CustomColumnType, PluginDescriptor, SmtpConfig,
+    CloudSyncConfig, CloudSyncMode, CustomColumnDefinition, CustomColumnType, PluginDescriptor,
+    SmtpConfig,
 };
 
 use extras_section::LibraryToolsSection;
@@ -38,6 +39,10 @@ pub fn SettingsModal(
     on_auto_detect_folder: EventHandler<()>,
     on_toggle_auto_download: EventHandler<bool>,
     on_toggle_enabled: EventHandler<bool>,
+    on_set_sync_mode: EventHandler<CloudSyncMode>,
+    on_save_gdrive_creds: EventHandler<(String, String, String)>,
+    on_connect_gdrive: EventHandler<()>,
+    on_disconnect_gdrive: EventHandler<()>,
     on_save_smtp: EventHandler<SmtpConfig>,
     on_test_smtp: EventHandler<SmtpConfig>,
     on_close: EventHandler<()>,
@@ -75,6 +80,17 @@ pub fn SettingsModal(
         .last_synced_at
         .as_deref()
         .unwrap_or_else(|| translate(locale, "settings.never_synced"));
+
+    let mut gdrive_client_id =
+        use_signal(|| sync_config.google_client_id.clone().unwrap_or_default());
+    let mut gdrive_client_secret =
+        use_signal(|| sync_config.google_client_secret.clone().unwrap_or_default());
+    let mut gdrive_folder_name = use_signal(|| sync_config.google_drive_folder_name.clone());
+    let is_api_mode = sync_config.mode == CloudSyncMode::GoogleDriveApi;
+    let connected_label = match sync_config.google_account_email.as_deref() {
+        Some(email) => translate_fmt(locale, "settings.gdrive_connected_as", &[("email", email)]),
+        None => translate(locale, "settings.gdrive_connected_anon").to_string(),
+    };
 
     rsx! {
         div {
@@ -128,27 +144,128 @@ pub fn SettingsModal(
                         {translate(locale, "settings.sync_desc")}
                     }
 
-                    // Emplacement du dossier Drive
+                    // Mode de connexion Google Drive (API directe vs Dossier local)
                     div { style: "display: flex; flex-direction: column; gap: 6px;",
-                        span { style: "font-size: 12px; font-weight: 600; color: var(--text-secondary);", {translate(locale, "settings.sync_folder_label")} }
-                        div { style: "display: flex; align-items: center; gap: 8px;",
-                            div {
-                                style: "flex: 1; font-size: 11px; background: rgba(0,0,0,0.4); padding: 8px 12px; border-radius: 6px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--border-subtle);",
-                                title: "{folder_display}",
-                                "{folder_display}"
+                        span { style: "font-size: 12px; font-weight: 600; color: var(--text-secondary);", {translate(locale, "settings.sync_mode_label")} }
+                        div { style: "display: flex; gap: 8px;",
+                            button {
+                                class: if is_api_mode { "btn btn-primary" } else { "btn btn-secondary" },
+                                style: "flex: 1; font-size: 11px; padding: 6px 10px;",
+                                onclick: move |_| on_set_sync_mode.call(CloudSyncMode::GoogleDriveApi),
+                                {translate(locale, "settings.sync_mode_api")}
                             }
                             button {
-                                class: "btn btn-secondary",
-                                style: "font-size: 11px; padding: 6px 10px; white-space: nowrap;",
-                                onclick: move |_| on_select_folder.call(()),
-                                {translate(locale, "settings.choose_folder")}
+                                class: if !is_api_mode { "btn btn-primary" } else { "btn btn-secondary" },
+                                style: "flex: 1; font-size: 11px; padding: 6px 10px;",
+                                onclick: move |_| on_set_sync_mode.call(CloudSyncMode::GoogleDriveFolder),
+                                {translate(locale, "settings.sync_mode_folder")}
                             }
-                            button {
-                                class: "btn btn-secondary",
-                                style: "font-size: 11px; padding: 6px 10px; white-space: nowrap;",
-                                title: translate(locale, "settings.auto_detect_tooltip"),
-                                onclick: move |_| on_auto_detect_folder.call(()),
-                                {translate(locale, "settings.auto_detect_btn")}
+                        }
+                    }
+
+                    if is_api_mode {
+                        div { style: "display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid var(--border-subtle);",
+                            div { style: "display: flex; flex-direction: column; gap: 4px;",
+                                span { style: "font-size: 11px; font-weight: 600; color: var(--text-secondary);", {translate(locale, "settings.gdrive_client_id")} }
+                                input {
+                                    class: "input",
+                                    style: "font-size: 11px; font-family: monospace;",
+                                    placeholder: "123456789-xxxx.apps.googleusercontent.com",
+                                    value: "{gdrive_client_id}",
+                                    oninput: move |evt| gdrive_client_id.set(evt.value()),
+                                }
+                            }
+                            div { style: "display: flex; gap: 8px;",
+                                div { style: "flex: 1; display: flex; flex-direction: column; gap: 4px;",
+                                    span { style: "font-size: 11px; font-weight: 600; color: var(--text-secondary);", {translate(locale, "settings.gdrive_client_secret")} }
+                                    input {
+                                        class: "input",
+                                        r#type: "password",
+                                        style: "font-size: 11px; font-family: monospace;",
+                                        placeholder: "GOCSPX-...",
+                                        value: "{gdrive_client_secret}",
+                                        oninput: move |evt| gdrive_client_secret.set(evt.value()),
+                                    }
+                                }
+                                div { style: "width: 160px; display: flex; flex-direction: column; gap: 4px;",
+                                    span { style: "font-size: 11px; font-weight: 600; color: var(--text-secondary);", {translate(locale, "settings.gdrive_folder_name")} }
+                                    input {
+                                        class: "input",
+                                        style: "font-size: 11px;",
+                                        placeholder: "Vellum",
+                                        value: "{gdrive_folder_name}",
+                                        oninput: move |evt| gdrive_folder_name.set(evt.value()),
+                                    }
+                                }
+                            }
+                            div { style: "display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px;",
+                                div { style: "display: flex; align-items: center; gap: 8px;",
+                                    button {
+                                        class: "btn btn-secondary",
+                                        style: "font-size: 11px; padding: 6px 10px;",
+                                        onclick: move |_| {
+                                            on_save_gdrive_creds.call((
+                                                gdrive_client_id.read().clone(),
+                                                gdrive_client_secret.read().clone(),
+                                                gdrive_folder_name.read().clone(),
+                                            ));
+                                        },
+                                        {translate(locale, "settings.gdrive_save_creds")}
+                                    }
+                                    button {
+                                        class: "btn btn-primary",
+                                        style: "font-size: 11px; padding: 6px 12px;",
+                                        disabled: gdrive_client_id.read().trim().is_empty(),
+                                        onclick: move |_| {
+                                            on_save_gdrive_creds.call((
+                                                gdrive_client_id.read().clone(),
+                                                gdrive_client_secret.read().clone(),
+                                                gdrive_folder_name.read().clone(),
+                                            ));
+                                            on_connect_gdrive.call(());
+                                        },
+                                        {translate(locale, "settings.gdrive_connect")}
+                                    }
+                                    if sync_available {
+                                        button {
+                                            class: "btn btn-secondary",
+                                            style: "font-size: 11px; padding: 6px 10px; color: #f87171;",
+                                            onclick: move |_| on_disconnect_gdrive.call(()),
+                                            {translate(locale, "settings.gdrive_disconnect")}
+                                        }
+                                    }
+                                }
+                                if sync_available {
+                                    span { style: "font-size: 11px; color: #34d399;", "{connected_label}" }
+                                }
+                            }
+                            p { style: "font-size: 11px; color: var(--text-muted); line-height: 1.4; margin: 0;",
+                                {translate(locale, "settings.gdrive_help")}
+                            }
+                        }
+                    } else {
+                        // Emplacement du dossier Drive local
+                        div { style: "display: flex; flex-direction: column; gap: 6px;",
+                            span { style: "font-size: 12px; font-weight: 600; color: var(--text-secondary);", {translate(locale, "settings.sync_folder_label")} }
+                            div { style: "display: flex; align-items: center; gap: 8px;",
+                                div {
+                                    style: "flex: 1; font-size: 11px; background: rgba(0,0,0,0.4); padding: 8px 12px; border-radius: 6px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--border-subtle);",
+                                    title: "{folder_display}",
+                                    "{folder_display}"
+                                }
+                                button {
+                                    class: "btn btn-secondary",
+                                    style: "font-size: 11px; padding: 6px 10px; white-space: nowrap;",
+                                    onclick: move |_| on_select_folder.call(()),
+                                    {translate(locale, "settings.choose_folder")}
+                                }
+                                button {
+                                    class: "btn btn-secondary",
+                                    style: "font-size: 11px; padding: 6px 10px; white-space: nowrap;",
+                                    title: translate(locale, "settings.auto_detect_tooltip"),
+                                    onclick: move |_| on_auto_detect_folder.call(()),
+                                    {translate(locale, "settings.auto_detect_btn")}
+                                }
                             }
                         }
                     }

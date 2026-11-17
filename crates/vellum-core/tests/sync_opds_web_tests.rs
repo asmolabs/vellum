@@ -678,3 +678,317 @@ fn test_web_companion_assets_security_and_dom_invariants() {
     assert!(reader_html.contains("/api/books/${bookId}/chapter/"));
     assert!(reader_html.contains("/api/i18n"));
 }
+
+#[tokio::test]
+async fn test_google_drive_api_backend_and_token_refresh() {
+    use axum::{
+        body::Bytes,
+        extract::{Path, Query, State},
+        http::{HeaderMap, StatusCode},
+        response::IntoResponse,
+        routing::{get, patch, post, put},
+        Json, Router,
+    };
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use vellum_core::{CloudSyncBackend, GoogleDriveApiBackend, GoogleDriveTokens};
+
+    #[derive(Clone, Default)]
+    struct MockDriveItem {
+        id: String,
+        name: String,
+        parent: String,
+        mime_type: String,
+        data: Vec<u8>,
+    }
+
+    type PendingUploadMap = HashMap<String, (String, String, Option<String>)>;
+
+    #[derive(Clone, Default)]
+    struct MockState {
+        items: Arc<Mutex<Vec<MockDriveItem>>>,
+        next_id: Arc<Mutex<usize>>,
+        pending_uploads: Arc<Mutex<PendingUploadMap>>,
+        token_refresh_calls: Arc<Mutex<usize>>,
+    }
+
+    impl MockState {
+        fn alloc_id(&self) -> String {
+            let mut g = self.next_id.lock().unwrap();
+            *g += 1;
+            format!("drv_{}", *g)
+        }
+    }
+
+    async fn oauth_token(State(st): State<MockState>) -> impl IntoResponse {
+        *st.token_refresh_calls.lock().unwrap() += 1;
+        Json(serde_json::json!({
+            "access_token": "fresh-access-token",
+            "expires_in": 3600
+        }))
+    }
+
+    async fn list_files(
+        State(st): State<MockState>,
+        Query(q): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        let query_str = q.get("q").cloned().unwrap_or_default();
+        let items = st.items.lock().unwrap();
+        let matched: Vec<_> = items
+            .iter()
+            .filter(|it| {
+                let parent_ok = query_str.contains(&format!("'{}' in parents", it.parent));
+                let name_ok = if let Some(rest) = query_str.split("name = '").nth(1) {
+                    let target_name = rest.split('\'').next().unwrap_or("");
+                    it.name == target_name
+                } else {
+                    true
+                };
+                let folder_ok = if query_str
+                    .contains("mimeType = 'application/vnd.google-apps.folder'")
+                {
+                    it.mime_type == "application/vnd.google-apps.folder"
+                } else if query_str.contains("mimeType != 'application/vnd.google-apps.folder'") {
+                    it.mime_type != "application/vnd.google-apps.folder"
+                } else {
+                    true
+                };
+                parent_ok && name_ok && folder_ok
+            })
+            .map(|it| serde_json::json!({ "id": it.id, "name": it.name }))
+            .collect();
+
+        Json(serde_json::json!({ "files": matched }))
+    }
+
+    async fn create_folder(
+        State(st): State<MockState>,
+        Json(body): Json<serde_json::Value>,
+    ) -> impl IntoResponse {
+        let id = st.alloc_id();
+        let name = body["name"].as_str().unwrap_or("").to_string();
+        let mime_type = body["mimeType"].as_str().unwrap_or("").to_string();
+        let parent = body["parents"][0].as_str().unwrap_or("root").to_string();
+        st.items.lock().unwrap().push(MockDriveItem {
+            id: id.clone(),
+            name,
+            parent,
+            mime_type,
+            data: Vec::new(),
+        });
+        Json(serde_json::json!({ "id": id }))
+    }
+
+    async fn get_file(
+        State(st): State<MockState>,
+        Path(file_id): Path<String>,
+    ) -> impl IntoResponse {
+        let items = st.items.lock().unwrap();
+        if let Some(it) = items.iter().find(|i| i.id == file_id) {
+            (StatusCode::OK, it.data.clone()).into_response()
+        } else {
+            StatusCode::NOT_FOUND.into_response()
+        }
+    }
+
+    async fn upload_files(
+        State(st): State<MockState>,
+        Query(q): Query<HashMap<String, String>>,
+        headers: HeaderMap,
+        body: Bytes,
+    ) -> impl IntoResponse {
+        let upload_type = q.get("uploadType").map(String::as_str).unwrap_or("");
+        if upload_type == "multipart" {
+            let ct = headers
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            let boundary = ct.split("boundary=").nth(1).unwrap_or("");
+            let raw = String::from_utf8_lossy(&body);
+            let parts: Vec<&str> = raw.split(&format!("--{boundary}")).collect();
+            let meta_part = parts.get(1).unwrap_or(&"");
+            let meta_json_str = meta_part.split("\r\n\r\n").nth(1).unwrap_or("{}").trim();
+            let meta: serde_json::Value = serde_json::from_str(meta_json_str).unwrap();
+            let data_part = parts.get(2).unwrap_or(&"");
+            let data_str = data_part
+                .split("\r\n\r\n")
+                .nth(1)
+                .unwrap_or("")
+                .trim_end_matches("\r\n");
+
+            let id = st.alloc_id();
+            st.items.lock().unwrap().push(MockDriveItem {
+                id: id.clone(),
+                name: meta["name"].as_str().unwrap_or("").to_string(),
+                parent: meta["parents"][0].as_str().unwrap_or("root").to_string(),
+                mime_type: "application/json".to_string(),
+                data: data_str.as_bytes().to_vec(),
+            });
+            return (StatusCode::OK, Json(serde_json::json!({ "id": id }))).into_response();
+        }
+
+        if upload_type == "resumable" {
+            let meta: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            let session_id = st.alloc_id();
+            let name = meta["name"].as_str().unwrap_or("").to_string();
+            let parent = meta["parents"][0].as_str().unwrap_or("root").to_string();
+            st.pending_uploads
+                .lock()
+                .unwrap()
+                .insert(session_id.clone(), (name, parent, None));
+            let host = headers
+                .get("host")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("127.0.0.1");
+            return (
+                StatusCode::OK,
+                [(
+                    axum::http::header::LOCATION,
+                    format!("http://{host}/upload/session/{session_id}"),
+                )],
+                "",
+            )
+                .into_response();
+        }
+
+        StatusCode::BAD_REQUEST.into_response()
+    }
+
+    async fn patch_resumable(
+        State(st): State<MockState>,
+        Path(file_id): Path<String>,
+        headers: HeaderMap,
+        body: Bytes,
+    ) -> impl IntoResponse {
+        let meta: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let session_id = st.alloc_id();
+        let name = meta["name"].as_str().unwrap_or("").to_string();
+        st.pending_uploads
+            .lock()
+            .unwrap()
+            .insert(session_id.clone(), (name, String::new(), Some(file_id)));
+        let host = headers
+            .get("host")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("127.0.0.1");
+        (
+            StatusCode::OK,
+            [(
+                axum::http::header::LOCATION,
+                format!("http://{host}/upload/session/{session_id}"),
+            )],
+            "",
+        )
+    }
+
+    async fn put_session(
+        State(st): State<MockState>,
+        Path(session_id): Path<String>,
+        body: Bytes,
+    ) -> impl IntoResponse {
+        let pending = st.pending_uploads.lock().unwrap().remove(&session_id);
+        let Some((name, parent, existing_id)) = pending else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+
+        let mut items = st.items.lock().unwrap();
+        if let Some(eid) = existing_id {
+            if let Some(it) = items.iter_mut().find(|i| i.id == eid) {
+                it.data = body.to_vec();
+                return (StatusCode::OK, Json(serde_json::json!({ "id": eid }))).into_response();
+            }
+        }
+        let id = st.alloc_id();
+        items.push(MockDriveItem {
+            id: id.clone(),
+            name,
+            parent,
+            mime_type: "application/octet-stream".to_string(),
+            data: body.to_vec(),
+        });
+        (StatusCode::OK, Json(serde_json::json!({ "id": id }))).into_response()
+    }
+
+    let state = MockState::default();
+    let app = Router::new()
+        .route("/oauth/token", post(oauth_token))
+        .route("/drive/v3/files", get(list_files).post(create_folder))
+        .route("/drive/v3/files/:id", get(get_file))
+        .route("/upload/drive/v3/files", post(upload_files))
+        .route("/upload/drive/v3/files/:id", patch(patch_resumable))
+        .route("/upload/session/:session_id", put(put_session))
+        .with_state(state.clone());
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let tokens_path = temp_dir.path().join("gdrive_tokens.json");
+
+    let local_epub = temp_dir.path().join("dune.epub");
+    std::fs::write(&local_epub, b"MOCK-EPUB-BYTES").unwrap();
+
+    let downloaded_epub = temp_dir.path().join("downloaded.epub");
+
+    let result = tokio::task::spawn_blocking(move || {
+        // Expired access_token + valid refresh_token => forces TokenManager to refresh
+        let initial_tokens = GoogleDriveTokens {
+            access_token: "expired-token".to_string(),
+            refresh_token: Some("valid-refresh-token".to_string()),
+            expires_at_unix: 100,
+            account_email: Some("reader@example.com".to_string()),
+        };
+
+        let backend = GoogleDriveApiBackend::new(
+            "test-client-id".to_string(),
+            None,
+            "Vellum".to_string(),
+            tokens_path.clone(),
+        )
+        .unwrap()
+        .with_endpoints(
+            format!("http://127.0.0.1:{port}/drive/v3"),
+            format!("http://127.0.0.1:{port}/upload/drive/v3"),
+            format!("http://127.0.0.1:{port}/oauth/token"),
+        )
+        .with_initial_tokens(initial_tokens);
+
+        assert!(backend.is_available());
+        assert!(!backend.file_exists("Frank Herbert/Dune/dune.epub").unwrap());
+
+        backend
+            .upload_file(&local_epub, "Frank Herbert/Dune/dune.epub")
+            .unwrap();
+        assert!(backend.file_exists("Frank Herbert/Dune/dune.epub").unwrap());
+
+        let ok = backend
+            .download_file("Frank Herbert/Dune/dune.epub", &downloaded_epub)
+            .unwrap();
+        assert!(ok);
+        assert_eq!(std::fs::read(&downloaded_epub).unwrap(), b"MOCK-EPUB-BYTES");
+
+        let delta = vellum_domain::SyncDelta {
+            client_id: "client-linux".to_string(),
+            created_at: "2026-11-17T20:00:00Z".to_string(),
+            events: vec![vellum_domain::SyncEvent::new(
+                "client-linux".to_string(),
+                vellum_domain::SyncAction::BookDeleted {
+                    book_id: "book-123".to_string(),
+                },
+            )],
+        };
+        let fname = backend.write_delta(&delta).unwrap();
+        let deltas = backend.list_deltas().unwrap();
+        assert_eq!(deltas, vec![fname.clone()]);
+        let read_back = backend.read_delta(&fname).unwrap();
+        assert_eq!(read_back.client_id, "client-linux");
+        assert_eq!(read_back.events.len(), 1);
+    })
+    .await;
+
+    result.unwrap();
+    assert_eq!(*state.token_refresh_calls.lock().unwrap(), 1);
+}

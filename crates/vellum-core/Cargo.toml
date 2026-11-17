@@ -32,6 +32,9 @@ lettre.workspace = true
 rusqlite.workspace = true
 roxmltree.workspace = true
 reqwest.workspace = true
+sha2.workspace = true
+url.workspace = true
+open.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

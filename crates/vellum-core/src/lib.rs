@@ -67,6 +67,8 @@ pub use plugin_service::PluginService;
 pub use reader_provider::{BookContentProvider, ReaderContent, ReaderSection};
 pub use reader_store::*;
 pub use search_query::SearchQuery;
-pub use sync_service::{CloudSyncBackend, FolderSyncBackend, SyncService};
+pub use sync_service::{
+    CloudSyncBackend, FolderSyncBackend, GoogleDriveApiBackend, GoogleDriveTokens, SyncService,
+};
 pub use virtual_library_service::VirtualLibraryService;
 pub use watch_folder::{WatchFolderReport, WatchFolderService};
