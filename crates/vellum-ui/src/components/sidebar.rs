@@ -10,6 +10,9 @@ pub fn Sidebar(
     mut current_filter: Signal<FilterStatus>,
     mut view_mode: Signal<ViewMode>,
     mut sidebar_collapsed: Signal<bool>,
+    mut search_query: Signal<String>,
+    on_open_palette: EventHandler<()>,
+    on_open_content_search: EventHandler<()>,
     mut selected_tag: Signal<Option<String>>,
     mut selected_series: Signal<Option<String>>,
     tags_counts: Vec<(String, usize)>,
@@ -41,6 +44,13 @@ pub fn Sidebar(
             aside {
                 class: "sidebar",
                 style: "width: 56px; min-width: 56px; padding: 12px 6px; align-items: center; gap: 8px;",
+                button {
+                    class: "btn btn-icon",
+                    style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
+                    title: translate(locale, "header.command_palette"),
+                    onclick: move |_| on_open_palette.call(()),
+                    LucideIcon { kind: IconKind::Search, size: 18 }
+                }
                 button {
                     class: if cur_view == ViewMode::Home { "btn btn-primary" } else { "btn btn-icon" },
                     style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
@@ -85,6 +95,41 @@ pub fn Sidebar(
 
     rsx! {
         aside { class: "sidebar",
+            // Recherche globale dans la sidebar façon BookOrbit (⌘K + recherche plein texte)
+            div { style: "display: flex; align-items: center; gap: 6px; margin-bottom: 4px;",
+                button {
+                    class: "nav-item",
+                    style: "flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; cursor: pointer; color: var(--text-secondary);",
+                    onclick: move |_| on_open_palette.call(()),
+                    span { style: "display: flex; align-items: center; gap: 8px; font-size: 13px;",
+                        LucideIcon { kind: IconKind::Search, size: 15 }
+                        span { "{translate(locale, \"action.search\")}" }
+                    }
+                    span {
+                        style: "font-family: monospace; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,0.07); border: 1px solid var(--border-subtle); color: var(--text-muted);",
+                        "⌘K"
+                    }
+                }
+                button {
+                    class: "btn btn-icon",
+                    style: "width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center;",
+                    title: translate(locale, "header.content_search_tooltip"),
+                    onclick: move |_| on_open_content_search.call(()),
+                    LucideIcon { kind: IconKind::BookOpen, size: 14 }
+                }
+            }
+            if !search_query.read().is_empty() {
+                div {
+                    style: "display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); font-size: 11px; color: #c7d2fe;",
+                    span { style: "overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "\"{search_query}\"" }
+                    button {
+                        style: "background: none; border: none; color: inherit; cursor: pointer; padding: 0 4px;",
+                        onclick: move |_| search_query.set(String::new()),
+                        "✕"
+                    }
+                }
+            }
+
             // Zone 1 : Primary (épinglé en haut comme dans BookOrbit)
             div { style: "display: flex; justify-content: space-between; align-items: center;",
                 div {

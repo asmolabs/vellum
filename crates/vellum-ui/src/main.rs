@@ -310,7 +310,6 @@ fn App() -> Element {
             // Header
             Header {
                 locale: *ui_locale.read(),
-                search_query: search_query,
                 view_mode,
                 sidebar_collapsed,
                 connected_devices: connected_devices.read().clone(),
@@ -326,7 +325,6 @@ fn App() -> Element {
                 on_open_web_companion: actions.on_open_web_companion,
                 on_sync_device: actions.on_sync_device,
                 on_sync_cloud: actions.on_sync_cloud,
-                on_open_palette: move |_| palette_open.set(true),
                 on_open_settings: move |_| settings_open.set(true),
             }
 
@@ -338,6 +336,9 @@ fn App() -> Element {
                     current_filter: current_filter,
                     view_mode,
                     sidebar_collapsed,
+                    search_query,
+                    on_open_palette: move |_| palette_open.set(true),
+                    on_open_content_search: move |_| content_search_open.set(true),
                     selected_tag: selected_tag,
                     selected_series: selected_series,
                     tags_counts: tags_counts,

@@ -15,7 +15,6 @@ static VELLUM_LOGO_DATA_URI: LazyLock<String> = LazyLock::new(|| {
 #[component]
 pub fn Header(
     locale: Locale,
-    search_query: Signal<String>,
     mut view_mode: Signal<ViewMode>,
     mut sidebar_collapsed: Signal<bool>,
     connected_devices: Vec<ConnectedDevice>,
@@ -31,15 +30,13 @@ pub fn Header(
     on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
     on_sync_cloud: EventHandler<()>,
-    on_open_palette: EventHandler<()>,
     on_open_settings: EventHandler<()>,
 ) -> Element {
     let mut tools_open = use_signal(|| false);
-    let has_search = !search_query.read().is_empty();
     let cur_view = *view_mode.read();
 
     rsx! {
-        header { class: "app-header",
+        header { class: "app-header", style: "justify-content: space-between;",
             div { style: "display: flex; align-items: center; gap: 12px;",
                 button {
                     class: "btn btn-icon",
@@ -83,47 +80,6 @@ pub fn Header(
                         LucideIcon { kind: IconKind::Library, size: 14 }
                         span { "{translate(locale, \"nav.library\")}" }
                     }
-                }
-            }
-
-            div { class: "header-search",
-                span { class: "search-icon-slot",
-                    LucideIcon { kind: IconKind::Search, size: 15 }
-                }
-                input {
-                    r#type: "text",
-                    style: if has_search { "padding-right: 108px;" } else { "padding-right: 84px;" },
-                    placeholder: "{translate(locale, \"action.search\")} (Dune, author:Herbert, tag:SF)...",
-                    value: "{search_query}",
-                    oninput: move |evt| {
-                        search_query.set(evt.value());
-                        if *view_mode.read() == ViewMode::Home {
-                            view_mode.set(ViewMode::Grid);
-                        }
-                    },
-                }
-                if has_search {
-                    button {
-                        class: "btn btn-icon",
-                        style: "position: absolute; right: 80px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; font-size: 11px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.1); color: var(--text-muted); border: none; cursor: pointer;",
-                        title: translate(locale, "header.clear_search"),
-                        onclick: move |_| search_query.set(String::new()),
-                        "✕"
-                    }
-                }
-                button {
-                    class: "btn btn-icon",
-                    style: "position: absolute; right: 44px; top: 50%; transform: translateY(-50%); width: auto; height: 24px; font-size: 11px; padding: 0 6px; border-radius: 5px; background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); cursor: pointer;",
-                    title: translate(locale, "header.content_search_tooltip"),
-                    onclick: move |_| on_open_content_search.call(()),
-                    "🔎"
-                }
-                button {
-                    class: "btn btn-icon",
-                    style: "position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: auto; height: 24px; font-size: 11px; padding: 0 7px; border-radius: 5px; background: rgba(255,255,255,0.08); color: var(--text-muted); border: 1px solid var(--border-subtle); cursor: pointer;",
-                    title: translate(locale, "header.command_palette"),
-                    onclick: move |_| on_open_palette.call(()),
-                    "⌘K"
                 }
             }
 
