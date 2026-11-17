@@ -1,8 +1,16 @@
 use crate::components::{IconKind, LucideIcon};
 use crate::state::ViewMode;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use dioxus::prelude::*;
+use std::sync::LazyLock;
 use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
 use vellum_domain::DeviceKind;
+
+static VELLUM_LOGO_DATA_URI: LazyLock<String> = LazyLock::new(|| {
+    let bytes = include_bytes!("../vellum-icon.png");
+    format!("data:image/png;base64,{}", BASE64.encode(bytes))
+});
 
 #[component]
 pub fn Header(
@@ -47,7 +55,11 @@ pub fn Header(
                     class: "logo-area",
                     style: "cursor: pointer;",
                     onclick: move |_| view_mode.set(ViewMode::Home),
-                    div { class: "logo-icon", "V" }
+                    img {
+                        src: "{*VELLUM_LOGO_DATA_URI}",
+                        alt: "Vellum",
+                        style: "width: 28px; height: 28px; border-radius: 6px; object-fit: contain;",
+                    }
                     span { class: "logo-text", "Vellum" }
                 }
                 div { style: "display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 8px; border: 1px solid var(--border-subtle);",

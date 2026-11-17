@@ -1,4 +1,7 @@
-# Vellum
+<div align="center">
+  <img src="docs/images/vellum-icon.png" alt="Vellum" width="128" height="128">
+  <h1>Vellum</h1>
+</div>
 
 Gestionnaire de bibliothèque numérique desktop écrit en **Rust** (Dioxus + SQLite WAL + Axum), conçu selon une architecture en couches propres (*Clean Architecture*).
 
