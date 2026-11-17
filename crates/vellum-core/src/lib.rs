@@ -41,7 +41,8 @@ pub mod watch_folder;
 pub mod web_companion_assets;
 
 pub use app_services::{
-    define_passage_with_ai, init_services, scan_and_index_library, AppServices,
+    define_passage_with_ai, init_services, init_services_headless, init_services_with_options,
+    scan_and_index_library, AppServices,
 };
 pub use book_service::{
     BookService, BulkConvertReport, BulkRegexChange, BulkRegexReport, BulkRegexRequest,

@@ -1,0 +1,29 @@
+name: vellum
+
+services:
+  vellum:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vellum
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "${VELLUM_PORT:-8080}:8080"
+    environment:
+      VELLUM_DATA_DIR: /data
+      VELLUM_LIBRARY_DIR: /books
+      VELLUM_OPDS_PORT: "8080"
+      VELLUM_OPDS_TOKEN: "${VELLUM_OPDS_TOKEN:-}"
+      HOME: /tmp
+    volumes:
+      - ${VELLUM_DATA_HOST_PATH:-./data}:/data
+      - ${VELLUM_BOOKS_HOST_PATH:-./books}:/books
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s

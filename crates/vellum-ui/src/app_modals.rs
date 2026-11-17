@@ -29,6 +29,7 @@ pub(crate) struct OverlayServices {
     pub custom_column_service: Arc<CustomColumnService>,
     pub sync_service: Arc<SyncService>,
     pub opds_port: u16,
+    pub opds_running: bool,
     pub litestream_status_str: String,
     pub plugin_descriptors: Vec<PluginDescriptor>,
     pub reading_stats: Option<ReadingStats>,
@@ -181,7 +182,7 @@ pub(crate) fn render_app_overlays(
                     }
                 },
                 opds_port: svc.opds_port,
-                opds_running: true,
+                opds_running: svc.opds_running,
                 litestream_status_text: svc.litestream_status_str.clone(),
                 plugins: svc.plugin_descriptors.clone(),
                 sync_config: st.sync_config.read().clone(),

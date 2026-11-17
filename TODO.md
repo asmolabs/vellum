@@ -175,12 +175,12 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [ ] Migrer le stockage de `SmtpConfig.password` et `CloudSyncConfig.google_client_secret` vers le trousseau système (Linux Secret Service / macOS Keychain) avec repli documenté si absent.
 
 ### Phase 2 — Mode Serveur Headless (`vellum serve`) & Docker
-- [ ] **Serveur headless sans dépendance graphique (`vellum serve`)**
-  - [ ] Ajouter une sous-commande `vellum serve --host 0.0.0.0 --port 8080 --data-dir /data` dans `vellum-cli` (ou une crate `vellum-server` dédiée) démarrant `AppServices`, `OpdsServer` et la synchro périodique Google Drive sans GTK/WebKit2GTK.
-  - [ ] Exposer un endpoint `/api/v1/health` pour les sondes de santé Docker / reverse proxy.
-- [ ] **Empaquetage Docker mono-conteneur léger (inspiré des bonnes pratiques BookOrbit)**
-  - [ ] Créer un `Dockerfile` multi-stage Rust produisant une image runtime minimale non-root (`tini`, `HEALTHCHECK`, binaires/librairies strictement nécessaires).
-  - [ ] Créer un `docker-compose.yml` mono-conteneur avec SQLite WAL (`/data`), bibliothèque (`/books`), `read_only: true`, `cap_drop: ALL`, `no-new-privileges: true` et variables `VELLUM_OPDS_TOKEN`, `PUID`/`PGID`.
+- [x] **Serveur headless sans dépendance graphique (`vellum serve`)**
+  - [x] Sous-commande `vellum serve --host 0.0.0.0 --port 8080 --data-dir /data --library-dir /books` dans `vellum-cli` démarrant `AppServices` (sans GTK/WebKit2GTK), `OpdsServer` et la synchro périodique Google Drive (plus variables `VELLUM_DATA_DIR`, `VELLUM_LIBRARY_DIR`, `VELLUM_OPDS_PORT`, `VELLUM_OPDS_ENABLED`).
+  - [x] Endpoint `/api/v1/health` (sans auth même avec `VELLUM_OPDS_TOKEN`) pour les sondes de santé Docker / reverse proxy.
+- [x] **Empaquetage Docker mono-conteneur léger (inspiré des bonnes pratiques BookOrbit)**
+  - [x] `Dockerfile` multi-stage Rust produisant une image runtime minimale non-root (`tini`, `HEALTHCHECK`, binaires/librairies strictement nécessaires).
+  - [x] `docker-compose.yml` mono-conteneur avec SQLite WAL (`/data`), bibliothèque (`/books`), `read_only: true`, `cap_drop: ALL`, `no-new-privileges: true` et variables `VELLUM_OPDS_TOKEN`, `PUID`/`PGID`.
 
 ### Phase 3 — Web App complète & Écosystème Liseuses
 - [ ] **Élever le Web Companion au niveau Web App complète (`web_api.rs` + assets)**
@@ -195,6 +195,10 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [ ] Ajouter des enrichisseurs optionnels dans `vellum-plugins` (ex. Hardcover, ComicVine pour CBZ/CBR).
 - [ ] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**
   - [ ] Isolation optionnelle des progressions/statuts par utilisateur lorsque Vellum tourne en mode `vellum serve`.
+- [ ] **Revue d'ergonomie & UX (inspirée de BookOrbit)**
+  - [ ] Auditer les écrans Desktop (`vellum-ui`) et Web Companion face aux parcours de BookOrbit (tableau de bord d'accueil / "En cours de lecture", navigation par étagères/collections, lecteur unifié, onboarding premier lancement).
+  - [ ] Simplifier les modales chargées (`SettingsModal`, tiroirs de détails) en onglets ou sections repliables avec états vides guidés et feedback visuel clair.
+  - [ ] Améliorer l'ergonomie de lecture (personnalisation typographie/thèmes/marges, reprise rapide sur le dernier chapitre, accès rapide aux surlignages et notes).
 
 ### Phase 4 — Applications Mobiles Android & iOS (Dioxus Mobile)
 - [ ] **Préparation du cœur Rust pour cibles mobiles (`aarch64-linux-android`, `aarch64-apple-ios`)**

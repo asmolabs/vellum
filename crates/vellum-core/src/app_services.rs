@@ -1,6 +1,5 @@
 //! Initialisation et assemblage des services applicatifs de Vellum.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tracing::info;
@@ -29,14 +28,24 @@ pub struct AppServices {
     pub custom_column_service: Arc<CustomColumnService>,
     pub smtp_config: SmtpConfig,
     pub opds_port: u16,
+    pub opds_running: bool,
 }
 
 /// Initialise la base SQLite WAL, les services métier et les tâches d'arrière-plan (sync, OPDS).
 pub fn init_services() -> AppServices {
-    let app_cfg = AppConfig::default();
-    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    let vellum_dir = home.join(".vellum");
-    let _ = std::fs::create_dir_all(&vellum_dir);
+    init_services_with_options(AppConfig::from_env(), true)
+}
+
+/// Initialise les services sans démarrer le serveur OPDS en arrière-plan (mode CLI / `vellum serve`).
+pub fn init_services_headless(app_cfg: AppConfig) -> AppServices {
+    init_services_with_options(app_cfg, false)
+}
+
+/// Initialise les services applicatifs avec une configuration explicite.
+pub fn init_services_with_options(app_cfg: AppConfig, spawn_opds: bool) -> AppServices {
+    if let Some(parent) = app_cfg.database_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     let _ = std::fs::create_dir_all(&app_cfg.library_path);
     let _ = std::fs::create_dir_all(&app_cfg.plugins_path);
 
@@ -133,12 +142,29 @@ pub fn init_services() -> AppServices {
         }
     });
 
-    let opds_bs = book_service.clone();
+    let opds_enabled_pref = param_repo
+        .get_value("opds_enabled")
+        .ok()
+        .flatten()
+        .map(|v| {
+            !matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "0" | "false" | "no" | "off"
+            )
+        })
+        .unwrap_or(app_cfg.opds_enabled);
+
     let opds_port = app_cfg.opds_port;
-    tokio::spawn(async move {
-        info!("Starting OPDS server on port {}", opds_port);
-        let _ = OpdsServer::run_server((*opds_bs).clone(), opds_port).await;
-    });
+    let opds_running = spawn_opds && opds_enabled_pref;
+    if opds_running {
+        let opds_bs = book_service.clone();
+        tokio::spawn(async move {
+            info!("Starting OPDS server on port {}", opds_port);
+            let _ = OpdsServer::run_server((*opds_bs).clone(), opds_port).await;
+        });
+    } else {
+        info!("OPDS server disabled (standalone/headless mode)");
+    }
 
     let device_service = Arc::new(DeviceService::new(
         book_service.clone(),
@@ -171,6 +197,7 @@ pub fn init_services() -> AppServices {
         custom_column_service,
         smtp_config: smtp_cfg,
         opds_port,
+        opds_running,
     }
 }
 

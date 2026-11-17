@@ -551,6 +551,22 @@ async fn test_opds_server_auth_and_security_headers() {
     });
 
     let client = reqwest::Client::new();
+
+    // 0. Healthcheck endpoint is accessible without token (for Docker HEALTHCHECK)
+    let health = client
+        .get(format!("http://127.0.0.1:{port}/api/v1/health"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(health.status(), 200);
+    assert_eq!(
+        health
+            .headers()
+            .get("x-content-type-options")
+            .and_then(|v| v.to_str().ok()),
+        Some("nosniff")
+    );
+
     let url = format!("http://127.0.0.1:{port}/api/status");
 
     // 1. Missing token -> 401 Unauthorized

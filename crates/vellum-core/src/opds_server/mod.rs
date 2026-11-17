@@ -3,7 +3,7 @@
 mod web_api;
 mod xml_feed;
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use axum::extract::{Request, State};
@@ -46,7 +46,7 @@ impl OpdsServer {
             .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
             .allow_headers([CONTENT_TYPE, AUTHORIZATION]);
 
-        Router::new()
+        let protected = Router::new()
             // 1. Web Companion & Mobile Reader UI
             .route("/", get(web_api::web_library_handler))
             .route("/read/:id", get(web_api::web_reader_handler))
@@ -87,15 +87,27 @@ impl OpdsServer {
                 expected_token,
                 auth_and_security_headers,
             ))
+            .with_state(shared);
+
+        Router::new()
+            .route("/api/v1/health", get(health_handler))
+            .merge(protected)
             .layer(cors)
-            .with_state(shared)
     }
 
     pub async fn run_server(book_service: BookService, port: u16) -> VellumResult<()> {
+        Self::run_server_on(book_service, "0.0.0.0", port).await
+    }
+
+    pub async fn run_server_on(
+        book_service: BookService,
+        host: &str,
+        port: u16,
+    ) -> VellumResult<()> {
         let token = std::env::var("VELLUM_OPDS_TOKEN")
             .ok()
             .filter(|t| !t.trim().is_empty());
-        Self::run_server_with_token(book_service, port, token).await
+        Self::run_server_with_token_on(book_service, host, port, token).await
     }
 
     pub async fn run_server_with_token(
@@ -103,8 +115,18 @@ impl OpdsServer {
         port: u16,
         auth_token: Option<String>,
     ) -> VellumResult<()> {
+        Self::run_server_with_token_on(book_service, "0.0.0.0", port, auth_token).await
+    }
+
+    pub async fn run_server_with_token_on(
+        book_service: BookService,
+        host: &str,
+        port: u16,
+        auth_token: Option<String>,
+    ) -> VellumResult<()> {
+        let ip: IpAddr = host.parse().unwrap_or_else(|_| IpAddr::from([0, 0, 0, 0]));
         let app = Self::router_with_token(book_service, auth_token);
-        let addr = SocketAddr::from(([0, 0, 0, 0], port));
+        let addr = SocketAddr::new(ip, port);
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app).await?;
         Ok(())
@@ -113,6 +135,26 @@ impl OpdsServer {
     pub async fn start(&self, port: u16) -> VellumResult<()> {
         Self::run_server(self.book_service.clone(), port).await
     }
+}
+
+async fn health_handler() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        [
+            (
+                axum::http::header::X_CONTENT_TYPE_OPTIONS,
+                HeaderValue::from_static("nosniff"),
+            ),
+            (
+                axum::http::header::X_FRAME_OPTIONS,
+                HeaderValue::from_static("SAMEORIGIN"),
+            ),
+        ],
+        axum::Json(serde_json::json!({
+            "status": "ok",
+            "service": "vellum"
+        })),
+    )
 }
 
 async fn auth_and_security_headers(

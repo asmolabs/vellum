@@ -50,6 +50,7 @@ fn App() -> Element {
     let sync_service = services.sync_service.clone();
     let litestream = services.litestream_service.clone();
     let opds_port = services.opds_port;
+    let opds_running = services.opds_running;
     let device_service = services.device_service.clone();
     let virtual_library_service = services.virtual_library_service.clone();
     let custom_column_service = services.custom_column_service.clone();
@@ -228,6 +229,7 @@ fn App() -> Element {
         custom_column_service: custom_column_service.clone(),
         sync_service: sync_service.clone(),
         opds_port,
+        opds_running,
         litestream_status_str,
         plugin_descriptors,
         reading_stats: reading_stats.clone(),

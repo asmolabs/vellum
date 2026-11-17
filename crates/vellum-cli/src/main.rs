@@ -5,9 +5,14 @@
 use std::path::{Path, PathBuf};
 
 use vellum_core::{
-    init_services, BookService, CatalogExporter, CatalogFormat, OpdsServer, PolishOptions,
+    init_services_headless, BookService, CatalogExporter, CatalogFormat, OpdsServer, PolishOptions,
     WatchFolderService,
 };
+use vellum_domain::AppConfig;
+
+fn arg_value(args: &[String], flag: &str) -> Option<String> {
+    args.windows(2).find(|w| w[0] == flag).map(|w| w[1].clone())
+}
 
 #[tokio::main]
 async fn main() {
@@ -19,17 +24,27 @@ async fn main() {
         return;
     }
 
-    let services = init_services();
+    let mut cfg = AppConfig::from_env();
+    if let Some(data_dir) = arg_value(&args, "--data-dir") {
+        let data_path = PathBuf::from(data_dir);
+        let lib_path = arg_value(&args, "--library-dir")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| data_path.join("library"));
+        cfg = AppConfig::with_dirs(data_path, lib_path);
+    } else if let Some(lib_dir) = arg_value(&args, "--library-dir") {
+        cfg.library_path = PathBuf::from(lib_dir);
+    }
+
+    let services = init_services_headless(cfg);
     let bs = services.book_service.clone();
 
     if args[0] == "serve" {
-        let port = args
-            .windows(2)
-            .find(|w| w[0] == "--port")
-            .and_then(|w| w[1].parse::<u16>().ok())
+        let host = arg_value(&args, "--host").unwrap_or_else(|| "0.0.0.0".to_string());
+        let port = arg_value(&args, "--port")
+            .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(services.opds_port);
-        println!("Serveur OPDS / Web Companion démarré sur http://0.0.0.0:{port}");
-        if let Err(e) = OpdsServer::run_server((*bs).clone(), port).await {
+        println!("Serveur OPDS / Web Companion démarré sur http://{host}:{port}");
+        if let Err(e) = OpdsServer::run_server_on((*bs).clone(), &host, port).await {
             exit_err(&format!("Erreur serveur : {e}"));
         }
         return;

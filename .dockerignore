@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+.vscode/
+.DS_Store
+*.db
+*.db-wal
+*.db-shm
+data/
+books/
