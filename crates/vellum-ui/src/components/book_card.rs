@@ -1,4 +1,6 @@
+use crate::components::{IconKind, LucideIcon};
 use crate::cover_cache::resolve_cover_src;
+use crate::state::MediaType;
 use dioxus::prelude::*;
 use vellum_domain::Book;
 
@@ -13,10 +15,21 @@ pub fn BookCard(
 ) -> Element {
     let title = book.title.clone();
     let author = book.author.clone();
+    let series = book.series.clone();
+    let series_index = book.series_index;
+    let rating = book.rating;
     let formats = book.formats.clone();
     let progress = book.progress_percent;
+    let is_finished = book.is_finished;
     let book_id = book.id.clone();
 
+    let is_audiobook_only =
+        MediaType::Audiobooks.matches_book(&book) && !MediaType::Books.matches_book(&book);
+    let cover_ratio = if is_audiobook_only {
+        "aspect-ratio: 1 / 1;"
+    } else {
+        "aspect-ratio: 2 / 3;"
+    };
     let cover_src = resolve_cover_src(&book_id, book.cover_path.as_deref(), true);
 
     rsx! {
@@ -40,7 +53,7 @@ pub fn BookCard(
                 move |_| on_read.call(book.clone())
             },
 
-            div { class: "cover-container",
+            div { class: "cover-container", style: "{cover_ratio}",
                 // Selection Checkbox Button
                 div {
                     class: if is_selected { "card-select-btn selected" } else { "card-select-btn" },
@@ -59,6 +72,19 @@ pub fn BookCard(
                     if is_selected { "✓" } else { "" }
                 }
 
+                // Reading status badge (top-right, BookOrbit style)
+                if is_finished {
+                    div {
+                        style: "position: absolute; top: 8px; right: 8px; padding: 2px 6px; border-radius: 999px; background: rgba(16, 185, 129, 0.9); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 3px; z-index: 4; box-shadow: 0 2px 6px rgba(0,0,0,0.35);",
+                        "✓"
+                    }
+                } else if progress > 0.0 {
+                    div {
+                        style: "position: absolute; top: 8px; right: 8px; padding: 2px 6px; border-radius: 999px; background: rgba(15, 23, 42, 0.82); border: 1px solid rgba(255,255,255,0.16); color: #e2e8f0; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; z-index: 4;",
+                        "{progress.round() as u32}%"
+                    }
+                }
+
                 if let Some(src) = cover_src {
                     img {
                         class: "cover-image",
@@ -73,10 +99,30 @@ pub fn BookCard(
                     }
                 }
 
-                // Format Badges
-                div { class: "format-badges",
-                    for fmt in formats.iter() {
+                // Format Badges (bottom-left, BookOrbit style)
+                div {
+                    class: "format-badges",
+                    style: "top: auto; right: auto; bottom: 8px; left: 8px;",
+                    for fmt in formats.iter().take(2) {
                         span { class: "format-pill", "{fmt.format.to_uppercase()}" }
+                    }
+                }
+
+                // Hover quick-read button (bottom-right, BookOrbit style)
+                button {
+                    class: "book-card-play",
+                    title: "{title}",
+                    onclick: {
+                        let book = book.clone();
+                        move |e: Event<MouseData>| {
+                            e.stop_propagation();
+                            on_read.call(book.clone());
+                        }
+                    },
+                    if is_audiobook_only {
+                        LucideIcon { kind: IconKind::Headphones, size: 15 }
+                    } else {
+                        LucideIcon { kind: IconKind::BookOpen, size: 15 }
                     }
                 }
 
@@ -86,6 +132,34 @@ pub fn BookCard(
                         div {
                             class: "progress-bar",
                             style: "width: {progress.clamp(0.0, 100.0)}%;",
+                        }
+                    }
+                }
+            }
+
+            // Title & Author caption below cover (BookOrbit BookCoverCard)
+            div { class: "book-card-meta",
+                div { class: "book-card-title", "{title}" }
+                div { class: "book-card-author",
+                    if author.is_empty() { "—" } else { "{author}" }
+                }
+                if series.as_ref().is_some_and(|s| !s.trim().is_empty()) || rating.is_some() {
+                    div {
+                        style: "display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 2px; font-size: 10.5px; color: var(--text-muted);",
+                        if let Some(ref s) = series {
+                            if !s.trim().is_empty() {
+                                span {
+                                    style: "overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+                                    if let Some(idx) = series_index {
+                                        "{s} #{idx}"
+                                    } else {
+                                        "{s}"
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(r) = rating {
+                            span { style: "color: #fbbf24; font-weight: 600; flex-shrink: 0;", "★ {r:.1}" }
                         }
                     }
                 }
