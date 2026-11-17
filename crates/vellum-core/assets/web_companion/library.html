@@ -348,6 +348,26 @@
     </div>
   </main>
 
+  <div class="modal-backdrop" id="audio-modal" onclick="if(event.target===this) closeAudioModal()">
+    <div class="modal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 id="audio-title" style="font-size:16px;">🎧 Lecteur Audio</h3>
+        <button type="button" class="btn btn-download" onclick="closeAudioModal()">✕</button>
+      </div>
+      <div id="audio-author" style="font-size:12px;color:var(--text-muted);"></div>
+      <audio id="audio-player" controls style="width:100%;margin-top:4px;"></audio>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted);">
+        <span>Vitesse :</span>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="chip" onclick="setAudioRate(1.0)">1.0x</button>
+          <button type="button" class="chip" onclick="setAudioRate(1.25)">1.25x</button>
+          <button type="button" class="chip" onclick="setAudioRate(1.5)">1.5x</button>
+          <button type="button" class="chip" onclick="setAudioRate(2.0)">2.0x</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="edit-modal" onclick="if(event.target===this) closeEditModal()">
     <div class="modal-card">
       <h3 id="edit-modal-title" style="font-size:16px;">Modifier le livre</h3>
@@ -540,7 +560,12 @@
           seriesBadge = `<span class="series-badge" title="${escapeHtml(b.series)}">${escapeHtml(b.series)}${idxStr}</span>`;
         }
 
+        const audioExts = ['mp3', 'm4b', 'm4a', 'ogg', 'flac', 'opus'];
+        const hasAudio = (b.formats || []).some(f => audioExts.includes((f.format || '').toLowerCase()));
         const primaryFormat = (b.formats && b.formats[0]) ? b.formats[0].format.toLowerCase() : 'epub';
+        const actionBtn = hasAudio
+          ? `<button type="button" class="btn btn-read" onclick="openAudioModal('${escapeHtml(b.id)}')">🎧 Écouter</button>`
+          : `<a class="btn btn-read" href="/read/${b.id}">${escapeHtml(t('web.read_btn'))}</a>`;
 
         return `
           <div class="book-card">
@@ -552,7 +577,7 @@
               <div class="book-title" title="${escapeHtml(b.title)}">${escapeHtml(b.title)}</div>
               <div class="book-author" title="${escapeHtml(b.author)}">${escapeHtml(b.author)}</div>
               <div class="book-actions">
-                <a class="btn btn-read" href="/read/${b.id}">${escapeHtml(t('web.read_btn'))}</a>
+                ${actionBtn}
                 <a class="btn btn-download" href="/opds/download/${b.id}/${primaryFormat}" title="${escapeHtml(t('web.download_title', { format: primaryFormat.toUpperCase() }))}">⬇️</a>
                 <button type="button" class="btn btn-download" title="${escapeHtml(t('web.edit_btn'))}" onclick="openEditModal('${escapeHtml(b.id)}')">✏️</button>
               </div>
@@ -598,6 +623,59 @@
         }
       }
       await loadLibrary();
+    }
+
+    let activeAudioBookId = null;
+    let lastAudioSyncTs = 0;
+
+    function openAudioModal(bookId) {
+      const b = allBooks.find(x => x.id === bookId);
+      if (!b) return;
+      activeAudioBookId = bookId;
+      document.getElementById('audio-title').textContent = `🎧 ${b.title || ''}`;
+      document.getElementById('audio-author').textContent = b.author || '';
+      const player = document.getElementById('audio-player');
+      player.src = `/api/books/${encodeURIComponent(bookId)}/audio`;
+      player.onloadedmetadata = () => {
+        if (b.progress_percent > 0 && player.duration > 0) {
+          player.currentTime = (b.progress_percent / 100.0) * player.duration;
+        }
+      };
+      player.ontimeupdate = () => {
+        const now = Date.now();
+        if (now - lastAudioSyncTs > 10000) {
+          lastAudioSyncTs = now;
+          syncAudioProgress();
+        }
+      };
+      player.onpause = syncAudioProgress;
+      player.onended = syncAudioProgress;
+      document.getElementById('audio-modal').classList.add('open');
+    }
+
+    function setAudioRate(rate) {
+      document.getElementById('audio-player').playbackRate = rate;
+    }
+
+    async function syncAudioProgress() {
+      if (!activeAudioBookId) return;
+      const player = document.getElementById('audio-player');
+      if (!player.duration || player.duration <= 0) return;
+      const pct = Math.min(1.0, Math.max(0.0, player.currentTime / player.duration));
+      await fetch(`/api/books/${encodeURIComponent(activeAudioBookId)}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapter_index: 0, percentage: pct })
+      }).catch(() => {});
+    }
+
+    function closeAudioModal() {
+      syncAudioProgress();
+      const player = document.getElementById('audio-player');
+      player.pause();
+      player.removeAttribute('src');
+      activeAudioBookId = null;
+      document.getElementById('audio-modal').classList.remove('open');
     }
 
     function openEditModal(bookId) {

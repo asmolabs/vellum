@@ -1115,4 +1115,35 @@ async fn test_web_companion_upload_and_metadata_edit() {
     let ko_json: serde_json::Value = ko_get.json().await.unwrap();
     assert_eq!(ko_json["progress"], "/body/chapter/2");
     assert!((ko_json["percentage"].as_f64().unwrap() - 0.45).abs() < 0.001);
+
+    // 6. Audio streaming with HTTP Range (206 Partial Content)
+    let audio_up = client
+        .post(format!(
+            "http://127.0.0.1:{port}/api/books/upload?filename=audiobook.mp3"
+        ))
+        .body(b"0123456789ABCDEF".to_vec())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(audio_up.status(), 201);
+    let audio_book: vellum_core::opds_server::BookDto = audio_up.json().await.unwrap();
+
+    let range_res = client
+        .get(format!(
+            "http://127.0.0.1:{port}/api/books/{}/audio",
+            audio_book.id
+        ))
+        .header("Range", "bytes=4-9")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(range_res.status(), 206);
+    assert_eq!(
+        range_res
+            .headers()
+            .get("content-range")
+            .and_then(|v| v.to_str().ok()),
+        Some("bytes 4-9/16")
+    );
+    assert_eq!(range_res.bytes().await.unwrap().as_ref(), b"456789");
 }

@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{Extension, Path as AxPath, Query, State};
-use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::header::{
+    ACCEPT_RANGES, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE,
+};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -41,6 +43,7 @@ pub struct BookDto {
     pub tags: Vec<String>,
     pub formats: Vec<FormatDto>,
     pub has_cover: bool,
+    pub progress_percent: f64,
     pub added_at: String,
 }
 
@@ -114,6 +117,7 @@ impl BookDto {
             tags,
             formats,
             has_cover,
+            progress_percent: b.progress_percent,
             added_at: b.added_at,
         }
     }
@@ -453,6 +457,78 @@ pub(super) async fn api_sync_status_handler(
         "last_synced_at": cfg.last_synced_at,
     }))
     .into_response()
+}
+
+pub(super) async fn api_book_audio_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath(book_id): AxPath<String>,
+    req_headers: HeaderMap,
+) -> Response {
+    let Ok(Some(book)) = service.get_book_by_id(&book_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(fmt) = book.formats.iter().find(|f| {
+        matches!(
+            f.format.to_ascii_lowercase().as_str(),
+            "mp3" | "m4b" | "m4a" | "ogg" | "flac" | "opus"
+        )
+    }) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let path = service.get_file_for_format(fmt);
+    let Ok(data) = std::fs::read(&path) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let total_len = data.len();
+    let mime = super::xml_feed::get_mime_type(&fmt.format);
+
+    if let Some(range_val) = req_headers.get(RANGE).and_then(|v| v.to_str().ok()) {
+        if let Some(spec) = range_val.strip_prefix("bytes=") {
+            let mut parts = spec.splitn(2, '-');
+            let start = parts
+                .next()
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            let end = parts
+                .next()
+                .and_then(|s| {
+                    if s.is_empty() {
+                        None
+                    } else {
+                        s.parse::<usize>().ok()
+                    }
+                })
+                .unwrap_or_else(|| total_len.saturating_sub(1))
+                .min(total_len.saturating_sub(1));
+
+            if start <= end && start < total_len {
+                let slice = data[start..=end].to_vec();
+                let mut headers = HeaderMap::new();
+                if let Ok(ct) = HeaderValue::from_str(mime) {
+                    headers.insert(CONTENT_TYPE, ct);
+                }
+                headers.insert(ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+                if let Ok(cr) = HeaderValue::from_str(&format!("bytes {start}-{end}/{total_len}")) {
+                    headers.insert(CONTENT_RANGE, cr);
+                }
+                if let Ok(cl) = HeaderValue::from_str(&slice.len().to_string()) {
+                    headers.insert(CONTENT_LENGTH, cl);
+                }
+                return (StatusCode::PARTIAL_CONTENT, headers, slice).into_response();
+            }
+        }
+    }
+
+    let mut headers = HeaderMap::new();
+    if let Ok(ct) = HeaderValue::from_str(mime) {
+        headers.insert(CONTENT_TYPE, ct);
+    }
+    headers.insert(ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    if let Ok(cl) = HeaderValue::from_str(&total_len.to_string()) {
+        headers.insert(CONTENT_LENGTH, cl);
+    }
+    (StatusCode::OK, headers, data).into_response()
 }
 
 pub(super) async fn api_sync_now_handler(

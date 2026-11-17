@@ -187,7 +187,7 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [x] Upload de livres par glisser-déposer depuis le navigateur (`POST /api/books/upload`, EPUB, PDF, CBZ/CBR, TXT...).
   - [x] Édition des métadonnées, tags et séries depuis le navigateur (`POST /api/books/:id/metadata`).
   - [x] Déclenchement et suivi de la synchronisation Google Drive depuis l'interface Web (`GET /api/sync/status`, `POST /api/sync`).
-  - [ ] Lecteur audio intégré (MP3 / M4B) avec sauvegarde de la progression.
+  - [x] Lecteur audio intégré (MP3 / M4B / OGG / FLAC) avec streaming HTTP Range et sauvegarde de la progression (`GET /api/books/:id/audio`).
   - [x] Tableau de bord statistiques de lecture (`GET /api/stats` + bandeau stats Web).
 - [x] **Synchronisation KOReader**
   - [x] Routes compatibles KOReader Progress Sync sur `OpdsServer` (`/users/auth`, `/users/create`, `PUT /syncs/progress`, `GET /syncs/progress/:document`).

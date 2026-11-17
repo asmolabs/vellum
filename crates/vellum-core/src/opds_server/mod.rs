@@ -97,6 +97,7 @@ impl OpdsServer {
                 "/api/books/:id/download/:format",
                 get(xml_feed::download_handler),
             )
+            .route("/api/books/:id/audio", get(web_api::api_book_audio_handler))
             // 3. OPDS 1.2 Catalog Feed (for KOReader, Moon+, etc.)
             .route("/opds", get(xml_feed::root_catalog_handler))
             .route("/opds/books", get(xml_feed::books_catalog_handler))
