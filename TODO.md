@@ -156,3 +156,52 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
     - [x] Raccourci global `Cmd + K` / `Ctrl + K` et bouton d'accès rapide dans la barre de recherche du `Header`.
     - [x] Recherche unifiée et instantanée (livres, sagas, auteurs, tags) et exécution d'actions rapides en une touche (lecture directe, import, synchro Google Drive, filtres de lecture, paramètres).
   - [x] Suite de tests 100% au vert sur `cargo test --workspace`.
+
+---
+
+## Feuille de route — Standalone, Web/Docker & Mobile (Android / iOS)
+
+### Réalisé récemment
+- [x] **Synchronisation Google Drive API v3 directe (sans logiciel de sync local)**
+  - [x] Authentification OAuth 2.0 PKCE (`S256`) + serveur loopback local `127.0.0.1` (`gdrive_oauth.rs`), stockage atomique des jetons dans `~/.vellum/gdrive_tokens.json` (`0600` sous Unix) et rafraîchissement automatique du `refresh_token`.
+  - [x] Backend REST `GoogleDriveApiBackend` (`gdrive_api_backend.rs`) implémentant `CloudSyncBackend` : résolution/création de `Vellum/sync/deltas` et `Vellum/files/...`, upload multipart (deltas) et resumable (livres), téléchargement atomique, validation anti-traversal des chemins relatifs.
+  - [x] Configuration `CloudSyncMode::GoogleDriveApi` dans `SettingsModal` (Client ID, Client Secret optionnel, nom du dossier Drive, boutons Connecter / Déconnecter) et traductions FR/EN.
+  - [x] Test d'intégration avec serveur Google Drive + OAuth mocké (`test_google_drive_api_backend_and_token_refresh`).
+
+### Phase 1 — Mode Standalone pur & Durcissement Sécurité
+- [ ] **Contrôle du serveur réseau local en mode Desktop**
+  - [ ] Ajouter une option dans `AppConfig` et `SettingsModal` pour activer/désactiver le démarrage automatique du serveur OPDS / Web Companion (permettant un mode desktop 100 % hors-ligne sans aucun port ouvert).
+- [ ] **Gestion sécurisée des secrets locaux**
+  - [ ] Migrer le stockage de `SmtpConfig.password` et `CloudSyncConfig.google_client_secret` vers le trousseau système (Linux Secret Service / macOS Keychain) avec repli documenté si absent.
+
+### Phase 2 — Mode Serveur Headless (`vellum serve`) & Docker
+- [ ] **Serveur headless sans dépendance graphique (`vellum serve`)**
+  - [ ] Ajouter une sous-commande `vellum serve --host 0.0.0.0 --port 8080 --data-dir /data` dans `vellum-cli` (ou une crate `vellum-server` dédiée) démarrant `AppServices`, `OpdsServer` et la synchro périodique Google Drive sans GTK/WebKit2GTK.
+  - [ ] Exposer un endpoint `/api/v1/health` pour les sondes de santé Docker / reverse proxy.
+- [ ] **Empaquetage Docker mono-conteneur léger (inspiré des bonnes pratiques BookOrbit)**
+  - [ ] Créer un `Dockerfile` multi-stage Rust produisant une image runtime minimale non-root (`tini`, `HEALTHCHECK`, binaires/librairies strictement nécessaires).
+  - [ ] Créer un `docker-compose.yml` mono-conteneur avec SQLite WAL (`/data`), bibliothèque (`/books`), `read_only: true`, `cap_drop: ALL`, `no-new-privileges: true` et variables `VELLUM_OPDS_TOKEN`, `PUID`/`PGID`.
+
+### Phase 3 — Web App complète & Écosystème Liseuses
+- [ ] **Élever le Web Companion au niveau Web App complète (`web_api.rs` + assets)**
+  - [ ] Upload de livres par glisser-déposer depuis le navigateur (EPUB, PDF, CBZ/CBR).
+  - [ ] Édition des métadonnées, tags, séries et statuts de lecture depuis le navigateur.
+  - [ ] Déclenchement et suivi de la synchronisation Google Drive depuis l'interface Web.
+  - [ ] Lecteur audio intégré (MP3 / M4B) avec sauvegarde de la progression.
+  - [ ] Tableau de bord statistiques de lecture (temps de lecture, séries, objectifs).
+- [ ] **Synchronisation KOReader**
+  - [ ] Implémenter les routes compatibles KOReader Progress Sync sur `OpdsServer` pour synchroniser progression et surlignages sans câble USB.
+- [ ] **Fournisseurs de métadonnées supplémentaires**
+  - [ ] Ajouter des enrichisseurs optionnels dans `vellum-plugins` (ex. Hardcover, ComicVine pour CBZ/CBR).
+- [ ] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**
+  - [ ] Isolation optionnelle des progressions/statuts par utilisateur lorsque Vellum tourne en mode `vellum serve`.
+
+### Phase 4 — Applications Mobiles Android & iOS (Dioxus Mobile)
+- [ ] **Préparation du cœur Rust pour cibles mobiles (`aarch64-linux-android`, `aarch64-apple-ios`)**
+  - [ ] Isoler les modules desktop/OS-spécifiques (`LitestreamService`, `DeviceService`, `WatchFolderService`, `OpdsServer`, `script_plugin.rs`) derrière des *feature flags* Cargo (`desktop` vs `mobile`).
+  - [ ] Remplacer `open::that` + callback `TcpListener` de `gdrive_oauth.rs` par un flux OAuth mobile (URI de redirection / `ASWebAuthenticationSession` iOS / Custom Tabs Android).
+  - [ ] Remplacer `rfd::FileDialog` dans `vellum-ui` par une abstraction compatible sélecteur de fichiers mobile.
+- [ ] **Adaptation UI tactile & responsive (`vellum-ui`)**
+  - [ ] Basculer les largeurs fixes desktop (modales, tiroirs, grille) vers des mises en page responsives adaptées au tactile.
+  - [ ] Ajouter la configuration `Dioxus.toml` mobile et valider les builds `dx build --platform android` et `dx build --platform ios`.
+  - [ ] Synchronisation transparente Mobile ↔ Desktop ↔ Docker via Google Drive API (et connexion optionnelle au serveur `vellum serve`).
