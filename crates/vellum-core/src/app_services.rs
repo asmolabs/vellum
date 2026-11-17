@@ -57,11 +57,24 @@ pub fn init_services_with_options(app_cfg: AppConfig, spawn_opds: bool) -> AppSe
     let vl_repo = VirtualLibraryRepository::new(db.clone());
     let custom_col_repo = CustomColumnRepository::new(db.clone());
 
+    let secret_store = crate::SecretStore::default();
+
     let mut cloud_sync_cfg = app_cfg.cloud_sync.clone();
     if let Ok(Some(saved_json)) = param_repo.get_value("cloud_sync_config") {
-        if let Ok(loaded) = serde_json::from_str::<CloudSyncConfig>(&saved_json) {
+        if let Ok(mut loaded) = serde_json::from_str::<CloudSyncConfig>(&saved_json) {
+            if let Some(legacy_secret) = loaded.google_client_secret.take() {
+                if !legacy_secret.trim().is_empty() {
+                    let _ = secret_store.set_secret("gdrive_client_secret", &legacy_secret);
+                }
+                if let Ok(sanitized_json) = serde_json::to_string(&loaded) {
+                    let _ = param_repo.set_value("cloud_sync_config", &sanitized_json);
+                }
+            }
             cloud_sync_cfg = loaded;
         }
+    }
+    if let Some(secret) = secret_store.get_secret("gdrive_client_secret") {
+        cloud_sync_cfg.google_client_secret = Some(secret);
     }
 
     let sync_service = Arc::new(SyncService::new(
@@ -184,9 +197,19 @@ pub fn init_services_with_options(app_cfg: AppConfig, spawn_opds: bool) -> AppSe
 
     let mut smtp_cfg = app_cfg.smtp.clone();
     if let Ok(Some(saved_json)) = param_repo.get_value("smtp_config") {
-        if let Ok(loaded) = serde_json::from_str::<SmtpConfig>(&saved_json) {
+        if let Ok(mut loaded) = serde_json::from_str::<SmtpConfig>(&saved_json) {
+            if !loaded.password.trim().is_empty() {
+                let _ = secret_store.set_secret("smtp_password", &loaded.password);
+                loaded.password.clear();
+                if let Ok(sanitized_json) = serde_json::to_string(&loaded) {
+                    let _ = param_repo.set_value("smtp_config", &sanitized_json);
+                }
+            }
             smtp_cfg = loaded;
         }
+    }
+    if let Some(pwd) = secret_store.get_secret("smtp_password") {
+        smtp_cfg.password = pwd;
     }
     let mail_service = Arc::new(MailService::new(app_cfg.library_path.clone()));
     let news_service = Arc::new(NewsService::new(

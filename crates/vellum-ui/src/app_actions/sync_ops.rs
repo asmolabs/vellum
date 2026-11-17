@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 use vellum_core::book_service::BookService;
-use vellum_core::{translate, translate_fmt, FolderSyncBackend, SyncService};
+use vellum_core::{translate, translate_fmt, FolderSyncBackend, SecretStore, SyncService};
 use vellum_domain::{Book, CloudSyncMode, DeviceKind, SmtpConfig};
 
 use super::{show_toast, AppActionContext};
@@ -30,7 +30,18 @@ fn persist_sync_config(
     mut sync_config: Signal<vellum_domain::CloudSyncConfig>,
 ) {
     let cfg = ss.config();
-    if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+    let secrets = SecretStore::default();
+    match cfg.google_client_secret.as_deref() {
+        Some(secret) if !secret.trim().is_empty() => {
+            let _ = secrets.set_secret("gdrive_client_secret", secret);
+        }
+        _ => {
+            let _ = secrets.delete_secret("gdrive_client_secret");
+        }
+    }
+    let mut persisted_cfg = cfg.clone();
+    persisted_cfg.google_client_secret = None;
+    if let Ok(cfg_json) = serde_json::to_string(&persisted_cfg) {
         let _ = bs.param_repo().set_value("cloud_sync_config", &cfg_json);
     }
     sync_config.set(cfg);
@@ -299,7 +310,15 @@ pub(super) fn build_sync_handlers(
         let pr = ctx.book_service.param_repo().clone();
         move |cfg: SmtpConfig| {
             ctx.smtp_config.set(cfg.clone());
-            if let Ok(cfg_json) = serde_json::to_string(&cfg) {
+            let secrets = SecretStore::default();
+            if cfg.password.trim().is_empty() {
+                let _ = secrets.delete_secret("smtp_password");
+            } else {
+                let _ = secrets.set_secret("smtp_password", &cfg.password);
+            }
+            let mut persisted_cfg = cfg;
+            persisted_cfg.password.clear();
+            if let Ok(cfg_json) = serde_json::to_string(&persisted_cfg) {
                 let _ = pr.set_value("smtp_config", &cfg_json);
             }
         }

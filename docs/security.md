@@ -56,5 +56,5 @@ Ce document recense la surface d'attaque de **Vellum**, les contrôles de sécur
 ## 3. Recommandations d'exploitation
 
 1. **Sur réseau partagé / Wi-Fi public** : toujours définir `VELLUM_OPDS_TOKEN` avant de démarrer l'application afin d'activer l'authentification Bearer sur le serveur OPDS/Web Companion.
-2. **Credentials SMTP** : `SmtpConfig` est actuellement persisté dans la configuration JSON locale de l'application ; l'utilisation d'un mot de passe d'application dédié (et non du mot de passe principal) est recommandée en attendant une intégration éventuelle avec le trousseau système (macOS Keychain).
+2. **Credentials SMTP & Google Drive** : `SecretStore` (`vellum-core/src/secret_store.rs`) stocke `smtp_password` et `gdrive_client_secret` dans le trousseau système (Linux Secret Service via `secret-tool`, macOS Keychain via `security`) avec repli vers `secrets.json` en permissions `0600` (environnements headless/Docker) ; les secrets éventuellement présents dans d'anciennes bases SQLite sont migrés et effacés automatiquement au démarrage. Les jetons OAuth Google Drive sont persistés séparément dans `gdrive_tokens.json` (`0600`).
 

@@ -35,6 +35,7 @@ pub mod plugin_service;
 pub mod reader_provider;
 pub mod reader_store;
 pub mod search_query;
+pub mod secret_store;
 pub mod sync_service;
 pub mod virtual_library_service;
 pub mod watch_folder;
@@ -68,6 +69,7 @@ pub use plugin_service::PluginService;
 pub use reader_provider::{BookContentProvider, ReaderContent, ReaderSection};
 pub use reader_store::*;
 pub use search_query::SearchQuery;
+pub use secret_store::SecretStore;
 pub use sync_service::{
     CloudSyncBackend, FolderSyncBackend, GoogleDriveApiBackend, GoogleDriveTokens, SyncService,
 };

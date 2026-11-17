@@ -171,8 +171,8 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 ### Phase 1 — Mode Standalone pur & Durcissement Sécurité
 - [x] **Contrôle du serveur réseau local en mode Desktop**
   - [x] Option `opds_enabled` dans `AppConfig`, `param_repo` et `SettingsModal` pour activer/désactiver le démarrage automatique du serveur OPDS / Web Companion (mode desktop 100 % hors-ligne sans aucun port ouvert).
-- [ ] **Gestion sécurisée des secrets locaux**
-  - [ ] Migrer le stockage de `SmtpConfig.password` et `CloudSyncConfig.google_client_secret` vers le trousseau système (Linux Secret Service / macOS Keychain) avec repli documenté si absent.
+- [x] **Gestion sécurisée des secrets locaux**
+  - [x] `SecretStore` (`secret_store.rs`) : stockage de `SmtpConfig.password` et `CloudSyncConfig.google_client_secret` via le trousseau système (Linux Secret Service `secret-tool` / macOS Keychain `security`) avec repli fichier `secrets.json` (`0600`) en mode headless/Docker et migration automatique depuis SQLite au démarrage.
 
 ### Phase 2 — Mode Serveur Headless (`vellum serve`) & Docker
 - [x] **Serveur headless sans dépendance graphique (`vellum serve`)**
