@@ -43,8 +43,19 @@ async fn main() {
         let port = arg_value(&args, "--port")
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(services.opds_port);
+        let token = std::env::var("VELLUM_OPDS_TOKEN")
+            .ok()
+            .filter(|t| !t.trim().is_empty());
         println!("Serveur OPDS / Web Companion démarré sur http://{host}:{port}");
-        if let Err(e) = OpdsServer::run_server_on((*bs).clone(), &host, port).await {
+        if let Err(e) = OpdsServer::run_server_with_services_on(
+            (*bs).clone(),
+            Some(services.sync_service.clone()),
+            &host,
+            port,
+            token,
+        )
+        .await
+        {
             exit_err(&format!("Erreur serveur : {e}"));
         }
         return;

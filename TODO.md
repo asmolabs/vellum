@@ -186,11 +186,11 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 - [ ] **Élever le Web Companion au niveau Web App complète (`web_api.rs` + assets)**
   - [x] Upload de livres par glisser-déposer depuis le navigateur (`POST /api/books/upload`, EPUB, PDF, CBZ/CBR, TXT...).
   - [x] Édition des métadonnées, tags et séries depuis le navigateur (`POST /api/books/:id/metadata`).
-  - [ ] Déclenchement et suivi de la synchronisation Google Drive depuis l'interface Web.
+  - [x] Déclenchement et suivi de la synchronisation Google Drive depuis l'interface Web (`GET /api/sync/status`, `POST /api/sync`).
   - [ ] Lecteur audio intégré (MP3 / M4B) avec sauvegarde de la progression.
-  - [ ] Tableau de bord statistiques de lecture (temps de lecture, séries, objectifs).
-- [ ] **Synchronisation KOReader**
-  - [ ] Implémenter les routes compatibles KOReader Progress Sync sur `OpdsServer` pour synchroniser progression et surlignages sans câble USB.
+  - [x] Tableau de bord statistiques de lecture (`GET /api/stats` + bandeau stats Web).
+- [x] **Synchronisation KOReader**
+  - [x] Routes compatibles KOReader Progress Sync sur `OpdsServer` (`/users/auth`, `/users/create`, `PUT /syncs/progress`, `GET /syncs/progress/:document`).
 - [ ] **Fournisseurs de métadonnées supplémentaires**
   - [ ] Ajouter des enrichisseurs optionnels dans `vellum-plugins` (ex. Hardcover, ComicVine pour CBZ/CBR).
 - [ ] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**

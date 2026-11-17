@@ -158,9 +158,20 @@ pub fn init_services_with_options(app_cfg: AppConfig, spawn_opds: bool) -> AppSe
     let opds_running = spawn_opds && opds_enabled_pref;
     if opds_running {
         let opds_bs = book_service.clone();
+        let opds_sync = sync_service.clone();
         tokio::spawn(async move {
+            let token = std::env::var("VELLUM_OPDS_TOKEN")
+                .ok()
+                .filter(|t| !t.trim().is_empty());
             info!("Starting OPDS server on port {}", opds_port);
-            let _ = OpdsServer::run_server((*opds_bs).clone(), opds_port).await;
+            let _ = OpdsServer::run_server_with_services_on(
+                (*opds_bs).clone(),
+                Some(opds_sync),
+                "0.0.0.0",
+                opds_port,
+                token,
+            )
+            .await;
         });
     } else {
         info!("OPDS server disabled (standalone/headless mode)");

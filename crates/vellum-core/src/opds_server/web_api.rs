@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use axum::body::Bytes;
-use axum::extract::{Path as AxPath, Query, State};
+use axum::extract::{Extension, Path as AxPath, Query, State};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -14,8 +14,9 @@ use super::xml_feed::CatalogQuery;
 use crate::book_service::{BookService, UpdateMetadataRequest};
 use crate::catalog_exporter::{CatalogExporter, CatalogFormat};
 use crate::reader_provider::create_content_provider;
+use crate::sync_service::SyncService;
 use crate::web_companion_assets::{library_page_html, reader_page_html};
-use vellum_domain::Book;
+use vellum_domain::{Book, CloudSyncMode};
 
 #[derive(Debug, Deserialize)]
 pub struct ExportQuery {
@@ -382,6 +383,100 @@ pub(super) async fn api_book_metadata_handler(
         Err(err) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub(super) async fn api_stats_handler(State(service): State<Arc<BookService>>) -> Response {
+    let books = service.book_repo().find_all().unwrap_or_default();
+    let total_books = books.len();
+    let finished_books = books.iter().filter(|b| b.is_finished).count();
+    let reading_books = books
+        .iter()
+        .filter(|b| !b.is_finished && b.progress_percent > 0.0)
+        .count();
+    let unread_books = total_books.saturating_sub(finished_books + reading_books);
+
+    let mut series_set = std::collections::HashSet::new();
+    let mut format_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    for b in &books {
+        if let Some(ref s) = b.series {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                series_set.insert(trimmed.to_string());
+            }
+        }
+        for f in &b.formats {
+            *format_counts.entry(f.format.to_uppercase()).or_insert(0) += 1;
+        }
+    }
+
+    Json(serde_json::json!({
+        "total_books": total_books,
+        "reading_books": reading_books,
+        "finished_books": finished_books,
+        "unread_books": unread_books,
+        "total_series": series_set.len(),
+        "formats": format_counts,
+    }))
+    .into_response()
+}
+
+pub(super) async fn api_sync_status_handler(
+    Extension(sync_opt): Extension<Option<Arc<SyncService>>>,
+) -> Response {
+    let Some(sync) = sync_opt else {
+        return Json(serde_json::json!({
+            "configured": false,
+            "available": false,
+            "enabled": false,
+            "mode": "none",
+            "last_synced_at": null,
+        }))
+        .into_response();
+    };
+
+    let cfg = sync.config();
+    let mode = match cfg.mode {
+        CloudSyncMode::GoogleDriveApi => "google_drive_api",
+        CloudSyncMode::GoogleDriveFolder => "google_drive_folder",
+    };
+
+    Json(serde_json::json!({
+        "configured": true,
+        "available": sync.is_backend_available(),
+        "enabled": cfg.enabled,
+        "mode": mode,
+        "account_email": cfg.google_account_email,
+        "last_synced_at": cfg.last_synced_at,
+    }))
+    .into_response()
+}
+
+pub(super) async fn api_sync_now_handler(
+    Extension(sync_opt): Extension<Option<Arc<SyncService>>>,
+) -> Response {
+    let Some(sync) = sync_opt else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "SyncService not attached to server" })),
+        )
+            .into_response();
+    };
+
+    let res = tokio::task::spawn_blocking(move || sync.sync_now()).await;
+    match res {
+        Ok(Ok(report)) => (StatusCode::OK, Json(report)).into_response(),
+        Ok(Err(e)) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": e.to_string() })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e.to_string() })),
         )
             .into_response(),
     }

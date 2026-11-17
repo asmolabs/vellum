@@ -1,5 +1,6 @@
 //! Serveur OPDS 1.2, Web Companion et API REST embarquée avec authentification par jeton.
 
+mod koreader_sync;
 mod web_api;
 mod xml_feed;
 
@@ -11,11 +12,12 @@ use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::{HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
-use axum::Router;
+use axum::routing::{get, post, put};
+use axum::{Extension, Router};
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::book_service::BookService;
+use crate::sync_service::SyncService;
 use vellum_domain::VellumResult;
 
 pub use web_api::{
@@ -39,11 +41,19 @@ impl OpdsServer {
     }
 
     pub fn router_with_token(book_service: BookService, auth_token: Option<String>) -> Router {
+        Self::router_with_services(book_service, None, auth_token)
+    }
+
+    pub fn router_with_services(
+        book_service: BookService,
+        sync_service: Option<Arc<SyncService>>,
+        auth_token: Option<String>,
+    ) -> Router {
         let shared = Arc::new(book_service);
         let expected_token = Arc::new(auth_token.filter(|t| !t.trim().is_empty()));
         let cors = CorsLayer::new()
             .allow_origin(Any)
-            .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
             .allow_headers([CONTENT_TYPE, AUTHORIZATION]);
 
         let protected = Router::new()
@@ -52,6 +62,9 @@ impl OpdsServer {
             .route("/read/:id", get(web_api::web_reader_handler))
             // 2. REST API for Web & Mobile Clients
             .route("/api/status", get(web_api::api_status_handler))
+            .route("/api/stats", get(web_api::api_stats_handler))
+            .route("/api/sync/status", get(web_api::api_sync_status_handler))
+            .route("/api/sync", post(web_api::api_sync_now_handler))
             .route("/api/i18n", get(web_api::api_i18n_handler))
             .route("/api/export", get(web_api::api_export_handler))
             .route(
@@ -92,6 +105,15 @@ impl OpdsServer {
                 "/opds/download/:id/:format",
                 get(xml_feed::download_handler),
             )
+            // 4. KOReader Progress Sync API
+            .route("/users/auth", get(koreader_sync::users_auth_handler))
+            .route("/users/create", post(koreader_sync::users_create_handler))
+            .route("/syncs/progress", put(koreader_sync::put_progress_handler))
+            .route(
+                "/syncs/progress/:document",
+                get(koreader_sync::get_progress_handler),
+            )
+            .layer(Extension(sync_service))
             .layer(middleware::from_fn_with_state(
                 expected_token,
                 auth_and_security_headers,
@@ -133,8 +155,18 @@ impl OpdsServer {
         port: u16,
         auth_token: Option<String>,
     ) -> VellumResult<()> {
+        Self::run_server_with_services_on(book_service, None, host, port, auth_token).await
+    }
+
+    pub async fn run_server_with_services_on(
+        book_service: BookService,
+        sync_service: Option<Arc<SyncService>>,
+        host: &str,
+        port: u16,
+        auth_token: Option<String>,
+    ) -> VellumResult<()> {
         let ip: IpAddr = host.parse().unwrap_or_else(|_| IpAddr::from([0, 0, 0, 0]));
-        let app = Self::router_with_token(book_service, auth_token);
+        let app = Self::router_with_services(book_service, sync_service, auth_token);
         let addr = SocketAddr::new(ip, port);
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app).await?;

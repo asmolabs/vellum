@@ -1060,4 +1060,59 @@ async fn test_web_companion_upload_and_metadata_edit() {
     assert_eq!(updated.series.as_deref(), Some("Dune"));
     assert_eq!(updated.series_index, Some(2.0));
     assert!(updated.tags.contains(&"Sci-Fi".to_string()));
+
+    // 3. Stats endpoint
+    let stats_res = client
+        .get(format!("http://127.0.0.1:{port}/api/stats"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(stats_res.status(), 200);
+    let stats_json: serde_json::Value = stats_res.json().await.unwrap();
+    assert_eq!(stats_json["total_books"], 1);
+    assert_eq!(stats_json["total_series"], 1);
+
+    // 4. Sync status endpoint (no SyncService attached -> configured=false)
+    let sync_st_res = client
+        .get(format!("http://127.0.0.1:{port}/api/sync/status"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(sync_st_res.status(), 200);
+    let sync_st_json: serde_json::Value = sync_st_res.json().await.unwrap();
+    assert_eq!(sync_st_json["configured"], false);
+
+    // 5. KOReader Progress Sync endpoints
+    let ko_auth = client
+        .get(format!("http://127.0.0.1:{port}/users/auth"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ko_auth.status(), 200);
+
+    let ko_put = client
+        .put(format!("http://127.0.0.1:{port}/syncs/progress"))
+        .json(&serde_json::json!({
+            "document": uploaded.id,
+            "progress": "/body/chapter/2",
+            "percentage": 0.45,
+            "device": "kobo-clara"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ko_put.status(), 200);
+
+    let ko_get = client
+        .get(format!(
+            "http://127.0.0.1:{port}/syncs/progress/{}",
+            uploaded.id
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ko_get.status(), 200);
+    let ko_json: serde_json::Value = ko_get.json().await.unwrap();
+    assert_eq!(ko_json["progress"], "/body/chapter/2");
+    assert!((ko_json["percentage"].as_f64().unwrap() - 0.45).abs() < 0.001);
 }
