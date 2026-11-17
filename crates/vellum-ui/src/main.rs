@@ -175,6 +175,7 @@ fn App() -> Element {
         current_filter,
         selected_tag,
         selected_series,
+        search_query,
         view_mode,
         settings_open,
         news_recipes_open,

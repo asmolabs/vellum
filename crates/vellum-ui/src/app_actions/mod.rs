@@ -41,6 +41,7 @@ pub(crate) struct AppActionContext {
     pub current_filter: Signal<FilterStatus>,
     pub selected_tag: Signal<Option<String>>,
     pub selected_series: Signal<Option<String>>,
+    pub search_query: Signal<String>,
     pub view_mode: Signal<ViewMode>,
     pub settings_open: Signal<bool>,
     pub news_recipes_open: Signal<bool>,
@@ -115,6 +116,19 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
             ctx.current_filter.set(FilterStatus::All);
             ctx.selected_tag.set(None);
             ctx.selected_series.set(None);
+        }
+        PaletteAction::FilterAuthor(author) => {
+            ctx.current_filter.set(FilterStatus::All);
+            ctx.selected_tag.set(None);
+            ctx.selected_series.set(None);
+            ctx.search_query.set(format!("author:\"{author}\""));
+            ctx.view_mode.set(ViewMode::Grid);
+        }
+        PaletteAction::FilterSeries(series) => {
+            ctx.current_filter.set(FilterStatus::All);
+            ctx.selected_tag.set(None);
+            ctx.selected_series.set(Some(series));
+            ctx.view_mode.set(ViewMode::Grid);
         }
         PaletteAction::FilterReading => {
             ctx.current_filter.set(FilterStatus::Reading);
