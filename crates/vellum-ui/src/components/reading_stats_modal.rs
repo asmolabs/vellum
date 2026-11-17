@@ -224,6 +224,33 @@ pub fn ReadingStatsModal(
                             }
                         }
                     }
+
+                    // Achievements / Succès de lecture (BookOrbit style)
+                    div { style: "background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;",
+                        div { style: "font-size: 13px; font-weight: 700; color: var(--text-primary);", "🏆 Succès de lecture" }
+                        div { style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px;",
+                            for (emoji, title, desc, unlocked) in [
+                                ("📖", "Premier pas", "1er livre terminé", stats.finished_books >= 1),
+                                ("🔥", "Lecteur assidu", "5+ livres terminés", stats.finished_books >= 5),
+                                ("📚", "Bibliophile", "10+ livres dans la biblio", stats.total_books >= 10),
+                                ("⏱️", "Marathon", "10h+ de lecture estimée", stats.total_reading_hours >= 10.0),
+                                ("🌟", "Collectionneur", "25+ livres catalogués", stats.total_books >= 25),
+                            ] {
+                                div {
+                                    style: if unlocked {
+                                        "padding: 10px; border-radius: 8px; background: rgba(99, 102, 241, 0.14); border: 1px solid rgba(99, 102, 241, 0.4); display: flex; align-items: center; gap: 8px;"
+                                    } else {
+                                        "padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); opacity: 0.45; display: flex; align-items: center; gap: 8px;"
+                                    },
+                                    span { style: "font-size: 20px;", "{emoji}" }
+                                    div {
+                                        div { style: "font-size: 12px; font-weight: 700; color: var(--text-primary);", "{title}" }
+                                        div { style: "font-size: 10.5px; color: var(--text-muted);", "{desc}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

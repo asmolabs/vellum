@@ -24,8 +24,9 @@ mod state;
 mod styles;
 
 use components::{
-    AuthorsView, BookCard, BooksTable, DetailDrawer, Header, HomeDashboard, KanbanBoard,
-    LibraryToolbar, ReadingHistoryView, SeriesView, Sidebar,
+    AnnotationsView, AudioMiniPlayer, AuthorsView, BookCard, BookQuickView, BooksTable,
+    DetailDrawer, Header, HomeDashboard, KanbanBoard, LibraryToolbar, ReadingHistoryView,
+    SeriesView, Sidebar,
 };
 use state::{FilterStatus, MediaType, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -88,11 +89,16 @@ fn App() -> Element {
 
     let current_filter = use_signal(|| FilterStatus::All);
     let media_type = use_signal(|| MediaType::All);
+    let format_filter = use_signal(|| None::<String>);
+    let min_rating = use_signal(|| None::<i32>);
+    let collapse_series = use_signal(|| false);
+    let mut quick_view_book = use_signal(|| None::<Book>);
+    let mut audio_player_book = use_signal(|| None::<Book>);
     let current_sort = use_signal(|| SortOption::RecentAdded);
     let view_mode = use_signal(|| ViewMode::Home);
     let sidebar_collapsed = use_signal(|| false);
     let selected_tag = use_signal(|| None::<String>);
-    let selected_series = use_signal(|| None::<String>);
+    let mut selected_series = use_signal(|| None::<String>);
     let search_query = use_signal(String::new);
     let mut selected_book = use_signal(|| None::<Book>);
     let focused_book_id = use_signal(|| None::<String>);
@@ -145,7 +151,7 @@ fn App() -> Element {
                 .find(|vl| &vl.id == id)
                 .map(|vl| vl.query.clone())
         });
-        library_logic::filter_and_sort_books_by_media(
+        let mut list = library_logic::filter_and_sort_books_by_media(
             &all,
             *current_filter.read(),
             *media_type.read(),
@@ -154,7 +160,26 @@ fn App() -> Element {
             selected_series.read().as_deref(),
             &search_query.read(),
             active_vl_query.as_deref(),
-        )
+        );
+        if let Some(ref fmt) = *format_filter.read() {
+            list.retain(|b| {
+                b.formats.iter().any(|f| match fmt.as_str() {
+                    "cbz" => matches!(
+                        f.format.to_ascii_lowercase().as_str(),
+                        "cbz" | "cbr" | "cb7" | "cbt"
+                    ),
+                    "m4b" => matches!(
+                        f.format.to_ascii_lowercase().as_str(),
+                        "m4b" | "m4a" | "mp3" | "opus" | "ogg" | "flac"
+                    ),
+                    other => f.format.eq_ignore_ascii_case(other),
+                })
+            });
+        }
+        if let Some(min_r) = *min_rating.read() {
+            list.retain(|b| b.rating.is_some_and(|r| r >= min_r));
+        }
+        list
     };
 
     let actions = app_actions::build_app_actions(app_actions::AppActionContext {
@@ -391,6 +416,22 @@ fn App() -> Element {
                             search_query,
                             selected_series,
                             selected_tag,
+                            format_filter,
+                            min_rating,
+                            collapse_series,
+                            on_shuffle: {
+                                let pool = filtered_books.clone();
+                                move |_| {
+                                    if !pool.is_empty() {
+                                        let seed = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .map(|d| d.subsec_nanos() as usize)
+                                            .unwrap_or(0);
+                                        let pick = pool[seed % pool.len()].clone();
+                                        quick_view_book.set(Some(pick));
+                                    }
+                                }
+                            },
                             filtered_count: filtered_books.len(),
                             filtered_ids: filtered_books.iter().map(|b| b.id.clone()).collect(),
                             selected_ids,
@@ -455,6 +496,13 @@ fn App() -> Element {
                         ReadingHistoryView {
                             locale: *ui_locale.read(),
                             books: books.read().clone(),
+                            on_select: move |selected| selected_book.set(Some(selected)),
+                            on_read: actions.on_read,
+                        }
+                    } else if *view_mode.read() == ViewMode::Annotations {
+                        AnnotationsView {
+                            books: books.read().clone(),
+                            data_dir: book_service.library_path().join(".vellum"),
                             on_select: move |selected| selected_book.set(Some(selected)),
                             on_read: actions.on_read,
                         }
@@ -540,20 +588,51 @@ fn App() -> Element {
                                 div {
                                     id: "vellum-books-grid",
                                     class: "books-grid",
-                                    for b in filtered_books[grid_win.start_idx..grid_win.end_idx].iter() {
-                                        {
-                                            let id = b.id.clone();
-                                            let is_selected = selected_ids.read().contains(&id);
-                                            let selection_mode = !selected_ids.read().is_empty();
-                                            rsx! {
-                                                BookCard {
-                                                    key: "{b.id}",
-                                                    book: b.clone(),
-                                                    is_selected: is_selected,
-                                                    selection_mode: selection_mode,
-                                                    on_toggle_select: actions.on_toggle_select,
-                                                    on_select: move |selected| selected_book.set(Some(selected)),
-                                                    on_read: actions.on_read,
+                                    if *collapse_series.read() {
+                                        for (b, stack) in library_logic::collapse_books_by_series(&filtered_books) {
+                                            {
+                                                let id = b.id.clone();
+                                                let is_selected = selected_ids.read().contains(&id);
+                                                let selection_mode = !selected_ids.read().is_empty();
+                                                let stack_series = stack.as_ref().map(|(s, _)| s.clone());
+                                                rsx! {
+                                                    BookCard {
+                                                        key: "col-{b.id}",
+                                                        book: b.clone(),
+                                                        is_selected: is_selected,
+                                                        selection_mode: selection_mode,
+                                                        series_stack: stack,
+                                                        on_toggle_select: actions.on_toggle_select,
+                                                        on_select: move |selected| {
+                                                            if let Some(ref s_name) = stack_series {
+                                                                selected_series.set(Some(s_name.clone()));
+                                                            } else {
+                                                                selected_book.set(Some(selected));
+                                                            }
+                                                        },
+                                                        on_read: actions.on_read,
+                                                        on_quick_view: move |qv| quick_view_book.set(Some(qv)),
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        for b in filtered_books[grid_win.start_idx..grid_win.end_idx].iter() {
+                                            {
+                                                let id = b.id.clone();
+                                                let is_selected = selected_ids.read().contains(&id);
+                                                let selection_mode = !selected_ids.read().is_empty();
+                                                rsx! {
+                                                    BookCard {
+                                                        key: "{b.id}",
+                                                        book: b.clone(),
+                                                        is_selected: is_selected,
+                                                        selection_mode: selection_mode,
+                                                        on_toggle_select: actions.on_toggle_select,
+                                                        on_select: move |selected| selected_book.set(Some(selected)),
+                                                        on_read: actions.on_read,
+                                                        on_quick_view: move |qv| quick_view_book.set(Some(qv)),
+                                                    }
                                                 }
                                             }
                                         }
@@ -606,6 +685,29 @@ fn App() -> Element {
                         }
 
                     }
+                }
+            }
+
+            if let Some(qv_book) = quick_view_book.read().as_ref() {
+                BookQuickView {
+                    book: qv_book.clone(),
+                    on_close: move |_| quick_view_book.set(None),
+                    on_read: move |b: Book| {
+                        if MediaType::Audiobooks.matches_book(&b) && !MediaType::Books.matches_book(&b) {
+                            audio_player_book.set(Some(b));
+                        } else {
+                            actions.on_read.call(b);
+                        }
+                    },
+                    on_open_details: move |b| selected_book.set(Some(b)),
+                }
+            }
+
+            if let Some(ab_book) = audio_player_book.read().as_ref() {
+                AudioMiniPlayer {
+                    book: ab_book.clone(),
+                    on_close: move |_| audio_player_book.set(None),
+                    on_open_reader: actions.on_read,
                 }
             }
 

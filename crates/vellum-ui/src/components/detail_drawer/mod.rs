@@ -114,6 +114,22 @@ pub fn DetailDrawer(
                         }
                     }
                     div { style: "display: flex; align-items: center; gap: 8px;",
+                        {
+                            let (score, missing) = crate::library_logic::compute_metadata_score(&book);
+                            let color = if score >= 80 { "#34d399" } else if score >= 50 { "#fbbf24" } else { "#f87171" };
+                            let tip = if missing.is_empty() {
+                                "Métadonnées complètes".to_string()
+                            } else {
+                                format!("Manquant : {}", missing.join(", "))
+                            };
+                            rsx! {
+                                span {
+                                    title: "{tip}",
+                                    style: "padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.06); font-size: 11px; font-weight: 700; color: {color};",
+                                    "Score {score}%"
+                                }
+                            }
+                        }
                         if !*is_editing.read() {
                             button {
                                 class: "drawer-action-btn",

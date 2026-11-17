@@ -16,6 +16,10 @@ pub fn LibraryToolbar(
     mut search_query: Signal<String>,
     mut selected_series: Signal<Option<String>>,
     mut selected_tag: Signal<Option<String>>,
+    mut format_filter: Signal<Option<String>>,
+    mut min_rating: Signal<Option<i32>>,
+    mut collapse_series: Signal<bool>,
+    on_shuffle: EventHandler<()>,
     filtered_count: usize,
     filtered_ids: Vec<String>,
     mut selected_ids: Signal<HashSet<String>>,
@@ -27,6 +31,9 @@ pub fn LibraryToolbar(
     let cur_media = *media_type.read();
     let cur_filter = *current_filter.read();
     let cur_query = search_query.read().clone();
+    let cur_fmt = format_filter.read().clone();
+    let cur_rating = *min_rating.read();
+    let is_collapsed = *collapse_series.read();
     let count_str = filtered_count.to_string();
 
     let heading = if cur_media != MediaType::All && cur_filter == FilterStatus::All {
@@ -43,7 +50,9 @@ pub fn LibraryToolbar(
 
     let active_filter_count = usize::from(cur_filter != FilterStatus::All)
         + usize::from(selected_series.read().is_some())
-        + usize::from(selected_tag.read().is_some());
+        + usize::from(selected_tag.read().is_some())
+        + usize::from(cur_fmt.is_some())
+        + usize::from(cur_rating.is_some());
 
     rsx! {
         div { class: "library-header",
@@ -86,7 +95,7 @@ pub fn LibraryToolbar(
                 }
             }
 
-            // Row 2 : Command Bar (BookOrbit BrowseSearchField + BrowseSortControl + BrowseFilterControl + BrowseViewControls)
+            // Row 2 : Command Bar (BookOrbit BrowseSearchField + BrowseSortControl + BrowseFilterControl + Shuffle + BrowseViewControls)
             div { class: "browse-command-bar", style: "position: relative;",
                 // Search field (flex-1, BookOrbit BrowseSearchField style)
                 div {
@@ -141,7 +150,7 @@ pub fn LibraryToolbar(
                     option { value: "progress", {translate(locale, "toolbar.sort_progress")} }
                 }
 
-                // Filter control (BookOrbit BrowseFilterControl)
+                // Filter control (BookOrbit BrowseFilterControl + BookFilterBuilder)
                 div { style: "position: relative;",
                     button {
                         style: if active_filter_count > 0 || *filter_open.read() {
@@ -153,6 +162,7 @@ pub fn LibraryToolbar(
                             let next = !*filter_open.read();
                             filter_open.set(next);
                         },
+                        LucideIcon { kind: IconKind::Filter, size: 13 }
                         span { "Filtres" }
                         if active_filter_count > 0 {
                             span {
@@ -164,37 +174,103 @@ pub fn LibraryToolbar(
 
                     if *filter_open.read() {
                         div {
-                            style: "position: absolute; top: 38px; right: 0; width: 230px; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 10px; padding: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 40; display: flex; flex-direction: column; gap: 6px;",
-                            div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 2px;",
-                                {translate(locale, "nav.reading_zone")}
-                            }
-                            for f in [
-                                FilterStatus::All,
-                                FilterStatus::Reading,
-                                FilterStatus::Finished,
-                                FilterStatus::ToRead,
-                            ] {
-                                button {
-                                    style: if cur_filter == f {
-                                        "text-align: left; padding: 6px 10px; border-radius: 6px; background: rgba(99, 102, 241, 0.22); color: #c7d2fe; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer;"
-                                    } else {
-                                        "text-align: left; padding: 6px 10px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; font-size: 12.5px; cursor: pointer;"
-                                    },
-                                    onclick: move |_| {
-                                        current_filter.set(f);
-                                        filter_open.set(false);
-                                    },
-                                    {translate(locale, f.i18n_key())}
+                            style: "position: absolute; top: 38px; right: 0; width: 270px; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 10px; padding: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 40; display: flex; flex-direction: column; gap: 10px;",
+                            // Statut
+                            div {
+                                div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px;",
+                                    {translate(locale, "nav.reading_zone")}
+                                }
+                                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 4px;",
+                                    for f in [
+                                        FilterStatus::All,
+                                        FilterStatus::Reading,
+                                        FilterStatus::Finished,
+                                        FilterStatus::ToRead,
+                                    ] {
+                                        button {
+                                            style: if cur_filter == f {
+                                                "text-align: left; padding: 5px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.22); color: #c7d2fe; border: none; font-size: 12px; font-weight: 600; cursor: pointer;"
+                                            } else {
+                                                "text-align: left; padding: 5px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); color: var(--text-secondary); border: none; font-size: 12px; cursor: pointer;"
+                                            },
+                                            onclick: move |_| current_filter.set(f),
+                                            {translate(locale, f.i18n_key())}
+                                        }
+                                    }
                                 }
                             }
+
+                            // Format
+                            div {
+                                div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px;",
+                                    "Format"
+                                }
+                                div { style: "display: flex; flex-wrap: wrap; gap: 4px;",
+                                    for (label, val) in [
+                                        ("Tous", None),
+                                        ("EPUB", Some("epub")),
+                                        ("PDF", Some("pdf")),
+                                        ("CBZ/CBR", Some("cbz")),
+                                        ("M4B/MP3", Some("m4b")),
+                                    ] {
+                                        {
+                                            let is_on = cur_fmt.as_deref() == val;
+                                            rsx! {
+                                                button {
+                                                    style: if is_on {
+                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.22); color: #c7d2fe; border: none; font-size: 11.5px; font-weight: 600; cursor: pointer;"
+                                                    } else {
+                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); color: var(--text-secondary); border: none; font-size: 11.5px; cursor: pointer;"
+                                                    },
+                                                    onclick: move |_| format_filter.set(val.map(str::to_string)),
+                                                    "{label}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Note minimale
+                            div {
+                                div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px;",
+                                    "Note minimale"
+                                }
+                                div { style: "display: flex; gap: 4px;",
+                                    for (label, val) in [
+                                        ("Toutes", None),
+                                        ("3+ ★", Some(3_i32)),
+                                        ("4+ ★", Some(4_i32)),
+                                        ("5 ★", Some(5_i32)),
+                                    ] {
+                                        {
+                                            let is_on = cur_rating == val;
+                                            rsx! {
+                                                button {
+                                                    style: if is_on {
+                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(251, 191, 36, 0.2); color: #fde68a; border: none; font-size: 11.5px; font-weight: 600; cursor: pointer;"
+                                                    } else {
+                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); color: var(--text-secondary); border: none; font-size: 11.5px; cursor: pointer;"
+                                                    },
+                                                    onclick: move |_| min_rating.set(val),
+                                                    "{label}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if active_filter_count > 0 {
-                                div { style: "border-top: 1px solid var(--border-subtle); margin-top: 4px; padding-top: 6px;",
+                                div { style: "border-top: 1px solid var(--border-subtle); padding-top: 8px;",
                                     button {
                                         style: "width: 100%; padding: 5px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: none; font-size: 12px; cursor: pointer;",
                                         onclick: move |_| {
                                             current_filter.set(FilterStatus::All);
                                             selected_series.set(None);
                                             selected_tag.set(None);
+                                            format_filter.set(None);
+                                            min_rating.set(None);
                                             filter_open.set(false);
                                         },
                                         {translate(locale, "header.clear_search")}
@@ -202,6 +278,27 @@ pub fn LibraryToolbar(
                                 }
                             }
                         }
+                    }
+                }
+
+                // Shuffle (BookShuffleButton) & Series Collapse toggle
+                button {
+                    title: "Livre au hasard",
+                    style: "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-secondary); border: 1px solid var(--border-subtle); cursor: pointer;",
+                    onclick: move |_| on_shuffle.call(()),
+                    LucideIcon { kind: IconKind::Shuffle, size: 14 }
+                }
+
+                if cur_view == ViewMode::Grid {
+                    button {
+                        title: "Regrouper les séries",
+                        style: if is_collapsed {
+                            "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(99, 102, 241, 0.25); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.45); cursor: pointer;"
+                        } else {
+                            "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-secondary); border: 1px solid var(--border-subtle); cursor: pointer;"
+                        },
+                        onclick: move |_| collapse_series.set(!is_collapsed),
+                        LucideIcon { kind: IconKind::Layers, size: 14 }
                     }
                 }
 

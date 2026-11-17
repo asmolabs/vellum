@@ -26,6 +26,86 @@ pub fn compute_media_counts(books: &[Book]) -> (usize, usize, usize) {
     (books_count, audio_count, comics_count)
 }
 
+/// Computes metadata completeness `(percentage 0..=100, missing_field_labels)` for a book (BookOrbit MetadataScore).
+pub fn compute_metadata_score(book: &Book) -> (u8, Vec<&'static str>) {
+    let checks: [(&'static str, bool); 8] = [
+        ("Titre", !book.title.trim().is_empty()),
+        (
+            "Auteur",
+            !book.author.trim().is_empty() && book.author.trim() != "Inconnu",
+        ),
+        (
+            "Couverture",
+            book.cover_path
+                .as_ref()
+                .is_some_and(|p| !p.trim().is_empty()),
+        ),
+        (
+            "Description",
+            book.description
+                .as_ref()
+                .is_some_and(|d| !d.trim().is_empty()),
+        ),
+        (
+            "ISBN",
+            book.isbn.as_ref().is_some_and(|i| !i.trim().is_empty()),
+        ),
+        (
+            "Éditeur",
+            book.publisher
+                .as_ref()
+                .is_some_and(|p| !p.trim().is_empty()),
+        ),
+        (
+            "Série",
+            book.series.as_ref().is_some_and(|s| !s.trim().is_empty()),
+        ),
+        ("Tags", !book.tags.is_empty()),
+    ];
+    let mut present = 0usize;
+    let mut missing = Vec::new();
+    for (label, ok) in checks {
+        if ok {
+            present += 1;
+        } else {
+            missing.push(label);
+        }
+    }
+    let pct = ((present * 100) / checks.len()) as u8;
+    (pct, missing)
+}
+
+/// Collapses books belonging to the same series into a single representative entry `(book, Some((series_name, count)))`.
+pub fn collapse_books_by_series(books: &[Book]) -> Vec<(Book, Option<(String, usize)>)> {
+    let mut series_counts: HashMap<String, usize> = HashMap::new();
+    for b in books {
+        if let Some(ref s) = b.series {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                *series_counts.entry(trimmed.to_string()).or_insert(0) += 1;
+            }
+        }
+    }
+    let mut seen_series = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(books.len());
+    for b in books {
+        if let Some(ref s) = b.series {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                let total = series_counts.get(trimmed).copied().unwrap_or(1);
+                if total > 1 {
+                    if seen_series.insert(trimmed.to_string()) {
+                        out.push((b.clone(), Some((trimmed.to_string(), total))));
+                    }
+                    continue;
+                }
+            }
+        }
+        out.push((b.clone(), None));
+    }
+    out
+}
+
 /// Aggregates tag counts across `books`, sorted by descending count then alphabetically.
 pub fn compute_tags_counts(books: &[Book]) -> Vec<(String, usize)> {
     let mut map = HashMap::new();

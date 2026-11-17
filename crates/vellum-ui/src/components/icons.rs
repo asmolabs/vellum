@@ -29,6 +29,14 @@ pub enum IconKind {
     Columns,
     Headphones,
     Image,
+    Shuffle,
+    Filter,
+    Eye,
+    Highlighter,
+    Trophy,
+    Inbox,
+    Play,
+    Pause,
 }
 
 #[component]
@@ -153,6 +161,43 @@ pub fn LucideIcon(kind: IconKind, #[props(default = 16)] size: u32) -> Element {
                     rect { width: "18", height: "18", x: "3", y: "3", rx: "2", ry: "2" }
                     circle { cx: "9", cy: "9", r: "2" }
                     path { d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" }
+                },
+                IconKind::Shuffle => rsx! {
+                    path { d: "M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22" }
+                    path { d: "m18 2 4 4-4 4" }
+                    path { d: "M2 6h1.9c1.5 0 2.9.9 3.6 2.2" }
+                    path { d: "M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8" }
+                    path { d: "m18 14 4 4-4 4" }
+                },
+                IconKind::Filter => rsx! {
+                    polygon { points: "22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" }
+                },
+                IconKind::Eye => rsx! {
+                    path { d: "M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" }
+                    circle { cx: "12", cy: "12", r: "3" }
+                },
+                IconKind::Highlighter => rsx! {
+                    path { d: "m9 11-6 6v3h9l3-3" }
+                    path { d: "m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" }
+                },
+                IconKind::Trophy => rsx! {
+                    path { d: "M6 9H4.5a2.5 2.5 0 0 1 0-5H6" }
+                    path { d: "M18 9h1.5a2.5 2.5 0 0 0 0-5H18" }
+                    path { d: "M4 22h16" }
+                    path { d: "M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" }
+                    path { d: "M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" }
+                    path { d: "M18 2H6v7a6 6 0 0 0 12 0V2Z" }
+                },
+                IconKind::Inbox => rsx! {
+                    polyline { points: "22 12 16 12 14 15 10 15 8 12 2 12" }
+                    path { d: "M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" }
+                },
+                IconKind::Play => rsx! {
+                    polygon { points: "6 3 20 12 6 21 6 3" }
+                },
+                IconKind::Pause => rsx! {
+                    rect { width: "4", height: "16", x: "6", y: "4" }
+                    rect { width: "4", height: "16", x: "14", y: "4" }
                 },
             }
         }

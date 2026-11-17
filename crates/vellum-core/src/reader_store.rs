@@ -208,6 +208,26 @@ impl BookUserData {
         std::fs::write(path, json)
     }
 
+    pub fn load_all_highlights(dir: &Path) -> Vec<Highlight> {
+        let mut all = Vec::new();
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return all;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with("book_userdata_") && name_str.ends_with(".json") {
+                if let Ok(bytes) = std::fs::read(entry.path()) {
+                    if let Ok(data) = serde_json::from_slice::<Self>(&bytes) {
+                        all.extend(data.highlights);
+                    }
+                }
+            }
+        }
+        all.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        all
+    }
+
     pub fn add_bookmark(&mut self, bookmark: Bookmark) {
         // Avoid duplicate bookmarks on the exact same chapter + page
         self.bookmarks.retain(|b| {

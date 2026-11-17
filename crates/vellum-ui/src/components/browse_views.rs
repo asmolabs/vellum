@@ -188,3 +188,156 @@ pub fn ReadingHistoryView(
         }
     }
 }
+
+#[component]
+pub fn AnnotationsView(
+    books: Vec<Book>,
+    data_dir: std::path::PathBuf,
+    on_select: EventHandler<Book>,
+    on_read: EventHandler<Book>,
+) -> Element {
+    use crate::components::{IconKind, LucideIcon};
+    use std::collections::HashMap;
+    use vellum_core::reader_store::{BookUserData, Highlight};
+
+    let mut query = use_signal(String::new);
+    let mut color_filter = use_signal(|| None::<String>);
+
+    let book_map: HashMap<String, Book> = books.iter().map(|b| (b.id.clone(), b.clone())).collect();
+    let all_highlights: Vec<Highlight> = BookUserData::load_all_highlights(&data_dir);
+    let q_lower = query.read().trim().to_lowercase();
+    let cur_color = color_filter.read().clone();
+
+    let filtered: Vec<Highlight> = all_highlights
+        .into_iter()
+        .filter(|h| {
+            if let Some(ref c) = cur_color {
+                if &h.color != c {
+                    return false;
+                }
+            }
+            if !q_lower.is_empty() {
+                let book_title = book_map
+                    .get(&h.book_id)
+                    .map(|b| b.title.to_lowercase())
+                    .unwrap_or_default();
+                let matches_text = h.selected_text.to_lowercase().contains(&q_lower)
+                    || h.note
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&q_lower)
+                    || book_title.contains(&q_lower);
+                if !matches_text {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    rsx! {
+        div { style: "padding: 8px 24px 32px; display: flex; flex-direction: column; gap: 14px;",
+            div { style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;",
+                div { style: "display: flex; align-items: center; gap: 10px;",
+                    span {
+                        style: "width: 30px; height: 30px; border-radius: 8px; background: rgba(250, 204, 21, 0.16); color: #facc15; display: inline-flex; align-items: center; justify-content: center;",
+                        LucideIcon { kind: IconKind::Highlighter, size: 16 }
+                    }
+                    h2 { style: "font-size: 20px; font-weight: 700; margin: 0;", "Cahier d'annotations ({filtered.len()})" }
+                }
+
+                div { style: "display: flex; align-items: center; gap: 8px;",
+                    input {
+                        r#type: "text",
+                        value: "{query}",
+                        placeholder: "Filtrer surlignages, notes ou livres...",
+                        style: "width: 240px; padding: 6px 10px; font-size: 12.5px; border-radius: 8px; background: rgba(255,255,255,0.04); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none;",
+                        oninput: move |e| query.set(e.value()),
+                    }
+                    for (label, val) in [
+                        ("Toutes", None),
+                        ("Jaune", Some("yellow")),
+                        ("Vert", Some("green")),
+                        ("Bleu", Some("blue")),
+                        ("Rose", Some("pink")),
+                    ] {
+                        {
+                            let is_on = cur_color.as_deref() == val;
+                            rsx! {
+                                button {
+                                    style: if is_on {
+                                        "padding: 5px 10px; border-radius: 7px; background: rgba(99, 102, 241, 0.25); color: #c7d2fe; border: none; font-size: 12px; font-weight: 600; cursor: pointer;"
+                                    } else {
+                                        "padding: 5px 10px; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-muted); border: 1px solid var(--border-subtle); font-size: 12px; cursor: pointer;"
+                                    },
+                                    onclick: move |_| color_filter.set(val.map(str::to_string)),
+                                    "{label}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if filtered.is_empty() {
+                div { style: "padding: 48px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed var(--border-subtle);",
+                    "Aucun surlignage ou note pour le moment. Sélectionnez du texte dans le lecteur pour créer des annotations."
+                }
+            } else {
+                div { style: "display: flex; flex-direction: column; gap: 10px;",
+                    for h in filtered {
+                        {
+                            let book_opt = book_map.get(&h.book_id).cloned();
+                            let book_title = book_opt.as_ref().map(|b| b.title.clone()).unwrap_or_else(|| "Livre".to_string());
+                            let book_author = book_opt.as_ref().map(|b| b.author.clone()).unwrap_or_default();
+                            let bg = h.color_rgba();
+                            rsx! {
+                                div {
+                                    key: "ann-{h.id}",
+                                    style: "padding: 14px 16px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px;",
+                                    div { style: "display: flex; justify-content: space-between; align-items: center; gap: 8px;",
+                                        div {
+                                            style: "font-size: 12.5px; font-weight: 600; color: #a5b4fc; cursor: pointer;",
+                                            onclick: {
+                                                let b = book_opt.clone();
+                                                move |_| {
+                                                    if let Some(ref book) = b {
+                                                        on_select.call(book.clone());
+                                                    }
+                                                }
+                                            },
+                                            "{book_title} — {book_author}"
+                                        }
+                                        div { style: "display: flex; align-items: center; gap: 8px;",
+                                            span { style: "font-size: 11px; color: var(--text-muted);", "{h.chapter_title}" }
+                                            if let Some(book) = book_opt.clone() {
+                                                button {
+                                                    class: "btn btn-secondary",
+                                                    style: "padding: 3px 8px; font-size: 11px;",
+                                                    onclick: move |_| on_read.call(book.clone()),
+                                                    "Ouvrir"
+                                                }
+                                            }
+                                        }
+                                    }
+                                    blockquote {
+                                        style: "margin: 0; padding: 8px 12px; border-radius: 6px; background: {bg}; font-size: 13px; line-height: 1.5; color: var(--text-primary);",
+                                        "{h.selected_text}"
+                                    }
+                                    if let Some(ref note) = h.note {
+                                        if !note.trim().is_empty() {
+                                            div { style: "font-size: 12px; color: var(--text-secondary); padding-left: 8px; border-left: 2px solid var(--border-active);",
+                                                "Note : {note}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

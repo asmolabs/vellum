@@ -12,6 +12,7 @@ pub enum ViewMode {
     Authors,
     Series,
     History,
+    Annotations,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

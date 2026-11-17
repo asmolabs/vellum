@@ -17,6 +17,12 @@ pub fn BooksTable(
     on_read: EventHandler<Book>,
 ) -> Element {
     let mut table_scroll = use_signal(|| (0.0_f64, 560.0_f64));
+    let mut cols_open = use_signal(|| false);
+    let show_author = use_signal(|| true);
+    let show_series = use_signal(|| true);
+    let show_formats = use_signal(|| true);
+    let show_tags = use_signal(|| true);
+    let show_progress = use_signal(|| true);
 
     use_effect(move || {
         let mut eval = document::eval(
@@ -181,6 +187,40 @@ pub fn BooksTable(
                 }
             }
 
+            div { style: "display: flex; justify-content: flex-end; padding: 0 4px 6px; position: relative;",
+                button {
+                    class: "btn btn-secondary",
+                    style: "padding: 4px 10px; font-size: 11.5px; border-radius: 7px; cursor: pointer;",
+                    onclick: move |_| {
+                        let next = !*cols_open.read();
+                        cols_open.set(next);
+                    },
+                    "⚙ Colonnes"
+                }
+                if *cols_open.read() {
+                    div {
+                        style: "position: absolute; top: 32px; right: 4px; width: 190px; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 10px; padding: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 40; display: flex; flex-direction: column; gap: 6px; font-size: 12px;",
+                        for (label, mut sig) in [
+                            (translate(locale, "table.col_author"), show_author),
+                            (translate(locale, "table.col_series"), show_series),
+                            (translate(locale, "table.col_formats"), show_formats),
+                            (translate(locale, "table.col_tags"), show_tags),
+                            (translate(locale, "table.col_progress"), show_progress),
+                        ] {
+                            label {
+                                style: "display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-primary);",
+                                input {
+                                    r#type: "checkbox",
+                                    checked: *sig.read(),
+                                    onchange: move |e| sig.set(e.checked()),
+                                }
+                                span { "{label}" }
+                            }
+                        }
+                    }
+                }
+            }
+
             div {
                 id: "vellum-books-table-wrap",
                 class: "books-table-wrap",
@@ -190,11 +230,11 @@ pub fn BooksTable(
                             th { style: "width: 34px;", "" }
                             th { style: "width: 44px;", "" }
                             th { {translate(locale, "table.col_title")} }
-                            th { {translate(locale, "table.col_author")} }
-                            th { {translate(locale, "table.col_series")} }
-                            th { {translate(locale, "table.col_formats")} }
-                            th { {translate(locale, "table.col_tags")} }
-                            th { style: "width: 90px;", {translate(locale, "table.col_progress")} }
+                            if *show_author.read() { th { {translate(locale, "table.col_author")} } }
+                            if *show_series.read() { th { {translate(locale, "table.col_series")} } }
+                            if *show_formats.read() { th { {translate(locale, "table.col_formats")} } }
+                            if *show_tags.read() { th { {translate(locale, "table.col_tags")} } }
+                            if *show_progress.read() { th { style: "width: 90px;", {translate(locale, "table.col_progress")} } }
                             th { style: "width: 92px; text-align: right;", {translate(locale, "table.col_actions")} }
                         }
                     }
@@ -259,18 +299,24 @@ pub fn BooksTable(
                                             }
                                         }
                                         td { style: "font-weight: 600;", "{b.title}" }
-                                        td { style: "color: var(--text-secondary);", "{b.author}" }
-                                        td { style: "color: var(--text-muted);", "{series_label}" }
-                                        td {
-                                            span { class: "format-pill", "{fmts_label}" }
+                                        if *show_author.read() { td { style: "color: var(--text-secondary);", "{b.author}" } }
+                                        if *show_series.read() { td { style: "color: var(--text-muted);", "{series_label}" } }
+                                        if *show_formats.read() {
+                                            td {
+                                                span { class: "format-pill", "{fmts_label}" }
+                                            }
                                         }
-                                        td { style: "color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{tags_label}" }
-                                        td {
-                                            div { style: "display: flex; align-items: center; gap: 6px;",
-                                                div { style: "flex: 1; height: 5px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden;",
-                                                    div { style: "width: {b.progress_percent}%; height: 100%; background: var(--accent-primary);" }
+                                        if *show_tags.read() {
+                                            td { style: "color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{tags_label}" }
+                                        }
+                                        if *show_progress.read() {
+                                            td {
+                                                div { style: "display: flex; align-items: center; gap: 6px;",
+                                                    div { style: "flex: 1; height: 5px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden;",
+                                                        div { style: "width: {b.progress_percent}%; height: 100%; background: var(--accent-primary);" }
+                                                    }
+                                                    span { style: "font-size: 11px; color: var(--text-muted);", "{b.progress_percent}%" }
                                                 }
-                                                span { style: "font-size: 11px; color: var(--text-muted);", "{b.progress_percent}%" }
                                             }
                                         }
                                         td {

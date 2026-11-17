@@ -12,6 +12,8 @@ pub fn BookCard(
     on_toggle_select: EventHandler<String>,
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
+    #[props(default)] series_stack: Option<(String, usize)>,
+    #[props(default)] on_quick_view: Option<EventHandler<Book>>,
 ) -> Element {
     let title = book.title.clone();
     let author = book.author.clone();
@@ -72,8 +74,13 @@ pub fn BookCard(
                     if is_selected { "✓" } else { "" }
                 }
 
-                // Reading status badge (top-right, BookOrbit style)
-                if is_finished {
+                // Series stack badge OR Reading status badge (top-right, BookOrbit style)
+                if let Some((_, count)) = series_stack {
+                    div {
+                        style: "position: absolute; top: 8px; right: 8px; padding: 2px 7px; border-radius: 999px; background: rgba(99, 102, 241, 0.92); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; z-index: 5; box-shadow: 0 2px 6px rgba(0,0,0,0.4);",
+                        "{count} tomes"
+                    }
+                } else if is_finished {
                     div {
                         style: "position: absolute; top: 8px; right: 8px; padding: 2px 6px; border-radius: 999px; background: rgba(16, 185, 129, 0.9); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 3px; z-index: 4; box-shadow: 0 2px 6px rgba(0,0,0,0.35);",
                         "✓"
@@ -108,7 +115,22 @@ pub fn BookCard(
                     }
                 }
 
-                // Hover quick-read button (bottom-right, BookOrbit style)
+                // Hover quick-view & quick-read buttons (bottom-right, BookOrbit style)
+                if let Some(qv) = on_quick_view {
+                    button {
+                        class: "book-card-play",
+                        style: "right: 48px; background: rgba(15, 23, 42, 0.85);",
+                        title: "Aperçu rapide",
+                        onclick: {
+                            let book = book.clone();
+                            move |e: Event<MouseData>| {
+                                e.stop_propagation();
+                                qv.call(book.clone());
+                            }
+                        },
+                        LucideIcon { kind: IconKind::Eye, size: 14 }
+                    }
+                }
                 button {
                     class: "book-card-play",
                     title: "{title}",

@@ -299,6 +299,14 @@ pub fn Sidebar(
                         }
                     }
                     div {
+                        class: if cur_view == ViewMode::Annotations { "nav-item active" } else { "nav-item" },
+                        onclick: move |_| view_mode.set(ViewMode::Annotations),
+                        span { style: "display: flex; align-items: center; gap: 8px;",
+                            LucideIcon { kind: IconKind::Highlighter, size: 15 }
+                            span { "Annotations" }
+                        }
+                    }
+                    div {
                         class: "nav-item",
                         onclick: move |_| on_open_stats.call(()),
                         span { style: "display: flex; align-items: center; gap: 8px;",
