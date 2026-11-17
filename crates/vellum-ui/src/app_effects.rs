@@ -358,10 +358,8 @@ pub(crate) fn build_detail_extra_handlers(
     let bs_notes = book_service.clone();
     let on_export_notes_md = EventHandler::new(move |b_id: String| {
         let locale = *ui_locale.read();
-        if let Some(dest) = rfd::FileDialog::new()
-            .set_file_name("notes.md")
-            .add_filter("Markdown", &["md"])
-            .save_file()
+        if let Some(dest) =
+            crate::platform::save_file("Markdown", "notes.md", &[("Markdown", &["md"])])
         {
             match bs_notes.export_book_notes_markdown(&b_id, Some(&dest)) {
                 Ok(_) => app_actions::show_toast(

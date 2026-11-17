@@ -162,9 +162,8 @@ pub(super) fn build_sync_handlers(
         let bs = ctx.book_service.clone();
         move |()| {
             let locale = *ctx.ui_locale.read();
-            if let Some(folder) = rfd::FileDialog::new()
-                .set_title(translate(locale, "actions.sync_folder_title"))
-                .pick_folder()
+            if let Some(folder) =
+                crate::platform::pick_folder(translate(locale, "actions.sync_folder_title"))
             {
                 if ss.set_sync_folder(folder).is_ok() {
                     persist_sync_config(&ss, &bs, ctx.sync_config);

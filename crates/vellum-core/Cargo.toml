@@ -8,6 +8,11 @@ authors.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["desktop"]
+desktop = ["dep:open"]
+mobile = []
+
 [dependencies]
 vellum-domain = { path = "../vellum-domain" }
 vellum-storage = { path = "../vellum-storage" }
@@ -34,7 +39,7 @@ roxmltree.workspace = true
 reqwest.workspace = true
 sha2.workspace = true
 url.workspace = true
-open.workspace = true
+open = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -140,14 +140,14 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         PaletteAction::OpenBulkRegex => ctx.bulk_regex_open.set(true),
         PaletteAction::OpenImportRules => ctx.import_rules_open.set(true),
         PaletteAction::OpenWebCompanion => {
-            let _ = open::that(format!("http://localhost:{opds_port}"));
+            crate::platform::open_url(&format!("http://localhost:{opds_port}"));
         }
         PaletteAction::SyncCloud => on_sync_now.call(()),
         PaletteAction::OpenSettings => ctx.settings_open.set(true),
     });
 
     let on_open_web_companion = EventHandler::new(move |_| {
-        let _ = open::that(format!("http://localhost:{opds_port}"));
+        crate::platform::open_url(&format!("http://localhost:{opds_port}"));
     });
 
     let overlay_handlers = OverlayHandlers {

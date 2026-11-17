@@ -1,0 +1,10 @@
+[application]
+name = "vellum"
+default_platform = "desktop"
+
+[web.app]
+title = "Vellum"
+
+[bundle]
+identifier = "com.asmolabs.vellum"
+publisher = "Asmolabs"

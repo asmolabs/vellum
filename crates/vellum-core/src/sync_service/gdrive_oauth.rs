@@ -1,11 +1,15 @@
 //! Authentification OAuth 2.0 PKCE pour l'API Google Drive (sans logiciel de sync local).
 
 use std::fs;
+#[cfg(feature = "desktop")]
 use std::io::{Read, Write};
+#[cfg(feature = "desktop")]
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(feature = "desktop")]
+use std::time::Instant;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -13,7 +17,9 @@ use chrono::Utc;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tracing::{debug, info, warn};
+#[cfg(feature = "desktop")]
+use tracing::info;
+use tracing::{debug, warn};
 use url::Url;
 use uuid::Uuid;
 use vellum_domain::{VellumError, VellumResult};
@@ -23,6 +29,7 @@ pub const DEFAULT_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 const DRIVE_ABOUT_ENDPOINT: &str =
     "https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)";
 const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.file";
+#[cfg(feature = "desktop")]
 const OAUTH_TIMEOUT_SECS: u64 = 180;
 
 /// Jetons OAuth 2.0 persistés localement pour Google Drive.
@@ -140,7 +147,68 @@ pub fn build_auth_url(
     Ok(url.to_string())
 }
 
+/// État d'une session OAuth PKCE mobile (Custom Tabs / ASWebAuthenticationSession).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MobileOAuthSession {
+    pub auth_url: String,
+    pub state: String,
+    pub code_verifier: String,
+    pub redirect_uri: String,
+}
+
+/// Prépare une session OAuth 2.0 PKCE pour cible mobile (iOS / Android).
+pub fn begin_mobile_oauth(client_id: &str, redirect_uri: &str) -> VellumResult<MobileOAuthSession> {
+    let client_id = client_id.trim();
+    if client_id.is_empty() {
+        return Err(VellumError::InvalidArgument(
+            "Le Client ID OAuth Google est requis.".to_string(),
+        ));
+    }
+    let state = Uuid::new_v4().simple().to_string();
+    let (code_verifier, code_challenge) = generate_pkce_pair();
+    let auth_url = build_auth_url(client_id, redirect_uri, &state, &code_challenge)?;
+    Ok(MobileOAuthSession {
+        auth_url,
+        state,
+        code_verifier,
+        redirect_uri: redirect_uri.to_string(),
+    })
+}
+
+/// Finalise une session OAuth mobile après réception du code d'autorisation.
+pub fn complete_mobile_oauth(
+    client_id: &str,
+    client_secret: Option<&str>,
+    redirect_uri: &str,
+    code: &str,
+    code_verifier: &str,
+    tokens_path: &Path,
+) -> VellumResult<GoogleDriveTokens> {
+    let http = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| VellumError::System(format!("Erreur client HTTP OAuth: {e}")))?;
+
+    let mut tokens = exchange_code_for_tokens(
+        &http,
+        DEFAULT_TOKEN_ENDPOINT,
+        client_id.trim(),
+        client_secret,
+        redirect_uri,
+        code,
+        code_verifier,
+    )?;
+
+    if let Some(email) = fetch_account_email(&http, &tokens.access_token) {
+        tokens.account_email = Some(email);
+    }
+
+    save_tokens(tokens_path, &tokens)?;
+    Ok(tokens)
+}
+
 /// Lance le flux OAuth 2.0 PKCE interactif via le navigateur système et un serveur loopback local.
+#[cfg(feature = "desktop")]
 pub fn authorize_interactive(
     client_id: &str,
     client_secret: Option<&str>,
@@ -203,6 +271,20 @@ pub fn authorize_interactive(
     Ok(tokens)
 }
 
+/// Repli sur cible mobile sans serveur loopback : utiliser `begin_mobile_oauth` + `complete_mobile_oauth`.
+#[cfg(not(feature = "desktop"))]
+pub fn authorize_interactive(
+    _client_id: &str,
+    _client_secret: Option<&str>,
+    _tokens_path: &Path,
+) -> VellumResult<GoogleDriveTokens> {
+    Err(VellumError::System(
+        "Flux OAuth loopback indisponible sur mobile : utilisez begin_mobile_oauth / complete_mobile_oauth."
+            .to_string(),
+    ))
+}
+
+#[cfg(feature = "desktop")]
 fn wait_for_oauth_callback(
     listener: &TcpListener,
     expected_state: &str,
@@ -310,6 +392,7 @@ fn wait_for_oauth_callback(
     }
 }
 
+#[cfg(feature = "desktop")]
 fn send_html_response(stream: &mut std::net::TcpStream, status: &str, title: &str, body: &str) {
     let safe_title = escape_html(title);
     let safe_body = escape_html(body);
@@ -328,6 +411,7 @@ fn send_html_response(stream: &mut std::net::TcpStream, status: &str, title: &st
     let _ = stream.flush();
 }
 
+#[cfg(feature = "desktop")]
 fn escape_html(input: &str) -> String {
     input
         .replace('&', "&amp;")

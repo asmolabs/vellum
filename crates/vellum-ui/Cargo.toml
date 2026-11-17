@@ -8,17 +8,22 @@ authors.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["desktop"]
+desktop = ["vellum-core/desktop", "dioxus/desktop", "dep:rfd", "dep:open"]
+mobile = ["vellum-core/mobile", "dioxus/mobile"]
+
 [[bin]]
 name = "vellum"
 path = "src/main.rs"
 
 [dependencies]
 vellum-domain = { path = "../vellum-domain" }
-vellum-core = { path = "../vellum-core" }
+vellum-core = { path = "../vellum-core", default-features = false }
 
 dioxus.workspace = true
-rfd.workspace = true
-open.workspace = true
+rfd = { workspace = true, optional = true }
+open = { workspace = true, optional = true }
 dirs.workspace = true
 tokio.workspace = true
 tracing.workspace = true

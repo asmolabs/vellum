@@ -182,10 +182,10 @@ pub fn DetailDrawer(
                                     let b_id = book_id.clone();
                                     let pick_title = translate(locale, "drawer.pick_cover_title").to_string();
                                     move |_| {
-                                        let file = rfd::FileDialog::new()
-                                            .set_title(&pick_title)
-                                            .add_filter("Images", &["jpg", "jpeg", "png", "webp"])
-                                            .pick_file();
+                                        let file = crate::platform::pick_file(
+                                            &pick_title,
+                                            &[("Images", &["jpg", "jpeg", "png", "webp"])],
+                                        );
                                         if let Some(path) = file {
                                             on_change_cover.call((b_id.clone(), path));
                                         }

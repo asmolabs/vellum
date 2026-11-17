@@ -41,15 +41,15 @@ pub(super) fn build_library_handlers(
         let bs = ctx.book_service.clone();
         move |()| {
             let locale = *ctx.ui_locale.read();
-            let files = rfd::FileDialog::new()
-                .set_title(translate(locale, "actions.import_title"))
-                .add_filter(
+            let files = crate::platform::pick_files(
+                translate(locale, "actions.import_title"),
+                &[(
                     translate(locale, "actions.import_filter"),
                     &[
                         "epub", "pdf", "cbz", "cbr", "mobi", "azw3", "txt", "mp3", "m4b",
                     ],
-                )
-                .pick_files();
+                )],
+            );
 
             if let Some(paths) = files {
                 let mut ok_count = 0usize;
@@ -115,17 +115,16 @@ pub(super) fn build_library_handlers(
         let bs = ctx.book_service.clone();
         move |()| {
             let locale = *ctx.ui_locale.read();
-            let folder = rfd::FileDialog::new()
-                .set_title(translate(locale, "actions.import_calibre_folder"))
-                .pick_folder();
+            let folder =
+                crate::platform::pick_folder(translate(locale, "actions.import_calibre_folder"));
 
             let target_path = if let Some(f) = folder {
                 Some(f)
             } else {
-                rfd::FileDialog::new()
-                    .set_title(translate(locale, "actions.import_calibre_db"))
-                    .add_filter(translate(locale, "actions.import_calibre_filter"), &["db"])
-                    .pick_file()
+                crate::platform::pick_file(
+                    translate(locale, "actions.import_calibre_db"),
+                    &[(translate(locale, "actions.import_calibre_filter"), &["db"])],
+                )
             };
 
             if let Some(path) = target_path {
@@ -533,9 +532,8 @@ pub(super) fn build_library_handlers(
         let bs = ctx.book_service.clone();
         move |(b_id, pref_fmt): (String, Option<String>)| {
             let locale = *ctx.ui_locale.read();
-            let folder = rfd::FileDialog::new()
-                .set_title(translate(locale, "actions.export_folder_title"))
-                .pick_folder();
+            let folder =
+                crate::platform::pick_folder(translate(locale, "actions.export_folder_title"));
 
             if let Some(dest_dir) = folder {
                 let bs_cloned = bs.clone();

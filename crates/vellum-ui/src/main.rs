@@ -8,6 +8,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+#[cfg(feature = "desktop")]
 use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;
 use vellum_core::{init_services, translate, Locale};
@@ -18,6 +19,7 @@ mod app_modals;
 mod components;
 mod cover_cache;
 mod library_logic;
+mod platform;
 mod state;
 mod styles;
 
@@ -32,15 +34,23 @@ use vellum_domain::Book;
 fn main() {
     tracing_subscriber::fmt::init();
 
-    let window_title = translate(Locale::detect_system(), "app.title");
-    let cfg = Config::new().with_window(
-        WindowBuilder::new()
-            .with_title(window_title)
-            .with_inner_size(dioxus::desktop::LogicalSize::new(1200.0, 800.0))
-            .with_min_inner_size(dioxus::desktop::LogicalSize::new(960.0, 640.0)),
-    );
+    #[cfg(feature = "desktop")]
+    {
+        let window_title = translate(Locale::detect_system(), "app.title");
+        let cfg = Config::new().with_window(
+            WindowBuilder::new()
+                .with_title(window_title)
+                .with_inner_size(dioxus::desktop::LogicalSize::new(1200.0, 800.0))
+                .with_min_inner_size(dioxus::desktop::LogicalSize::new(960.0, 640.0)),
+        );
 
-    dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(App);
+        dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(App);
+    }
+
+    #[cfg(not(feature = "desktop"))]
+    {
+        dioxus::LaunchBuilder::mobile().launch(App);
+    }
 }
 
 #[component]

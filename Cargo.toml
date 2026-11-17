@@ -53,7 +53,7 @@ sha2 = "0.10"
 url = "2.5"
 
 # Desktop UI (Dioxus + Native Dialogs)
-dioxus = { version = "0.6", features = ["desktop"] }
+dioxus = "0.6"
 rfd = "0.15"
 open = "5.3"
 dirs = "5.0"

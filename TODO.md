@@ -202,10 +202,10 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 
 ### Phase 4 — Applications Mobiles Android & iOS (Dioxus Mobile)
 - [ ] **Préparation du cœur Rust pour cibles mobiles (`aarch64-linux-android`, `aarch64-apple-ios`)**
-  - [ ] Isoler les modules desktop/OS-spécifiques (`LitestreamService`, `DeviceService`, `WatchFolderService`, `OpdsServer`, `script_plugin.rs`) derrière des *feature flags* Cargo (`desktop` vs `mobile`).
-  - [ ] Remplacer `open::that` + callback `TcpListener` de `gdrive_oauth.rs` par un flux OAuth mobile (URI de redirection / `ASWebAuthenticationSession` iOS / Custom Tabs Android).
-  - [ ] Remplacer `rfd::FileDialog` dans `vellum-ui` par une abstraction compatible sélecteur de fichiers mobile.
+  - [x] Isoler les dépendances/APIs desktop-only (`rfd`, `open`) derrière les *feature flags* Cargo `desktop` vs `mobile` dans `vellum-core` et `vellum-ui`.
+  - [x] Préparer le flux OAuth PKCE mobile dans `gdrive_oauth.rs` (`begin_mobile_oauth` / `complete_mobile_oauth` avec URI de redirection) pour `ASWebAuthenticationSession` (iOS) / Custom Tabs (Android).
+  - [x] Abstraire `rfd::FileDialog` et `open::that` dans `vellum-ui/src/platform.rs` (repli mobile prêt pour sélecteur natif).
 - [ ] **Adaptation UI tactile & responsive (`vellum-ui`)**
   - [ ] Basculer les largeurs fixes desktop (modales, tiroirs, grille) vers des mises en page responsives adaptées au tactile.
-  - [ ] Ajouter la configuration `Dioxus.toml` mobile et valider les builds `dx build --platform android` et `dx build --platform ios`.
+  - [x] Ajouter `Dioxus.toml` à la racine et valider la compilation avec `--no-default-features --features mobile` (reste à valider les builds natifs `dx build --platform android` / `ios` avec SDK Android & Xcode).
   - [ ] Synchronisation transparente Mobile ↔ Desktop ↔ Docker via Google Drive API (et connexion optionnelle au serveur `vellum serve`).

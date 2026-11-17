@@ -273,11 +273,11 @@ pub(crate) fn render_app_overlays(
                         CatalogFormat::Json => ("vellum-catalogue.json", "json"),
                         CatalogFormat::Bibtex => ("vellum-catalogue.bib", "bib"),
                     };
-                    if let Some(dest) = rfd::FileDialog::new()
-                        .set_file_name(default_name)
-                        .add_filter(translate(locale, "actions.catalog_filter"), &[ext])
-                        .save_file()
-                    {
+                    if let Some(dest) = crate::platform::save_file(
+                        default_name,
+                        default_name,
+                        &[(translate(locale, "actions.catalog_filter"), &[ext])],
+                    ) {
                         let all_books = st.books.read().clone();
                         match CatalogExporter::export_to_file(&all_books, fmt, &dest) {
                             Ok(()) => {

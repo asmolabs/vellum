@@ -381,9 +381,8 @@ pub(super) fn ReaderSettingsDrawer(
                             if let Some(s) = sess_ref.as_ref() {
                                 let md = s.export_annotations_markdown();
                                 let file_default = format!("notes_{}.md", book_title.replace(' ', "_"));
-                                if let Some(dest) = rfd::FileDialog::new()
-                                    .set_file_name(&file_default)
-                                    .save_file()
+                                if let Some(dest) =
+                                    crate::platform::save_file(&file_default, &file_default, &[])
                                 {
                                     if std::fs::write(&dest, md).is_ok() {
                                         toast_msg.set(Some(translate(locale, "reader.export_notes_toast").to_string()));
