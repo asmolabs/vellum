@@ -87,7 +87,8 @@ fn App() -> Element {
 
     let current_filter = use_signal(|| FilterStatus::All);
     let current_sort = use_signal(|| SortOption::RecentAdded);
-    let view_mode = use_signal(|| ViewMode::Grid);
+    let view_mode = use_signal(|| ViewMode::Home);
+    let sidebar_collapsed = use_signal(|| false);
     let selected_tag = use_signal(|| None::<String>);
     let selected_series = use_signal(|| None::<String>);
     let search_query = use_signal(String::new);
@@ -310,6 +311,7 @@ fn App() -> Element {
                 locale: *ui_locale.read(),
                 search_query: search_query,
                 view_mode,
+                sidebar_collapsed,
                 connected_devices: connected_devices.read().clone(),
                 sync_available: sync_service.is_backend_available(),
                 is_syncing: *is_syncing.read(),
@@ -333,6 +335,8 @@ fn App() -> Element {
                 Sidebar {
                     locale: *ui_locale.read(),
                     current_filter: current_filter,
+                    view_mode,
+                    sidebar_collapsed,
                     selected_tag: selected_tag,
                     selected_series: selected_series,
                     tags_counts: tags_counts,

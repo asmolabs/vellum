@@ -1,4 +1,4 @@
-use crate::state::FilterStatus;
+use crate::state::{FilterStatus, ViewMode};
 use dioxus::prelude::*;
 use vellum_core::{translate, Locale};
 use vellum_domain::{ReadingStats, VirtualLibrary};
@@ -6,9 +6,11 @@ use vellum_domain::{ReadingStats, VirtualLibrary};
 #[component]
 pub fn Sidebar(
     locale: Locale,
-    current_filter: Signal<FilterStatus>,
-    selected_tag: Signal<Option<String>>,
-    selected_series: Signal<Option<String>>,
+    mut current_filter: Signal<FilterStatus>,
+    mut view_mode: Signal<ViewMode>,
+    mut sidebar_collapsed: Signal<bool>,
+    mut selected_tag: Signal<Option<String>>,
+    mut selected_series: Signal<Option<String>>,
     tags_counts: Vec<(String, usize)>,
     series_counts: Vec<(String, usize)>,
     virtual_libraries: Vec<VirtualLibrary>,
@@ -21,26 +23,86 @@ pub fn Sidebar(
     let mut show_new_vl = use_signal(|| false);
     let mut new_vl_name = use_signal(String::new);
     let mut new_vl_query = use_signal(String::new);
+    let mut show_series = use_signal(|| true);
+    let mut show_tags = use_signal(|| true);
+    let collapsed = *sidebar_collapsed.read();
+    let cur_view = *view_mode.read();
+
     let filters = [
-        FilterStatus::All,
-        FilterStatus::Reading,
-        FilterStatus::Finished,
-        FilterStatus::ToRead,
+        (FilterStatus::All, "📚"),
+        (FilterStatus::Reading, "📖"),
+        (FilterStatus::Finished, "✅"),
+        (FilterStatus::ToRead, "📌"),
     ];
+
+    if collapsed {
+        return rsx! {
+            aside {
+                class: "sidebar",
+                style: "width: 56px; min-width: 56px; padding: 12px 6px; align-items: center; gap: 8px;",
+                button {
+                    class: if cur_view == ViewMode::Home { "btn btn-primary" } else { "btn btn-icon" },
+                    style: "width: 40px; height: 40px; font-size: 16px; border-radius: 10px;",
+                    title: translate(locale, "toolbar.view_home"),
+                    onclick: move |_| view_mode.set(ViewMode::Home),
+                    "🏠"
+                }
+                div { style: "width: 28px; height: 1px; background: var(--border-subtle); margin: 4px 0;" }
+                for (f, icon) in filters.iter().copied() {
+                    {
+                        let is_active = cur_view != ViewMode::Home && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
+                        let label = translate(locale, f.i18n_key());
+                        rsx! {
+                            button {
+                                class: if is_active { "btn btn-primary" } else { "btn btn-icon" },
+                                style: "width: 40px; height: 40px; font-size: 16px; border-radius: 10px;",
+                                title: "{label}",
+                                onclick: move |_| {
+                                    current_filter.set(f);
+                                    selected_tag.set(None);
+                                    selected_series.set(None);
+                                    if *view_mode.read() == ViewMode::Home {
+                                        view_mode.set(ViewMode::Grid);
+                                    }
+                                },
+                                "{icon}"
+                            }
+                        }
+                    }
+                }
+                div { style: "flex: 1;" }
+                button {
+                    class: "btn btn-icon",
+                    style: "width: 40px; height: 40px; font-size: 16px; border-radius: 10px;",
+                    title: translate(locale, "sidebar.stats_tooltip"),
+                    onclick: move |_| on_open_stats.call(()),
+                    "📊"
+                }
+            }
+        };
+    }
 
     rsx! {
         aside { class: "sidebar",
-            div { class: "sidebar-section-title", "{translate(locale, \"nav.library\")}" }
+            div { style: "display: flex; justify-content: space-between; align-items: center;",
+                div { class: "sidebar-section-title", "{translate(locale, \"nav.library\")}" }
+                button {
+                    style: "background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 2px 6px;",
+                    title: "Collapse",
+                    onclick: move |_| sidebar_collapsed.set(true),
+                    "◀"
+                }
+            }
             nav { class: "nav-list",
-                for f in filters.iter() {
+                div {
+                    class: if cur_view == ViewMode::Home { "nav-item active" } else { "nav-item" },
+                    onclick: move |_| view_mode.set(ViewMode::Home),
+                    span { "{translate(locale, \"toolbar.view_home\")}" }
+                }
+                for (f, icon) in filters.iter().copied() {
                     {
-                        let is_active = *current_filter.read() == *f && selected_series.read().is_none() && selected_tag.read().is_none();
-                        let filter_label = match f {
-                            FilterStatus::All => translate(locale, "nav.all_books"),
-                            FilterStatus::Reading => translate(locale, "nav.reading"),
-                            FilterStatus::Finished => translate(locale, "nav.finished"),
-                            FilterStatus::ToRead => translate(locale, "nav.to_read"),
-                        };
+                        let is_active = cur_view != ViewMode::Home && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
+                        let filter_label = translate(locale, f.i18n_key());
                         let count_label = match (f, &stats) {
                             (FilterStatus::All, Some(s)) => format!("{}", s.total_books),
                             (FilterStatus::Reading, Some(s)) => format!("{}", s.in_progress_books),
@@ -48,17 +110,19 @@ pub fn Sidebar(
                             (FilterStatus::ToRead, Some(s)) => format!("{}", s.total_books.saturating_sub(s.in_progress_books + s.finished_books)),
                             _ => "-".to_string(),
                         };
-                        let f_val = *f;
 
                         rsx! {
                             div {
                                 class: if is_active { "nav-item active" } else { "nav-item" },
                                 onclick: move |_| {
-                                    current_filter.set(f_val);
+                                    current_filter.set(f);
                                     selected_tag.set(None);
                                     selected_series.set(None);
+                                    if *view_mode.read() == ViewMode::Home {
+                                        view_mode.set(ViewMode::Grid);
+                                    }
                                 },
-                                span { "{filter_label}" }
+                                span { "{icon} {filter_label}" }
                                 span { class: "nav-badge", "{count_label}" }
                             }
                         }
@@ -67,7 +131,7 @@ pub fn Sidebar(
             }
 
             // Bibliothèques virtuelles
-            div {
+            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px;",
                 div {
                     class: "sidebar-section-title",
                     style: "display: flex; justify-content: space-between; align-items: center;",
@@ -152,10 +216,19 @@ pub fn Sidebar(
                 }
             }
 
-            // Séries & Sagas
+            // Séries & Sagas (repliable)
             if !series_counts.is_empty() {
-                div {
-                    div { class: "sidebar-section-title", "{translate(locale, \"nav.series\")}" }
+                div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px;",
+                    div {
+                        style: "display: flex; justify-content: space-between; align-items: center; cursor: pointer;",
+                        onclick: move |_| {
+                            let cur = *show_series.read();
+                            show_series.set(!cur);
+                        },
+                        div { class: "sidebar-section-title", "{translate(locale, \"nav.series\")}" }
+                        span { style: "font-size: 10px; color: var(--text-muted);", {if *show_series.read() { "▾" } else { "▸" }} }
+                    }
+                    if *show_series.read() {
                     div { class: "tags-cloud",
                         for (s_name, count) in series_counts.iter() {
                             {
@@ -170,6 +243,9 @@ pub fn Sidebar(
                                                 selected_series.set(None);
                                             } else {
                                                 selected_series.set(Some(s_clone.clone()));
+                                                if *view_mode.read() == ViewMode::Home {
+                                                    view_mode.set(ViewMode::Grid);
+                                                }
                                             }
                                         },
                                         "📚 {s_name} ({count})"
@@ -178,13 +254,23 @@ pub fn Sidebar(
                             }
                         }
                     }
+                    }
                 }
             }
 
-            // Étiquettes / Tags
+            // Étiquettes / Tags (repliable)
             if !tags_counts.is_empty() {
-                div {
-                    div { class: "sidebar-section-title", "{translate(locale, \"nav.tags\")}" }
+                div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px;",
+                    div {
+                        style: "display: flex; justify-content: space-between; align-items: center; cursor: pointer;",
+                        onclick: move |_| {
+                            let cur = *show_tags.read();
+                            show_tags.set(!cur);
+                        },
+                        div { class: "sidebar-section-title", "{translate(locale, \"nav.tags\")}" }
+                        span { style: "font-size: 10px; color: var(--text-muted);", {if *show_tags.read() { "▾" } else { "▸" }} }
+                    }
+                    if *show_tags.read() {
                     div { class: "tags-cloud",
                         for (tag_name, count) in tags_counts.iter() {
                             {
@@ -198,6 +284,9 @@ pub fn Sidebar(
                                                 selected_tag.set(None);
                                             } else {
                                                 selected_tag.set(Some(tag_clone.clone()));
+                                                if *view_mode.read() == ViewMode::Home {
+                                                    view_mode.set(ViewMode::Grid);
+                                                }
                                             }
                                         },
                                         "{tag_name} ({count})"
@@ -205,6 +294,7 @@ pub fn Sidebar(
                                 }
                             }
                         }
+                    }
                     }
                 }
             }

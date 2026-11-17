@@ -8,6 +8,7 @@ pub fn Header(
     locale: Locale,
     search_query: Signal<String>,
     mut view_mode: Signal<ViewMode>,
+    mut sidebar_collapsed: Signal<bool>,
     connected_devices: Vec<ConnectedDevice>,
     sync_available: bool,
     is_syncing: bool,
@@ -30,7 +31,17 @@ pub fn Header(
 
     rsx! {
         header { class: "app-header",
-            div { style: "display: flex; align-items: center; gap: 14px;",
+            div { style: "display: flex; align-items: center; gap: 12px;",
+                button {
+                    class: "btn btn-icon",
+                    style: "width: 32px; height: 32px; font-size: 15px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); cursor: pointer;",
+                    title: "Toggle sidebar",
+                    onclick: move |_| {
+                        let cur = *sidebar_collapsed.read();
+                        sidebar_collapsed.set(!cur);
+                    },
+                    "☰"
+                }
                 div {
                     class: "logo-area",
                     style: "cursor: pointer;",
