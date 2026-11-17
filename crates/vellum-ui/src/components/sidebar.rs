@@ -1,3 +1,4 @@
+use crate::components::{IconKind, LucideIcon};
 use crate::state::{FilterStatus, ViewMode};
 use dioxus::prelude::*;
 use vellum_core::{translate, Locale};
@@ -29,10 +30,10 @@ pub fn Sidebar(
     let cur_view = *view_mode.read();
 
     let filters = [
-        (FilterStatus::All, "📚"),
-        (FilterStatus::Reading, "📖"),
-        (FilterStatus::Finished, "✅"),
-        (FilterStatus::ToRead, "📌"),
+        (FilterStatus::All, IconKind::Library),
+        (FilterStatus::Reading, IconKind::BookOpen),
+        (FilterStatus::Finished, IconKind::CheckCircle),
+        (FilterStatus::ToRead, IconKind::Bookmark),
     ];
 
     if collapsed {
@@ -42,20 +43,20 @@ pub fn Sidebar(
                 style: "width: 56px; min-width: 56px; padding: 12px 6px; align-items: center; gap: 8px;",
                 button {
                     class: if cur_view == ViewMode::Home { "btn btn-primary" } else { "btn btn-icon" },
-                    style: "width: 40px; height: 40px; font-size: 16px; border-radius: 10px;",
+                    style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
                     title: translate(locale, "toolbar.view_home"),
                     onclick: move |_| view_mode.set(ViewMode::Home),
-                    "🏠"
+                    LucideIcon { kind: IconKind::Home, size: 18 }
                 }
                 div { style: "width: 28px; height: 1px; background: var(--border-subtle); margin: 4px 0;" }
-                for (f, icon) in filters.iter().copied() {
+                for (f, icon_kind) in filters.iter().copied() {
                     {
                         let is_active = cur_view != ViewMode::Home && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
                         let label = translate(locale, f.i18n_key());
                         rsx! {
                             button {
                                 class: if is_active { "btn btn-primary" } else { "btn btn-icon" },
-                                style: "width: 40px; height: 40px; font-size: 16px; border-radius: 10px;",
+                                style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
                                 title: "{label}",
                                 onclick: move |_| {
                                     current_filter.set(f);
@@ -65,7 +66,7 @@ pub fn Sidebar(
                                         view_mode.set(ViewMode::Grid);
                                     }
                                 },
-                                "{icon}"
+                                LucideIcon { kind: icon_kind, size: 18 }
                             }
                         }
                     }
@@ -73,10 +74,10 @@ pub fn Sidebar(
                 div { style: "flex: 1;" }
                 button {
                     class: "btn btn-icon",
-                    style: "width: 40px; height: 40px; font-size: 16px; border-radius: 10px;",
+                    style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
                     title: translate(locale, "sidebar.stats_tooltip"),
                     onclick: move |_| on_open_stats.call(()),
-                    "📊"
+                    LucideIcon { kind: IconKind::BarChart, size: 18 }
                 }
             }
         };
@@ -87,19 +88,22 @@ pub fn Sidebar(
             div { style: "display: flex; justify-content: space-between; align-items: center;",
                 div { class: "sidebar-section-title", "{translate(locale, \"nav.library\")}" }
                 button {
-                    style: "background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 2px 6px;",
+                    style: "background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 6px; display: flex; align-items: center;",
                     title: "Collapse",
                     onclick: move |_| sidebar_collapsed.set(true),
-                    "◀"
+                    LucideIcon { kind: IconKind::PanelLeft, size: 14 }
                 }
             }
             nav { class: "nav-list",
                 div {
                     class: if cur_view == ViewMode::Home { "nav-item active" } else { "nav-item" },
                     onclick: move |_| view_mode.set(ViewMode::Home),
-                    span { "{translate(locale, \"toolbar.view_home\")}" }
+                    span { style: "display: flex; align-items: center; gap: 8px;",
+                        LucideIcon { kind: IconKind::Home, size: 15 }
+                        span { "{translate(locale, \"toolbar.view_home\").trim_start_matches(\"🏠 \")}" }
+                    }
                 }
-                for (f, icon) in filters.iter().copied() {
+                for (f, icon_kind) in filters.iter().copied() {
                     {
                         let is_active = cur_view != ViewMode::Home && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
                         let filter_label = translate(locale, f.i18n_key());
@@ -122,7 +126,10 @@ pub fn Sidebar(
                                         view_mode.set(ViewMode::Grid);
                                     }
                                 },
-                                span { "{icon} {filter_label}" }
+                                span { style: "display: flex; align-items: center; gap: 8px;",
+                                    LucideIcon { kind: icon_kind, size: 15 }
+                                    span { "{filter_label}" }
+                                }
                                 span { class: "nav-badge", "{count_label}" }
                             }
                         }
@@ -225,8 +232,15 @@ pub fn Sidebar(
                             let cur = *show_series.read();
                             show_series.set(!cur);
                         },
-                        div { class: "sidebar-section-title", "{translate(locale, \"nav.series\")}" }
-                        span { style: "font-size: 10px; color: var(--text-muted);", {if *show_series.read() { "▾" } else { "▸" }} }
+                        div { class: "sidebar-section-title", style: "display: flex; align-items: center; gap: 6px;",
+                            LucideIcon { kind: IconKind::Layers, size: 13 }
+                            span { "{translate(locale, \"nav.series\")}" }
+                        }
+                        if *show_series.read() {
+                            LucideIcon { kind: IconKind::ChevronDown, size: 13 }
+                        } else {
+                            LucideIcon { kind: IconKind::ChevronRight, size: 13 }
+                        }
                     }
                     if *show_series.read() {
                     div { class: "tags-cloud",
@@ -267,8 +281,15 @@ pub fn Sidebar(
                             let cur = *show_tags.read();
                             show_tags.set(!cur);
                         },
-                        div { class: "sidebar-section-title", "{translate(locale, \"nav.tags\")}" }
-                        span { style: "font-size: 10px; color: var(--text-muted);", {if *show_tags.read() { "▾" } else { "▸" }} }
+                        div { class: "sidebar-section-title", style: "display: flex; align-items: center; gap: 6px;",
+                            LucideIcon { kind: IconKind::Tag, size: 13 }
+                            span { "{translate(locale, \"nav.tags\")}" }
+                        }
+                        if *show_tags.read() {
+                            LucideIcon { kind: IconKind::ChevronDown, size: 13 }
+                        } else {
+                            LucideIcon { kind: IconKind::ChevronRight, size: 13 }
+                        }
                     }
                     if *show_tags.read() {
                     div { class: "tags-cloud",

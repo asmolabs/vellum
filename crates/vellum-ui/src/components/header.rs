@@ -1,3 +1,4 @@
+use crate::components::{IconKind, LucideIcon};
 use crate::state::ViewMode;
 use dioxus::prelude::*;
 use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
@@ -34,13 +35,13 @@ pub fn Header(
             div { style: "display: flex; align-items: center; gap: 12px;",
                 button {
                     class: "btn btn-icon",
-                    style: "width: 32px; height: 32px; font-size: 15px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); cursor: pointer;",
+                    style: "width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); cursor: pointer; display: flex; align-items: center; justify-content: center;",
                     title: "Toggle sidebar",
                     onclick: move |_| {
                         let cur = *sidebar_collapsed.read();
                         sidebar_collapsed.set(!cur);
                     },
-                    "☰"
+                    LucideIcon { kind: IconKind::PanelLeft, size: 16 }
                 }
                 div {
                     class: "logo-area",
@@ -52,27 +53,31 @@ pub fn Header(
                 div { style: "display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 8px; border: 1px solid var(--border-subtle);",
                     button {
                         style: if cur_view == ViewMode::Home {
-                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
                         } else {
-                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
                         },
                         onclick: move |_| view_mode.set(ViewMode::Home),
-                        "{translate(locale, \"toolbar.view_home\")}"
+                        LucideIcon { kind: IconKind::Home, size: 14 }
+                        span { "{translate(locale, \"toolbar.view_home\").trim_start_matches(\"🏠 \")}" }
                     }
                     button {
                         style: if cur_view != ViewMode::Home {
-                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
                         } else {
-                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
                         },
                         onclick: move |_| view_mode.set(ViewMode::Grid),
-                        "{translate(locale, \"nav.library\")}"
+                        LucideIcon { kind: IconKind::Library, size: 14 }
+                        span { "{translate(locale, \"nav.library\")}" }
                     }
                 }
             }
 
             div { class: "header-search",
-                span { class: "search-icon-slot", "🔍" }
+                span { class: "search-icon-slot",
+                    LucideIcon { kind: IconKind::Search, size: 15 }
+                }
                 input {
                     r#type: "text",
                     style: if has_search { "padding-right: 108px;" } else { "padding-right: 84px;" },
@@ -119,7 +124,7 @@ pub fn Header(
                         title: translate(locale, "header.sync_tooltip"),
                         disabled: is_syncing,
                         onclick: move |_| on_sync_cloud.call(()),
-                        span { if is_syncing { "⏳" } else { "☁️" } }
+                        LucideIcon { kind: IconKind::Cloud, size: 15 }
                         span {
                             {if is_syncing {
                                 translate(locale, "header.syncing")
@@ -161,8 +166,9 @@ pub fn Header(
                             let cur = *tools_open.read();
                             tools_open.set(!cur);
                         },
-                        span { "🧰" }
-                        span { "{translate(locale, \"header.tools\")} ▾" }
+                        LucideIcon { kind: IconKind::Wrench, size: 14 }
+                        span { "{translate(locale, \"header.tools\")}" }
+                        LucideIcon { kind: IconKind::ChevronDown, size: 13 }
                     }
 
                     if *tools_open.read() {
@@ -232,14 +238,14 @@ pub fn Header(
                 button {
                     class: "btn btn-primary",
                     onclick: move |_| on_import.call(()),
-                    span { "＋" }
+                    LucideIcon { kind: IconKind::Plus, size: 15 }
                     span { "{translate(locale, \"action.import\")}" }
                 }
                 button {
                     class: "btn btn-icon",
                     title: translate(locale, "header.settings_tooltip"),
                     onclick: move |_| on_open_settings.call(()),
-                    "⚙"
+                    LucideIcon { kind: IconKind::Settings, size: 16 }
                 }
             }
         }
