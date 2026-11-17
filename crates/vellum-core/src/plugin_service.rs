@@ -8,8 +8,10 @@ use vellum_domain::{
 };
 use vellum_plugins::{
     built_in_converter_plugins, built_in_device_plugins, built_in_format_plugins,
-    cleaner::OceanOfPdfCleanerPlugin, enricher::GoogleBooksEnricherPlugin,
-    translator::EpubTranslatorPlugin, ExternalPluginLoader,
+    cleaner::OceanOfPdfCleanerPlugin,
+    enricher::{ComicVineEnricherPlugin, GoogleBooksEnricherPlugin, HardcoverEnricherPlugin},
+    translator::EpubTranslatorPlugin,
+    ExternalPluginLoader,
 };
 use vellum_storage::ParamRepository;
 
@@ -47,6 +49,12 @@ impl PluginService {
         }
         all.push(LibraryPlugin::Enricher(Arc::new(
             GoogleBooksEnricherPlugin::new(),
+        )));
+        all.push(LibraryPlugin::Enricher(Arc::new(
+            HardcoverEnricherPlugin::new(),
+        )));
+        all.push(LibraryPlugin::Enricher(Arc::new(
+            ComicVineEnricherPlugin::new(),
         )));
         all.push(LibraryPlugin::Transformation(Arc::new(
             OceanOfPdfCleanerPlugin::new(),

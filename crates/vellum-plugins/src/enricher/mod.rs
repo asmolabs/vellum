@@ -1,6 +1,11 @@
+mod comicvine;
 mod google_books;
+mod hardcover;
 mod helpers;
 mod open_library;
+
+pub use comicvine::ComicVineEnricherPlugin;
+pub use hardcover::HardcoverEnricherPlugin;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;

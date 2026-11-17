@@ -76,6 +76,8 @@ pub fn builtin_plugins() -> Vec<Arc<dyn VellumPlugin>> {
         Arc::new(converter::epub_to_kepub::EpubToKepubConverterPlugin::new()),
         // Enrichers & Transformations
         Arc::new(enricher::GoogleBooksEnricherPlugin::new()),
+        Arc::new(enricher::HardcoverEnricherPlugin::new()),
+        Arc::new(enricher::ComicVineEnricherPlugin::new()),
         Arc::new(cleaner::OceanOfPdfCleanerPlugin::new()),
         Arc::new(translator::EpubTranslatorPlugin::new()),
         // Devices (eReaders)

@@ -191,8 +191,8 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [x] Tableau de bord statistiques de lecture (`GET /api/stats` + bandeau stats Web).
 - [x] **Synchronisation KOReader**
   - [x] Routes compatibles KOReader Progress Sync sur `OpdsServer` (`/users/auth`, `/users/create`, `PUT /syncs/progress`, `GET /syncs/progress/:document`).
-- [ ] **Fournisseurs de métadonnées supplémentaires**
-  - [ ] Ajouter des enrichisseurs optionnels dans `vellum-plugins` (ex. Hardcover, ComicVine pour CBZ/CBR).
+- [x] **Fournisseurs de métadonnées supplémentaires**
+  - [x] Enrichisseurs `HardcoverEnricherPlugin` (GraphQL Hardcover) et `ComicVineEnricherPlugin` (API ComicVine pour CBZ/CBR) ajoutés et enregistrés dans `vellum-plugins` et `PluginService`.
 - [ ] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**
   - [ ] Isolation optionnelle des progressions/statuts par utilisateur lorsque Vellum tourne en mode `vellum serve`.
 - [ ] **Revue d'ergonomie & UX (inspirée de BookOrbit)**
