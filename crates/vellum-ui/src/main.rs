@@ -57,6 +57,7 @@ fn App() -> Element {
     let connected_devices = use_signal(|| device_service.detect_connected_devices());
 
     let sync_config = use_signal(|| sync_service.config());
+    let opds_enabled = use_signal(|| opds_running);
     let is_syncing = use_signal(|| false);
     let sync_message = use_signal(|| None::<String>);
     let ui_locale = use_signal(|| book_service.get_ui_locale());
@@ -241,6 +242,7 @@ fn App() -> Element {
         watch_folder_path,
         ui_locale,
         sync_config,
+        opds_enabled,
         is_syncing,
         sync_message,
         smtp_config,

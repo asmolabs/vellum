@@ -19,6 +19,8 @@ pub fn SettingsModal(
     on_change_locale: EventHandler<Locale>,
     opds_port: u16,
     opds_running: bool,
+    opds_enabled: bool,
+    on_toggle_opds: EventHandler<bool>,
     litestream_status_text: String,
     plugins: Vec<PluginDescriptor>,
     sync_config: CloudSyncConfig,
@@ -345,6 +347,15 @@ pub fn SettingsModal(
                     div { style: "display: flex; align-items: center; justify-content: space-between; font-size: 12px; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; font-family: monospace;",
                         span { "{opds_url}" }
                         span { style: "color: var(--accent-primary);", "Port {opds_port}" }
+                    }
+                    label { style: "display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 12px; margin-top: 2px;",
+                        input {
+                            r#type: "checkbox",
+                            checked: opds_enabled,
+                            onchange: move |evt| on_toggle_opds.call(evt.value() == "true"),
+                        }
+                        span { style: "font-weight: 500;", {translate(locale, "settings.opds_enable")} }
+                        span { style: "font-size: 11px; color: var(--text-muted);", {translate(locale, "settings.opds_restart_hint")} }
                     }
                 }
 

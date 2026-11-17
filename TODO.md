@@ -169,8 +169,8 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [x] Test d'intégration avec serveur Google Drive + OAuth mocké (`test_google_drive_api_backend_and_token_refresh`).
 
 ### Phase 1 — Mode Standalone pur & Durcissement Sécurité
-- [ ] **Contrôle du serveur réseau local en mode Desktop**
-  - [ ] Ajouter une option dans `AppConfig` et `SettingsModal` pour activer/désactiver le démarrage automatique du serveur OPDS / Web Companion (permettant un mode desktop 100 % hors-ligne sans aucun port ouvert).
+- [x] **Contrôle du serveur réseau local en mode Desktop**
+  - [x] Option `opds_enabled` dans `AppConfig`, `param_repo` et `SettingsModal` pour activer/désactiver le démarrage automatique du serveur OPDS / Web Companion (mode desktop 100 % hors-ligne sans aucun port ouvert).
 - [ ] **Gestion sécurisée des secrets locaux**
   - [ ] Migrer le stockage de `SmtpConfig.password` et `CloudSyncConfig.google_client_secret` vers le trousseau système (Linux Secret Service / macOS Keychain) avec repli documenté si absent.
 

@@ -44,6 +44,7 @@ pub(crate) struct OverlayState {
     pub watch_folder_path: Signal<String>,
     pub ui_locale: Signal<Locale>,
     pub sync_config: Signal<CloudSyncConfig>,
+    pub opds_enabled: Signal<bool>,
     pub is_syncing: Signal<bool>,
     pub sync_message: Signal<Option<String>>,
     pub smtp_config: Signal<SmtpConfig>,
@@ -183,6 +184,24 @@ pub(crate) fn render_app_overlays(
                 },
                 opds_port: svc.opds_port,
                 opds_running: svc.opds_running,
+                opds_enabled: *st.opds_enabled.read(),
+                on_toggle_opds: {
+                    let bs = book_service.clone();
+                    move |enabled: bool| {
+                        let _ = bs.param_repo().set_value(
+                            "opds_enabled",
+                            if enabled { "true" } else { "false" },
+                        );
+                        st.opds_enabled.set(enabled);
+                        let loc = *st.ui_locale.read();
+                        let msg = if enabled {
+                            translate(loc, "actions.opds_enabled_on")
+                        } else {
+                            translate(loc, "actions.opds_enabled_off")
+                        };
+                        st.toast_msg.set(Some((msg.to_string(), true)));
+                    }
+                },
                 litestream_status_text: svc.litestream_status_str.clone(),
                 plugins: svc.plugin_descriptors.clone(),
                 sync_config: st.sync_config.read().clone(),
