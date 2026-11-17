@@ -58,7 +58,6 @@ pub fn LibraryToolbar(
             div { style: "display: flex; align-items: center; gap: 8px;",
                 div { style: "display: flex; align-items: center; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 2px; border: 1px solid var(--border-subtle); margin-right: 4px;",
                     for (mode, label_key) in [
-                        (ViewMode::Home, "toolbar.view_home"),
                         (ViewMode::Grid, "toolbar.view_grid"),
                         (ViewMode::Table, "toolbar.view_table"),
                         (ViewMode::TableCarousel, "toolbar.view_carousel"),

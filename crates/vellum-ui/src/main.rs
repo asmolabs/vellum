@@ -371,16 +371,21 @@ fn App() -> Element {
                 main {
                     id: "vellum-library-scroll",
                     class: "library-area",
-                    LibraryToolbar {
-                        locale: *ui_locale.read(),
-                        current_filter,
-                        selected_series,
-                        selected_tag,
-                        filtered_count: filtered_books.len(),
-                        filtered_ids: filtered_books.iter().map(|b| b.id.clone()).collect(),
-                        selected_ids,
-                        view_mode,
-                        current_sort,
+                    if matches!(
+                        *view_mode.read(),
+                        ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel | ViewMode::Kanban
+                    ) {
+                        LibraryToolbar {
+                            locale: *ui_locale.read(),
+                            current_filter,
+                            selected_series,
+                            selected_tag,
+                            filtered_count: filtered_books.len(),
+                            filtered_ids: filtered_books.iter().map(|b| b.id.clone()).collect(),
+                            selected_ids,
+                            view_mode,
+                            current_sort,
+                        }
                     }
 
                     if books.read().is_empty() {

@@ -73,7 +73,11 @@ pub fn HomeDashboard(
 
     rsx! {
         div {
-            style: "display: flex; flex-direction: column; gap: 22px; padding: 8px 24px 32px; overflow-y: auto;",
+            style: "display: flex; flex-direction: column; gap: 22px; padding: 12px 24px 32px; overflow-y: auto;",
+
+            div { style: "display: flex; justify-content: space-between; align-items: center;",
+                h2 { style: "font-size: 20px; font-weight: 800; margin: 0;", "Dashboard" }
+            }
 
             // 1. Widgets KPI (cliquables pour filtrer directement)
             div {
