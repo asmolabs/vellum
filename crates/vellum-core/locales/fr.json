@@ -624,5 +624,11 @@
   "web.next": "Suivant",
   "web.toc_empty": "Aucune table des matières disponible.",
   "web.chapter_not_found": "Chapitre introuvable",
-  "web.chapter_num": "Chapitre {num}"
+  "web.chapter_num": "Chapitre {num}",
+  "onboarding.welcome": "Bienvenue dans Vellum",
+  "onboarding.subtitle": "Votre bibliothèque numérique autonome — hors-ligne, Web ou synchronisée via Google Drive.",
+  "onboarding.step_import": "1. Importer des livres (EPUB, PDF, CBZ...)",
+  "onboarding.step_calibre": "2. Importer une bibliothèque Calibre",
+  "onboarding.step_gdrive": "3. Connecter Google Drive (sans logiciel de sync)",
+  "library.continue_reading": "📖 Reprendre la lecture"
 }

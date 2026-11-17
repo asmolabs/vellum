@@ -624,5 +624,11 @@
   "web.next": "Next",
   "web.toc_empty": "No table of contents available.",
   "web.chapter_not_found": "Chapter not found",
-  "web.chapter_num": "Chapter {num}"
+  "web.chapter_num": "Chapter {num}",
+  "onboarding.welcome": "Welcome to Vellum",
+  "onboarding.subtitle": "Your standalone digital library — offline, Web Companion, or synced via Google Drive.",
+  "onboarding.step_import": "1. Import books (EPUB, PDF, CBZ...)",
+  "onboarding.step_calibre": "2. Import a Calibre library",
+  "onboarding.step_gdrive": "3. Connect Google Drive (no sync app needed)",
+  "library.continue_reading": "📖 Continue reading"
 }
