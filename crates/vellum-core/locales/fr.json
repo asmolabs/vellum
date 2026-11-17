@@ -638,5 +638,15 @@
   "home.kpi_series": "SAGAS & SÉRIES",
   "home.resume_btn": "▶ Lire",
   "home.shelves_series": "📚 Étagères par Saga",
-  "home.recent_adds": "✨ Ajouts récents"
+  "home.recent_adds": "✨ Ajouts récents",
+  "nav.browse": "PARCOURIR",
+  "nav.reading_zone": "LECTURE",
+  "nav.authors": "Auteurs",
+  "nav.history": "Historique",
+  "nav.statistics": "Statistiques",
+  "browse.authors_title": "Auteurs",
+  "browse.series_title": "Sagas & Séries",
+  "browse.series_empty": "Aucune série détectée dans votre bibliothèque.",
+  "browse.history_title": "Historique de lecture",
+  "browse.history_empty": "Aucune lecture enregistrée pour le moment."
 }

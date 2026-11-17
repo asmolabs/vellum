@@ -85,53 +85,112 @@ pub fn Sidebar(
 
     rsx! {
         aside { class: "sidebar",
+            // Zone 1 : Primary (épinglé en haut comme dans BookOrbit)
             div { style: "display: flex; justify-content: space-between; align-items: center;",
-                div { class: "sidebar-section-title", "{translate(locale, \"nav.library\")}" }
+                div {
+                    class: if cur_view == ViewMode::Home { "nav-item active" } else { "nav-item" },
+                    style: "flex: 1;",
+                    onclick: move |_| view_mode.set(ViewMode::Home),
+                    span { style: "display: flex; align-items: center; gap: 8px;",
+                        LucideIcon { kind: IconKind::LayoutDashboard, size: 15 }
+                        span { "{translate(locale, \"toolbar.view_home\").trim_start_matches(\"🏠 \")}" }
+                    }
+                }
                 button {
-                    style: "background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 6px; display: flex; align-items: center;",
+                    style: "background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px 6px; display: flex; align-items: center;",
                     title: "Collapse",
                     onclick: move |_| sidebar_collapsed.set(true),
                     LucideIcon { kind: IconKind::PanelLeft, size: 14 }
                 }
             }
-            nav { class: "nav-list",
-                div {
-                    class: if cur_view == ViewMode::Home { "nav-item active" } else { "nav-item" },
-                    onclick: move |_| view_mode.set(ViewMode::Home),
-                    span { style: "display: flex; align-items: center; gap: 8px;",
-                        LucideIcon { kind: IconKind::Home, size: 15 }
-                        span { "{translate(locale, \"toolbar.view_home\").trim_start_matches(\"🏠 \")}" }
+
+            // Zone 2 : Parcourir (Livres, Séries, Auteurs)
+            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px;",
+                div { class: "sidebar-section-title", "{translate(locale, \"nav.browse\")}" }
+                nav { class: "nav-list",
+                    div {
+                        class: if cur_view == ViewMode::Grid && *current_filter.read() == FilterStatus::All && selected_series.read().is_none() && selected_tag.read().is_none() { "nav-item active" } else { "nav-item" },
+                        onclick: move |_| {
+                            current_filter.set(FilterStatus::All);
+                            selected_tag.set(None);
+                            selected_series.set(None);
+                            view_mode.set(ViewMode::Grid);
+                        },
+                        span { style: "display: flex; align-items: center; gap: 8px;",
+                            LucideIcon { kind: IconKind::Library, size: 15 }
+                            span { "{translate(locale, \"nav.all_books\")}" }
+                        }
+                        if let Some(ref s) = stats {
+                            span { class: "nav-badge", "{s.total_books}" }
+                        }
+                    }
+                    div {
+                        class: if cur_view == ViewMode::Series { "nav-item active" } else { "nav-item" },
+                        onclick: move |_| view_mode.set(ViewMode::Series),
+                        span { style: "display: flex; align-items: center; gap: 8px;",
+                            LucideIcon { kind: IconKind::Layers, size: 15 }
+                            span { "{translate(locale, \"nav.series\")}" }
+                        }
+                        span { class: "nav-badge", "{series_counts.len()}" }
+                    }
+                    div {
+                        class: if cur_view == ViewMode::Authors { "nav-item active" } else { "nav-item" },
+                        onclick: move |_| view_mode.set(ViewMode::Authors),
+                        span { style: "display: flex; align-items: center; gap: 8px;",
+                            LucideIcon { kind: IconKind::Users, size: 15 }
+                            span { "{translate(locale, \"nav.authors\")}" }
+                        }
                     }
                 }
-                for (f, icon_kind) in filters.iter().copied() {
-                    {
-                        let is_active = cur_view != ViewMode::Home && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
-                        let filter_label = translate(locale, f.i18n_key());
-                        let count_label = match (f, &stats) {
-                            (FilterStatus::All, Some(s)) => format!("{}", s.total_books),
-                            (FilterStatus::Reading, Some(s)) => format!("{}", s.in_progress_books),
-                            (FilterStatus::Finished, Some(s)) => format!("{}", s.finished_books),
-                            (FilterStatus::ToRead, Some(s)) => format!("{}", s.total_books.saturating_sub(s.in_progress_books + s.finished_books)),
-                            _ => "-".to_string(),
-                        };
+            }
 
-                        rsx! {
-                            div {
-                                class: if is_active { "nav-item active" } else { "nav-item" },
-                                onclick: move |_| {
-                                    current_filter.set(f);
-                                    selected_tag.set(None);
-                                    selected_series.set(None);
-                                    if *view_mode.read() == ViewMode::Home {
+            // Zone 3 : Lecture (En cours, Terminés, À lire, Historique, Statistiques)
+            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px;",
+                div { class: "sidebar-section-title", "{translate(locale, \"nav.reading_zone\")}" }
+                nav { class: "nav-list",
+                    for (f, icon_kind) in filters.iter().copied().skip(1) {
+                        {
+                            let is_active = cur_view == ViewMode::Grid && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
+                            let filter_label = translate(locale, f.i18n_key());
+                            let count_label = match (f, &stats) {
+                                (FilterStatus::Reading, Some(s)) => format!("{}", s.in_progress_books),
+                                (FilterStatus::Finished, Some(s)) => format!("{}", s.finished_books),
+                                (FilterStatus::ToRead, Some(s)) => format!("{}", s.total_books.saturating_sub(s.in_progress_books + s.finished_books)),
+                                _ => "-".to_string(),
+                            };
+
+                            rsx! {
+                                div {
+                                    class: if is_active { "nav-item active" } else { "nav-item" },
+                                    onclick: move |_| {
+                                        current_filter.set(f);
+                                        selected_tag.set(None);
+                                        selected_series.set(None);
                                         view_mode.set(ViewMode::Grid);
+                                    },
+                                    span { style: "display: flex; align-items: center; gap: 8px;",
+                                        LucideIcon { kind: icon_kind, size: 15 }
+                                        span { "{filter_label}" }
                                     }
-                                },
-                                span { style: "display: flex; align-items: center; gap: 8px;",
-                                    LucideIcon { kind: icon_kind, size: 15 }
-                                    span { "{filter_label}" }
+                                    span { class: "nav-badge", "{count_label}" }
                                 }
-                                span { class: "nav-badge", "{count_label}" }
                             }
+                        }
+                    }
+                    div {
+                        class: if cur_view == ViewMode::History { "nav-item active" } else { "nav-item" },
+                        onclick: move |_| view_mode.set(ViewMode::History),
+                        span { style: "display: flex; align-items: center; gap: 8px;",
+                            LucideIcon { kind: IconKind::History, size: 15 }
+                            span { "{translate(locale, \"nav.history\")}" }
+                        }
+                    }
+                    div {
+                        class: "nav-item",
+                        onclick: move |_| on_open_stats.call(()),
+                        span { style: "display: flex; align-items: center; gap: 8px;",
+                            LucideIcon { kind: IconKind::BarChart, size: 15 }
+                            span { "{translate(locale, \"nav.statistics\")}" }
                         }
                     }
                 }

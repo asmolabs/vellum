@@ -24,7 +24,8 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BooksTable, DetailDrawer, Header, HomeDashboard, KanbanBoard, LibraryToolbar, Sidebar,
+    AuthorsView, BookCard, BooksTable, DetailDrawer, Header, HomeDashboard, KanbanBoard,
+    LibraryToolbar, ReadingHistoryView, SeriesView, Sidebar,
 };
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -417,6 +418,27 @@ fn App() -> Element {
                             current_filter,
                             selected_series,
                             view_mode,
+                            on_select: move |selected| selected_book.set(Some(selected)),
+                            on_read: actions.on_read,
+                        }
+                    } else if *view_mode.read() == ViewMode::Authors {
+                        AuthorsView {
+                            locale: *ui_locale.read(),
+                            books: books.read().clone(),
+                            search_query,
+                            view_mode,
+                        }
+                    } else if *view_mode.read() == ViewMode::Series {
+                        SeriesView {
+                            locale: *ui_locale.read(),
+                            books: books.read().clone(),
+                            selected_series,
+                            view_mode,
+                        }
+                    } else if *view_mode.read() == ViewMode::History {
+                        ReadingHistoryView {
+                            locale: *ui_locale.read(),
+                            books: books.read().clone(),
                             on_select: move |selected| selected_book.set(Some(selected)),
                             on_read: actions.on_read,
                         }

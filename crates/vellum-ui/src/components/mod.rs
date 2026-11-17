@@ -1,5 +1,6 @@
 pub mod book_card;
 pub mod books_table;
+pub mod browse_views;
 pub mod bulk_convert_modal;
 pub mod bulk_edit_modal;
 pub mod bulk_regex_modal;
@@ -23,6 +24,7 @@ pub mod translate_modal;
 
 pub use book_card::BookCard;
 pub use books_table::BooksTable;
+pub use browse_views::{AuthorsView, ReadingHistoryView, SeriesView};
 pub use bulk_convert_modal::BulkConvertModal;
 pub use bulk_edit_modal::BulkEditModal;
 pub use bulk_regex_modal::BulkRegexModal;

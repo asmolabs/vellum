@@ -9,6 +9,9 @@ pub enum ViewMode {
     Table,
     TableCarousel,
     Kanban,
+    Authors,
+    Series,
+    History,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

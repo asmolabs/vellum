@@ -638,5 +638,15 @@
   "home.kpi_series": "SERIES",
   "home.resume_btn": "▶ Read",
   "home.shelves_series": "📚 Series Shelves",
-  "home.recent_adds": "✨ Recently Added"
+  "home.recent_adds": "✨ Recently Added",
+  "nav.browse": "BROWSE",
+  "nav.reading_zone": "READING",
+  "nav.authors": "Authors",
+  "nav.history": "Reading History",
+  "nav.statistics": "Statistics",
+  "browse.authors_title": "Authors",
+  "browse.series_title": "Series",
+  "browse.series_empty": "No series found in your library.",
+  "browse.history_title": "Reading History",
+  "browse.history_empty": "No reading activity recorded yet."
 }
