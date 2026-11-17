@@ -1607,3 +1607,62 @@ body {
   color: var(--text-muted);
   font-weight: 600;
 }
+
+/* ==========================================================================
+   Responsive Mobile & Tactile (iOS / Android / Petits Écrans)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .header {
+    height: auto;
+    min-height: 56px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .main-content {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: 150px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 10px 12px;
+  }
+
+  .books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .drawer-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    padding: 16px;
+  }
+
+  .reader-toolbar {
+    padding: 8px 10px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .reader-page {
+    padding: 16px 14px;
+  }
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .sidebar-item,
+  .chip {
+    min-height: 40px;
+  }
+}

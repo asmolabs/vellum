@@ -206,6 +206,6 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [x] Préparer le flux OAuth PKCE mobile dans `gdrive_oauth.rs` (`begin_mobile_oauth` / `complete_mobile_oauth` avec URI de redirection) pour `ASWebAuthenticationSession` (iOS) / Custom Tabs (Android).
   - [x] Abstraire `rfd::FileDialog` et `open::that` dans `vellum-ui/src/platform.rs` (repli mobile prêt pour sélecteur natif).
 - [ ] **Adaptation UI tactile & responsive (`vellum-ui`)**
-  - [ ] Basculer les largeurs fixes desktop (modales, tiroirs, grille) vers des mises en page responsives adaptées au tactile.
+  - [x] Règles CSS responsives (`@media (max-width: 768px)`) et cibles tactiles (`@media (pointer: coarse)`, `min-height: 40px`) dans `styles.css` (header, sidebar, grille, tiroirs/modales, lecteur).
   - [x] Ajouter `Dioxus.toml` à la racine et valider la compilation avec `--no-default-features --features mobile` (reste à valider les builds natifs `dx build --platform android` / `ios` avec SDK Android & Xcode).
   - [ ] Synchronisation transparente Mobile ↔ Desktop ↔ Docker via Google Drive API (et connexion optionnelle au serveur `vellum serve`).
