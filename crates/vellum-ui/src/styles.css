@@ -1613,7 +1613,7 @@ body {
    ========================================================================== */
 
 @media (max-width: 768px) {
-  .header {
+  .app-header {
     height: auto;
     min-height: 56px;
     padding: 8px 12px;

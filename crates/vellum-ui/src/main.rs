@@ -309,6 +309,7 @@ fn App() -> Element {
             Header {
                 locale: *ui_locale.read(),
                 search_query: search_query,
+                view_mode,
                 connected_devices: connected_devices.read().clone(),
                 sync_available: sync_service.is_backend_available(),
                 is_syncing: *is_syncing.read(),

@@ -1,3 +1,4 @@
+use crate::state::ViewMode;
 use dioxus::prelude::*;
 use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
 use vellum_domain::DeviceKind;
@@ -6,6 +7,7 @@ use vellum_domain::DeviceKind;
 pub fn Header(
     locale: Locale,
     search_query: Signal<String>,
+    mut view_mode: Signal<ViewMode>,
     connected_devices: Vec<ConnectedDevice>,
     sync_available: bool,
     is_syncing: bool,
@@ -24,32 +26,69 @@ pub fn Header(
 ) -> Element {
     let mut tools_open = use_signal(|| false);
     let has_search = !search_query.read().is_empty();
+    let cur_view = *view_mode.read();
 
     rsx! {
         header { class: "app-header",
-            div { class: "logo-area",
-                div { class: "logo-icon", "V" }
-                span { class: "logo-text", "Vellum" }
-                span { class: "logo-badge", "RUST" }
+            div { style: "display: flex; align-items: center; gap: 14px;",
+                div {
+                    class: "logo-area",
+                    style: "cursor: pointer;",
+                    onclick: move |_| view_mode.set(ViewMode::Home),
+                    div { class: "logo-icon", "V" }
+                    span { class: "logo-text", "Vellum" }
+                }
+                div { style: "display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 8px; border: 1px solid var(--border-subtle);",
+                    button {
+                        style: if cur_view == ViewMode::Home {
+                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                        } else {
+                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                        },
+                        onclick: move |_| view_mode.set(ViewMode::Home),
+                        "{translate(locale, \"toolbar.view_home\")}"
+                    }
+                    button {
+                        style: if cur_view != ViewMode::Home {
+                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
+                        } else {
+                            "padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
+                        },
+                        onclick: move |_| view_mode.set(ViewMode::Grid),
+                        "{translate(locale, \"nav.library\")}"
+                    }
+                }
             }
 
             div { class: "header-search",
                 span { class: "search-icon-slot", "🔍" }
                 input {
                     r#type: "text",
-                    style: if has_search { "padding-right: 72px;" } else { "padding-right: 48px;" },
+                    style: if has_search { "padding-right: 108px;" } else { "padding-right: 84px;" },
                     placeholder: "{translate(locale, \"action.search\")} (Dune, author:Herbert, tag:SF)...",
                     value: "{search_query}",
-                    oninput: move |evt| search_query.set(evt.value()),
+                    oninput: move |evt| {
+                        search_query.set(evt.value());
+                        if *view_mode.read() == ViewMode::Home {
+                            view_mode.set(ViewMode::Grid);
+                        }
+                    },
                 }
                 if has_search {
                     button {
                         class: "btn btn-icon",
-                        style: "position: absolute; right: 44px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; font-size: 11px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.1); color: var(--text-muted); border: none; cursor: pointer;",
+                        style: "position: absolute; right: 80px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; font-size: 11px; padding: 0; border-radius: 50%; background: rgba(255,255,255,0.1); color: var(--text-muted); border: none; cursor: pointer;",
                         title: translate(locale, "header.clear_search"),
                         onclick: move |_| search_query.set(String::new()),
                         "✕"
                     }
+                }
+                button {
+                    class: "btn btn-icon",
+                    style: "position: absolute; right: 44px; top: 50%; transform: translateY(-50%); width: auto; height: 24px; font-size: 11px; padding: 0 6px; border-radius: 5px; background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); cursor: pointer;",
+                    title: translate(locale, "header.content_search_tooltip"),
+                    onclick: move |_| on_open_content_search.call(()),
+                    "🔎"
                 }
                 button {
                     class: "btn btn-icon",
@@ -101,15 +140,6 @@ pub fn Header(
                             }
                         }
                     }
-                }
-
-                button {
-                    class: "btn btn-secondary",
-                    style: "border-color: rgba(251, 191, 36, 0.35); color: #fbbf24;",
-                    title: translate(locale, "header.content_search_tooltip"),
-                    onclick: move |_| on_open_content_search.call(()),
-                    span { "🔎" }
-                    span { "{translate(locale, \"header.content_search\")}" }
                 }
 
                 // Menu Outils regroupé
