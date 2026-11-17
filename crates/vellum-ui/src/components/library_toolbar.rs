@@ -12,7 +12,8 @@ use crate::state::{FilterStatus, MediaType, SortOption, ViewMode};
 pub fn LibraryToolbar(
     locale: Locale,
     mut current_filter: Signal<FilterStatus>,
-    mut media_type: Signal<MediaType>,
+    media_type: Signal<MediaType>,
+    mut search_query: Signal<String>,
     mut selected_series: Signal<Option<String>>,
     mut selected_tag: Signal<Option<String>>,
     filtered_count: usize,
@@ -21,10 +22,13 @@ pub fn LibraryToolbar(
     mut view_mode: Signal<ViewMode>,
     mut current_sort: Signal<SortOption>,
 ) -> Element {
+    let mut filter_open = use_signal(|| false);
     let cur_view = *view_mode.read();
     let cur_media = *media_type.read();
     let cur_filter = *current_filter.read();
+    let cur_query = search_query.read().clone();
     let count_str = filtered_count.to_string();
+
     let heading = if cur_media != MediaType::All && cur_filter == FilterStatus::All {
         translate(locale, cur_media.i18n_key())
     } else {
@@ -36,6 +40,10 @@ pub fn LibraryToolbar(
         MediaType::Audiobooks => IconKind::Headphones,
         MediaType::Comics => IconKind::Image,
     };
+
+    let active_filter_count = usize::from(cur_filter != FilterStatus::All)
+        + usize::from(selected_series.read().is_some())
+        + usize::from(selected_tag.read().is_some());
 
     rsx! {
         div { class: "library-header",
@@ -78,83 +86,126 @@ pub fn LibraryToolbar(
                 }
             }
 
-            // Row 2 : Command Bar (BookOrbit BrowseHeader bar)
-            div { class: "browse-command-bar",
-                div { style: "display: flex; align-items: center; gap: 8px; flex-wrap: wrap;",
-                    // Media switcher pills
-                    div { style: "display: flex; align-items: center; background: rgba(255,255,255,0.04); border-radius: 8px; padding: 2px; border: 1px solid var(--border-subtle);",
-                        for mt in [
-                            MediaType::All,
-                            MediaType::Books,
-                            MediaType::Audiobooks,
-                            MediaType::Comics,
-                        ] {
-                            button {
-                                style: if cur_media == mt {
-                                    "padding: 4px 10px; font-size: 11.5px; border-radius: 6px; background: rgba(99, 102, 241, 0.22); color: #c7d2fe; border: none; font-weight: 600; cursor: pointer;"
-                                } else {
-                                    "padding: 4px 10px; font-size: 11.5px; border-radius: 6px; background: transparent; color: var(--text-muted); border: none; cursor: pointer;"
-                                },
-                                onclick: move |_| media_type.set(mt),
-                                {translate(locale, mt.i18n_key())}
+            // Row 2 : Command Bar (BookOrbit BrowseSearchField + BrowseSortControl + BrowseFilterControl + BrowseViewControls)
+            div { class: "browse-command-bar", style: "position: relative;",
+                // Search field (flex-1, BookOrbit BrowseSearchField style)
+                div {
+                    style: "flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; border-radius: 7px; background: rgba(255,255,255,0.03);",
+                    span { style: "color: var(--text-muted); display: flex; align-items: center;",
+                        LucideIcon { kind: IconKind::Search, size: 14 }
+                    }
+                    input {
+                        r#type: "text",
+                        value: "{cur_query}",
+                        placeholder: translate(locale, "action.search"),
+                        style: "flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 13px; min-width: 0;",
+                        oninput: move |evt| search_query.set(evt.value()),
+                    }
+                    if !cur_query.is_empty() {
+                        button {
+                            title: translate(locale, "header.clear_search"),
+                            style: "background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 2px 4px;",
+                            onclick: move |_| search_query.set(String::new()),
+                            "✕"
+                        }
+                    }
+                }
+
+                span { style: "width: 1px; height: 20px; background: var(--border-subtle);" }
+
+                // Sort control
+                select {
+                    style: "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
+                    value: match *current_sort.read() {
+                        SortOption::RecentAdded => "recent",
+                        SortOption::TitleAsc => "title_asc",
+                        SortOption::TitleDesc => "title_desc",
+                        SortOption::AuthorAsc => "author_asc",
+                        SortOption::ProgressDesc => "progress",
+                    },
+                    onchange: move |evt| {
+                        let val = evt.value();
+                        let sort = match val.as_str() {
+                            "title_asc" => SortOption::TitleAsc,
+                            "title_desc" => SortOption::TitleDesc,
+                            "author_asc" => SortOption::AuthorAsc,
+                            "progress" => SortOption::ProgressDesc,
+                            _ => SortOption::RecentAdded,
+                        };
+                        current_sort.set(sort);
+                    },
+                    option { value: "recent", {translate(locale, "toolbar.sort_recent")} }
+                    option { value: "title_asc", {translate(locale, "toolbar.sort_title_asc")} }
+                    option { value: "title_desc", {translate(locale, "toolbar.sort_title_desc")} }
+                    option { value: "author_asc", {translate(locale, "toolbar.sort_author")} }
+                    option { value: "progress", {translate(locale, "toolbar.sort_progress")} }
+                }
+
+                // Filter control (BookOrbit BrowseFilterControl)
+                div { style: "position: relative;",
+                    button {
+                        style: if active_filter_count > 0 || *filter_open.read() {
+                            "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: rgba(99, 102, 241, 0.2); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.45); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600;"
+                        } else {
+                            "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-secondary); border: 1px solid var(--border-subtle); display: inline-flex; align-items: center; gap: 6px; cursor: pointer;"
+                        },
+                        onclick: move |_| {
+                            let next = !*filter_open.read();
+                            filter_open.set(next);
+                        },
+                        span { "Filtres" }
+                        if active_filter_count > 0 {
+                            span {
+                                style: "min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: #6366f1; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;",
+                                "{active_filter_count}"
                             }
                         }
                     }
 
-                    span { style: "width: 1px; height: 18px; background: var(--border-subtle);" }
-
-                    // Reading status quick filter
-                    select {
-                        style: "padding: 4px 10px; font-size: 12px; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
-                        value: match cur_filter {
-                            FilterStatus::All => "all",
-                            FilterStatus::Reading => "reading",
-                            FilterStatus::Finished => "finished",
-                            FilterStatus::ToRead => "to_read",
-                        },
-                        onchange: move |e| {
-                            let f = match e.value().as_str() {
-                                "reading" => FilterStatus::Reading,
-                                "finished" => FilterStatus::Finished,
-                                "to_read" => FilterStatus::ToRead,
-                                _ => FilterStatus::All,
-                            };
-                            current_filter.set(f);
-                        },
-                        option { value: "all", {translate(locale, "nav.all_books")} }
-                        option { value: "reading", {translate(locale, "nav.reading")} }
-                        option { value: "finished", {translate(locale, "nav.finished")} }
-                        option { value: "to_read", {translate(locale, "nav.to_read")} }
-                    }
-
-                    // Sort selector
-                    select {
-                        style: "padding: 4px 10px; font-size: 12px; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
-                        value: match *current_sort.read() {
-                            SortOption::RecentAdded => "recent",
-                            SortOption::TitleAsc => "title_asc",
-                            SortOption::TitleDesc => "title_desc",
-                            SortOption::AuthorAsc => "author_asc",
-                            SortOption::ProgressDesc => "progress",
-                        },
-                        onchange: move |evt| {
-                            let val = evt.value();
-                            let sort = match val.as_str() {
-                                "title_asc" => SortOption::TitleAsc,
-                                "title_desc" => SortOption::TitleDesc,
-                                "author_asc" => SortOption::AuthorAsc,
-                                "progress" => SortOption::ProgressDesc,
-                                _ => SortOption::RecentAdded,
-                            };
-                            current_sort.set(sort);
-                        },
-                        option { value: "recent", {translate(locale, "toolbar.sort_recent")} }
-                        option { value: "title_asc", {translate(locale, "toolbar.sort_title_asc")} }
-                        option { value: "title_desc", {translate(locale, "toolbar.sort_title_desc")} }
-                        option { value: "author_asc", {translate(locale, "toolbar.sort_author")} }
-                        option { value: "progress", {translate(locale, "toolbar.sort_progress")} }
+                    if *filter_open.read() {
+                        div {
+                            style: "position: absolute; top: 38px; right: 0; width: 230px; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 10px; padding: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 40; display: flex; flex-direction: column; gap: 6px;",
+                            div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 2px;",
+                                {translate(locale, "nav.reading_zone")}
+                            }
+                            for f in [
+                                FilterStatus::All,
+                                FilterStatus::Reading,
+                                FilterStatus::Finished,
+                                FilterStatus::ToRead,
+                            ] {
+                                button {
+                                    style: if cur_filter == f {
+                                        "text-align: left; padding: 6px 10px; border-radius: 6px; background: rgba(99, 102, 241, 0.22); color: #c7d2fe; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer;"
+                                    } else {
+                                        "text-align: left; padding: 6px 10px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; font-size: 12.5px; cursor: pointer;"
+                                    },
+                                    onclick: move |_| {
+                                        current_filter.set(f);
+                                        filter_open.set(false);
+                                    },
+                                    {translate(locale, f.i18n_key())}
+                                }
+                            }
+                            if active_filter_count > 0 {
+                                div { style: "border-top: 1px solid var(--border-subtle); margin-top: 4px; padding-top: 6px;",
+                                    button {
+                                        style: "width: 100%; padding: 5px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: none; font-size: 12px; cursor: pointer;",
+                                        onclick: move |_| {
+                                            current_filter.set(FilterStatus::All);
+                                            selected_series.set(None);
+                                            selected_tag.set(None);
+                                            filter_open.set(false);
+                                        },
+                                        {translate(locale, "header.clear_search")}
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+
+                span { style: "width: 1px; height: 20px; background: var(--border-subtle);" }
 
                 // Right controls: Selection + View Mode icons (BookOrbit BrowseViewControls)
                 div { style: "display: flex; align-items: center; gap: 8px;",
@@ -165,7 +216,7 @@ pub fn LibraryToolbar(
                             rsx! {
                                 button {
                                     class: "btn btn-secondary",
-                                    style: "padding: 4px 10px; font-size: 12px; border-radius: 7px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                                    style: "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                                     onclick: move |_| {
                                         let mut set = selected_ids.read().clone();
                                         if all_selected {

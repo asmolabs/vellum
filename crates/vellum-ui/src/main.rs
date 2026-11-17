@@ -388,6 +388,7 @@ fn App() -> Element {
                             locale: *ui_locale.read(),
                             current_filter,
                             media_type,
+                            search_query,
                             selected_series,
                             selected_tag,
                             filtered_count: filtered_books.len(),
