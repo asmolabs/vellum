@@ -5,12 +5,13 @@ use std::collections::HashSet;
 use dioxus::prelude::*;
 use vellum_core::{translate, translate_fmt, Locale};
 
-use crate::state::{FilterStatus, SortOption, ViewMode};
+use crate::state::{FilterStatus, MediaType, SortOption, ViewMode};
 
 #[component]
 pub fn LibraryToolbar(
     locale: Locale,
     current_filter: Signal<FilterStatus>,
+    mut media_type: Signal<MediaType>,
     mut selected_series: Signal<Option<String>>,
     mut selected_tag: Signal<Option<String>>,
     filtered_count: usize,
@@ -20,13 +21,37 @@ pub fn LibraryToolbar(
     mut current_sort: Signal<SortOption>,
 ) -> Element {
     let cur_view = *view_mode.read();
+    let cur_media = *media_type.read();
     let count_str = filtered_count.to_string();
+    let heading = if cur_media != MediaType::All && *current_filter.read() == FilterStatus::All {
+        translate(locale, cur_media.i18n_key())
+    } else {
+        translate(locale, current_filter.read().i18n_key())
+    };
 
     rsx! {
         div { class: "library-header",
             div { class: "library-title-group",
-                div { style: "display: flex; align-items: center; gap: 10px;",
-                    h2 { {translate(locale, current_filter.read().i18n_key())} }
+                div { style: "display: flex; align-items: center; gap: 10px; flex-wrap: wrap;",
+                    h2 { "{heading}" }
+                    div { style: "display: flex; align-items: center; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 2px; border: 1px solid var(--border-subtle);",
+                        for mt in [
+                            MediaType::All,
+                            MediaType::Books,
+                            MediaType::Audiobooks,
+                            MediaType::Comics,
+                        ] {
+                            button {
+                                style: if cur_media == mt {
+                                    "padding: 3px 9px; font-size: 11px; border-radius: 6px; background: rgba(99, 102, 241, 0.25); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.45); font-weight: 600; cursor: pointer;"
+                                } else {
+                                    "padding: 3px 9px; font-size: 11px; border-radius: 6px; background: transparent; color: var(--text-muted); border: 1px solid transparent; cursor: pointer;"
+                                },
+                                onclick: move |_| media_type.set(mt),
+                                {translate(locale, mt.i18n_key())}
+                            }
+                        }
+                    }
                     if let Some(ref s) = *selected_series.read() {
                         div {
                             style: "display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 6px; background: rgba(167, 139, 250, 0.2); border: 1px solid rgba(167, 139, 250, 0.4); font-size: 12px; color: #c4b5fd;",

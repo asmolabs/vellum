@@ -5,7 +5,26 @@ use std::collections::HashMap;
 use vellum_core::SearchQuery;
 use vellum_domain::Book;
 
-use crate::state::{FilterStatus, SortOption};
+use crate::state::{FilterStatus, MediaType, SortOption};
+
+/// Computes `(books_count, audiobooks_count, comics_count)` across `books`.
+pub fn compute_media_counts(books: &[Book]) -> (usize, usize, usize) {
+    let mut books_count = 0;
+    let mut audio_count = 0;
+    let mut comics_count = 0;
+    for b in books {
+        if MediaType::Audiobooks.matches_book(b) {
+            audio_count += 1;
+        }
+        if MediaType::Comics.matches_book(b) {
+            comics_count += 1;
+        }
+        if MediaType::Books.matches_book(b) {
+            books_count += 1;
+        }
+    }
+    (books_count, audio_count, comics_count)
+}
 
 /// Aggregates tag counts across `books`, sorted by descending count then alphabetically.
 pub fn compute_tags_counts(books: &[Book]) -> Vec<(String, usize)> {
@@ -38,9 +57,34 @@ pub fn compute_series_counts(books: &[Book]) -> Vec<(String, usize)> {
 
 /// Filters `books` according to status, tag, series, search query and optional virtual library query,
 /// then sorts them according to `sort`.
+#[allow(dead_code)]
 pub fn filter_and_sort_books(
     books: &[Book],
     filter: FilterStatus,
+    sort: SortOption,
+    tag_filter: Option<&str>,
+    series_filter: Option<&str>,
+    raw_query: &str,
+    active_vl_query: Option<&str>,
+) -> Vec<Book> {
+    filter_and_sort_books_by_media(
+        books,
+        filter,
+        MediaType::All,
+        sort,
+        tag_filter,
+        series_filter,
+        raw_query,
+        active_vl_query,
+    )
+}
+
+/// Filters `books` according to status, media type, tag, series, search query and optional virtual library query,
+/// then sorts them according to `sort`.
+pub fn filter_and_sort_books_by_media(
+    books: &[Book],
+    filter: FilterStatus,
+    media_type: MediaType,
     sort: SortOption,
     tag_filter: Option<&str>,
     series_filter: Option<&str>,
@@ -53,6 +97,9 @@ pub fn filter_and_sort_books(
     let mut list: Vec<Book> = books
         .iter()
         .filter(|b| {
+            if !media_type.matches_book(b) {
+                return false;
+            }
             if let Some(ref vl_q) = parsed_vl_query {
                 if !vl_q.is_empty() && !vl_q.matches(b) {
                     return false;

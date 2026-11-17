@@ -1,6 +1,11 @@
 {
   "app.title": "Vellum — Personal Library & E-Reader",
   "nav.library": "Library",
+  "nav.libraries": "Libraries",
+  "media.all": "All",
+  "media.books": "Books",
+  "media.audiobooks": "Audiobooks",
+  "media.comics": "Comics",
   "nav.all_books": "All Books",
   "nav.reading": "Reading",
   "nav.finished": "Finished",

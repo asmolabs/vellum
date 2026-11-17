@@ -15,6 +15,59 @@ pub enum ViewMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaType {
+    All,
+    Books,
+    Audiobooks,
+    Comics,
+}
+
+impl MediaType {
+    pub fn i18n_key(&self) -> &'static str {
+        match self {
+            MediaType::All => "media.all",
+            MediaType::Books => "media.books",
+            MediaType::Audiobooks => "media.audiobooks",
+            MediaType::Comics => "media.comics",
+        }
+    }
+
+    pub fn is_audio_format(fmt: &str) -> bool {
+        matches!(
+            fmt.trim().to_ascii_lowercase().as_str(),
+            "m4b" | "m4a" | "mp3" | "opus" | "ogg" | "flac" | "aac" | "wav" | "audiobook"
+        )
+    }
+
+    pub fn is_comic_format(fmt: &str) -> bool {
+        matches!(
+            fmt.trim().to_ascii_lowercase().as_str(),
+            "cbz" | "cbr" | "cb7" | "cbt"
+        )
+    }
+
+    pub fn matches_book(&self, book: &Book) -> bool {
+        match self {
+            MediaType::All => true,
+            MediaType::Audiobooks => book
+                .formats
+                .iter()
+                .any(|f| Self::is_audio_format(&f.format)),
+            MediaType::Comics => book
+                .formats
+                .iter()
+                .any(|f| Self::is_comic_format(&f.format)),
+            MediaType::Books => {
+                book.formats.is_empty()
+                    || book.formats.iter().any(|f| {
+                        !Self::is_audio_format(&f.format) && !Self::is_comic_format(&f.format)
+                    })
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterStatus {
     All,
     Reading,

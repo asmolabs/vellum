@@ -1,5 +1,5 @@
 use crate::components::{IconKind, LucideIcon};
-use crate::state::{FilterStatus, ViewMode};
+use crate::state::{FilterStatus, MediaType, ViewMode};
 use dioxus::prelude::*;
 use vellum_core::{translate, Locale};
 use vellum_domain::{ReadingStats, VirtualLibrary};
@@ -8,6 +8,7 @@ use vellum_domain::{ReadingStats, VirtualLibrary};
 pub fn Sidebar(
     locale: Locale,
     mut current_filter: Signal<FilterStatus>,
+    mut media_type: Signal<MediaType>,
     mut view_mode: Signal<ViewMode>,
     mut sidebar_collapsed: Signal<bool>,
     mut search_query: Signal<String>,
@@ -15,6 +16,7 @@ pub fn Sidebar(
     on_open_content_search: EventHandler<()>,
     mut selected_tag: Signal<Option<String>>,
     mut selected_series: Signal<Option<String>>,
+    media_counts: (usize, usize, usize),
     tags_counts: Vec<(String, usize)>,
     series_counts: Vec<(String, usize)>,
     virtual_libraries: Vec<VirtualLibrary>,
@@ -57,6 +59,34 @@ pub fn Sidebar(
                     title: translate(locale, "toolbar.view_home"),
                     onclick: move |_| view_mode.set(ViewMode::Home),
                     LucideIcon { kind: IconKind::Home, size: 18 }
+                }
+                div { style: "width: 28px; height: 1px; background: var(--border-subtle); margin: 4px 0;" }
+                for (mt, icon_kind) in [
+                    (MediaType::Books, IconKind::BookOpen),
+                    (MediaType::Audiobooks, IconKind::Headphones),
+                    (MediaType::Comics, IconKind::Image),
+                ] {
+                    {
+                        let is_active = cur_view != ViewMode::Home && *media_type.read() == mt;
+                        let label = translate(locale, mt.i18n_key());
+                        rsx! {
+                            button {
+                                class: if is_active { "btn btn-primary" } else { "btn btn-icon" },
+                                style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
+                                title: "{label}",
+                                onclick: move |_| {
+                                    media_type.set(mt);
+                                    current_filter.set(FilterStatus::All);
+                                    selected_tag.set(None);
+                                    selected_series.set(None);
+                                    if matches!(*view_mode.read(), ViewMode::Home | ViewMode::Authors | ViewMode::Series | ViewMode::History) {
+                                        view_mode.set(ViewMode::Grid);
+                                    }
+                                },
+                                LucideIcon { kind: icon_kind, size: 18 }
+                            }
+                        }
+                    }
                 }
                 div { style: "width: 28px; height: 1px; background: var(--border-subtle); margin: 4px 0;" }
                 for (f, icon_kind) in filters.iter().copied() {
@@ -149,13 +179,51 @@ pub fn Sidebar(
                 }
             }
 
-            // Zone 2 : Parcourir (Livres, Séries, Auteurs)
+            // Zone 2 : Bibliothèques (séparation Livres, Audio, Comics comme dans BookOrbit)
+            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px;",
+                div { class: "sidebar-section-title", "{translate(locale, \"nav.libraries\")}" }
+                nav { class: "nav-list",
+                    for (mt, icon_kind, count) in [
+                        (MediaType::Books, IconKind::BookOpen, media_counts.0),
+                        (MediaType::Audiobooks, IconKind::Headphones, media_counts.1),
+                        (MediaType::Comics, IconKind::Image, media_counts.2),
+                    ] {
+                        {
+                            let is_active = cur_view == ViewMode::Grid
+                                && *media_type.read() == mt
+                                && *current_filter.read() == FilterStatus::All
+                                && selected_series.read().is_none()
+                                && selected_tag.read().is_none();
+                            rsx! {
+                                div {
+                                    class: if is_active { "nav-item active" } else { "nav-item" },
+                                    onclick: move |_| {
+                                        media_type.set(mt);
+                                        current_filter.set(FilterStatus::All);
+                                        selected_tag.set(None);
+                                        selected_series.set(None);
+                                        view_mode.set(ViewMode::Grid);
+                                    },
+                                    span { style: "display: flex; align-items: center; gap: 8px;",
+                                        LucideIcon { kind: icon_kind, size: 15 }
+                                        span { "{translate(locale, mt.i18n_key())}" }
+                                    }
+                                    span { class: "nav-badge", "{count}" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Zone 3 : Parcourir (Tout, Séries, Auteurs)
             div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px;",
                 div { class: "sidebar-section-title", "{translate(locale, \"nav.browse\")}" }
                 nav { class: "nav-list",
                     div {
-                        class: if cur_view == ViewMode::Grid && *current_filter.read() == FilterStatus::All && selected_series.read().is_none() && selected_tag.read().is_none() { "nav-item active" } else { "nav-item" },
+                        class: if cur_view == ViewMode::Grid && *media_type.read() == MediaType::All && *current_filter.read() == FilterStatus::All && selected_series.read().is_none() && selected_tag.read().is_none() { "nav-item active" } else { "nav-item" },
                         onclick: move |_| {
+                            media_type.set(MediaType::All);
                             current_filter.set(FilterStatus::All);
                             selected_tag.set(None);
                             selected_series.set(None);

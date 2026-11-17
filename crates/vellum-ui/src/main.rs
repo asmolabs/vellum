@@ -27,7 +27,7 @@ use components::{
     AuthorsView, BookCard, BooksTable, DetailDrawer, Header, HomeDashboard, KanbanBoard,
     LibraryToolbar, ReadingHistoryView, SeriesView, Sidebar,
 };
-use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
+use state::{FilterStatus, MediaType, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
 
 use vellum_domain::Book;
@@ -87,6 +87,7 @@ fn App() -> Element {
     });
 
     let current_filter = use_signal(|| FilterStatus::All);
+    let media_type = use_signal(|| MediaType::All);
     let current_sort = use_signal(|| SortOption::RecentAdded);
     let view_mode = use_signal(|| ViewMode::Home);
     let sidebar_collapsed = use_signal(|| false);
@@ -121,6 +122,9 @@ fn App() -> Element {
     let smtp_test_message = use_signal(|| None::<(bool, String)>);
     let is_sending_kindle = use_signal(|| false);
 
+    // Calculate media counts (books, audiobooks, comics)
+    let media_counts = library_logic::compute_media_counts(&books.read());
+
     // Calculate tag counts
     let tags_counts = library_logic::compute_tags_counts(&books.read());
 
@@ -141,9 +145,10 @@ fn App() -> Element {
                 .find(|vl| &vl.id == id)
                 .map(|vl| vl.query.clone())
         });
-        library_logic::filter_and_sort_books(
+        library_logic::filter_and_sort_books_by_media(
             &all,
             *current_filter.read(),
+            *media_type.read(),
             *current_sort.read(),
             selected_tag.read().as_deref(),
             selected_series.read().as_deref(),
@@ -335,6 +340,7 @@ fn App() -> Element {
                 Sidebar {
                     locale: *ui_locale.read(),
                     current_filter: current_filter,
+                    media_type,
                     view_mode,
                     sidebar_collapsed,
                     search_query,
@@ -342,6 +348,7 @@ fn App() -> Element {
                     on_open_content_search: move |_| content_search_open.set(true),
                     selected_tag: selected_tag,
                     selected_series: selected_series,
+                    media_counts,
                     tags_counts: tags_counts,
                     series_counts: series_counts,
                     virtual_libraries: virtual_libraries.read().clone(),
@@ -380,6 +387,7 @@ fn App() -> Element {
                         LibraryToolbar {
                             locale: *ui_locale.read(),
                             current_filter,
+                            media_type,
                             selected_series,
                             selected_tag,
                             filtered_count: filtered_books.len(),
