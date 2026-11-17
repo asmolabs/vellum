@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use axum::body::Bytes;
 use axum::extract::{Path as AxPath, Query, State};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
@@ -10,7 +11,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use super::xml_feed::CatalogQuery;
-use crate::book_service::BookService;
+use crate::book_service::{BookService, UpdateMetadataRequest};
 use crate::catalog_exporter::{CatalogExporter, CatalogFormat};
 use crate::reader_provider::create_content_provider;
 use crate::web_companion_assets::{library_page_html, reader_page_html};
@@ -67,6 +68,24 @@ pub struct ChapterContentDto {
 pub struct ProgressUpdateDto {
     pub chapter_index: usize,
     pub percentage: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UploadQuery {
+    pub filename: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MetadataUpdateDto {
+    pub title: String,
+    pub author: String,
+    pub series: Option<String>,
+    pub series_index: Option<f64>,
+    pub publisher: Option<String>,
+    pub publish_date: Option<String>,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl BookDto {
@@ -294,4 +313,76 @@ pub(super) async fn api_i18n_handler(State(service): State<Arc<BookService>>) ->
         "messages": crate::i18n::catalog_for(locale),
     });
     Json(payload)
+}
+
+pub(super) async fn api_book_upload_handler(
+    State(service): State<Arc<BookService>>,
+    Query(query): Query<UploadQuery>,
+    body: Bytes,
+) -> Response {
+    if body.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Empty upload body" })),
+        )
+            .into_response();
+    }
+
+    let raw_name = query
+        .filename
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("book.epub");
+    let safe_name = BookService::sanitize_filename(raw_name);
+
+    let res = tokio::task::spawn_blocking(move || -> Result<Book, String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let file_path = dir.path().join(&safe_name);
+        std::fs::write(&file_path, &body).map_err(|e| e.to_string())?;
+        service.import_book(&file_path).map_err(|e| e.to_string())
+    })
+    .await;
+
+    match res {
+        Ok(Ok(book)) => (StatusCode::CREATED, Json(BookDto::from_book(book))).into_response(),
+        Ok(Err(err)) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": err })),
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+pub(super) async fn api_book_metadata_handler(
+    State(service): State<Arc<BookService>>,
+    AxPath(book_id): AxPath<String>,
+    Json(body): Json<MetadataUpdateDto>,
+) -> Response {
+    let req = UpdateMetadataRequest {
+        book_id: &book_id,
+        title: &body.title,
+        author: &body.author,
+        series: body.series.as_deref(),
+        series_index: body.series_index,
+        publisher: body.publisher.as_deref(),
+        publish_date: body.publish_date.as_deref(),
+        isbn: None,
+        description: body.description.as_deref(),
+        tag_names: body.tags,
+    };
+
+    match service.update_book_metadata_full(req) {
+        Ok(updated) => (StatusCode::OK, Json(BookDto::from_book(updated))).into_response(),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": err.to_string() })),
+        )
+            .into_response(),
+    }
 }

@@ -6,7 +6,7 @@ mod xml_feed;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
-use axum::extract::{Request, State};
+use axum::extract::{DefaultBodyLimit, Request, State};
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::{HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
@@ -59,7 +59,16 @@ impl OpdsServer {
                 get(web_api::api_search_content_handler),
             )
             .route("/api/books", get(web_api::api_books_handler))
+            .route(
+                "/api/books/upload",
+                post(web_api::api_book_upload_handler)
+                    .layer(DefaultBodyLimit::max(256 * 1024 * 1024)),
+            )
             .route("/api/books/:id", get(web_api::api_book_detail_handler))
+            .route(
+                "/api/books/:id/metadata",
+                post(web_api::api_book_metadata_handler),
+            )
             .route("/api/books/:id/notes", get(web_api::api_book_notes_handler))
             .route("/api/books/:id/cover", get(xml_feed::cover_handler))
             .route("/api/books/:id/toc", get(web_api::api_book_toc_handler))

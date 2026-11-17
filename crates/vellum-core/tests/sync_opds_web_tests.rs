@@ -1008,3 +1008,56 @@ async fn test_google_drive_api_backend_and_token_refresh() {
     result.unwrap();
     assert_eq!(*state.token_refresh_calls.lock().unwrap(), 1);
 }
+
+#[tokio::test]
+async fn test_web_companion_upload_and_metadata_edit() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let app = vellum_core::opds_server::OpdsServer::router(book_service);
+
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let client = reqwest::Client::new();
+
+    // 1. Upload book via POST /api/books/upload (with traversal attempt in filename)
+    let upload_res = client
+        .post(format!(
+            "http://127.0.0.1:{port}/api/books/upload?filename=../../novel.txt"
+        ))
+        .body("Chapter 1\n\nOnce upon a time in Vellum.")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload_res.status(), 201);
+    let uploaded: vellum_core::opds_server::BookDto = upload_res.json().await.unwrap();
+    assert!(!uploaded.id.is_empty());
+
+    // 2. Edit metadata via POST /api/books/:id/metadata
+    let edit_res = client
+        .post(format!(
+            "http://127.0.0.1:{port}/api/books/{}/metadata",
+            uploaded.id
+        ))
+        .json(&serde_json::json!({
+            "title": "Dune Messiah",
+            "author": "Frank Herbert",
+            "series": "Dune",
+            "series_index": 2.0,
+            "tags": ["Sci-Fi", "Classic"]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(edit_res.status(), 200);
+    let updated: vellum_core::opds_server::BookDto = edit_res.json().await.unwrap();
+    assert_eq!(updated.title, "Dune Messiah");
+    assert_eq!(updated.author, "Frank Herbert");
+    assert_eq!(updated.series.as_deref(), Some("Dune"));
+    assert_eq!(updated.series_index, Some(2.0));
+    assert!(updated.tags.contains(&"Sci-Fi".to_string()));
+}

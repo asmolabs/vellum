@@ -184,8 +184,8 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 
 ### Phase 3 — Web App complète & Écosystème Liseuses
 - [ ] **Élever le Web Companion au niveau Web App complète (`web_api.rs` + assets)**
-  - [ ] Upload de livres par glisser-déposer depuis le navigateur (EPUB, PDF, CBZ/CBR).
-  - [ ] Édition des métadonnées, tags, séries et statuts de lecture depuis le navigateur.
+  - [x] Upload de livres par glisser-déposer depuis le navigateur (`POST /api/books/upload`, EPUB, PDF, CBZ/CBR, TXT...).
+  - [x] Édition des métadonnées, tags et séries depuis le navigateur (`POST /api/books/:id/metadata`).
   - [ ] Déclenchement et suivi de la synchronisation Google Drive depuis l'interface Web.
   - [ ] Lecteur audio intégré (MP3 / M4B) avec sauvegarde de la progression.
   - [ ] Tableau de bord statistiques de lecture (temps de lecture, séries, objectifs).
