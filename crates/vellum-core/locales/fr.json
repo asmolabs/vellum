@@ -630,5 +630,13 @@
   "onboarding.step_import": "1. Importer des livres (EPUB, PDF, CBZ...)",
   "onboarding.step_calibre": "2. Importer une bibliothèque Calibre",
   "onboarding.step_gdrive": "3. Connecter Google Drive (sans logiciel de sync)",
-  "library.continue_reading": "📖 Reprendre la lecture"
+  "library.continue_reading": "📖 Reprendre la lecture",
+  "toolbar.view_home": "🏠 Accueil",
+  "home.kpi_total": "TOTAL LIVRES",
+  "home.kpi_reading": "EN COURS",
+  "home.kpi_finished": "TERMINÉS",
+  "home.kpi_series": "SAGAS & SÉRIES",
+  "home.resume_btn": "▶ Lire",
+  "home.shelves_series": "📚 Étagères par Saga",
+  "home.recent_adds": "✨ Ajouts récents"
 }

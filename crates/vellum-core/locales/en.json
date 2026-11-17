@@ -630,5 +630,13 @@
   "onboarding.step_import": "1. Import books (EPUB, PDF, CBZ...)",
   "onboarding.step_calibre": "2. Import a Calibre library",
   "onboarding.step_gdrive": "3. Connect Google Drive (no sync app needed)",
-  "library.continue_reading": "📖 Continue reading"
+  "library.continue_reading": "📖 Continue reading",
+  "toolbar.view_home": "🏠 Home",
+  "home.kpi_total": "TOTAL BOOKS",
+  "home.kpi_reading": "IN PROGRESS",
+  "home.kpi_finished": "FINISHED",
+  "home.kpi_series": "SERIES",
+  "home.resume_btn": "▶ Read",
+  "home.shelves_series": "📚 Series Shelves",
+  "home.recent_adds": "✨ Recently Added"
 }

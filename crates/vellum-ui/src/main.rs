@@ -24,7 +24,7 @@ mod state;
 mod styles;
 
 use components::{
-    BookCard, BooksTable, DetailDrawer, Header, KanbanBoard, LibraryToolbar, Sidebar,
+    BookCard, BooksTable, DetailDrawer, Header, HomeDashboard, KanbanBoard, LibraryToolbar, Sidebar,
 };
 use state::{FilterStatus, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -377,15 +377,7 @@ fn App() -> Element {
                         current_sort,
                     }
 
-                    if *view_mode.read() == ViewMode::Kanban {
-                        KanbanBoard {
-                            locale: *ui_locale.read(),
-                            books: filtered_books.clone(),
-                            on_select: move |selected| selected_book.set(Some(selected)),
-                            on_read: actions.on_read,
-                            on_change_status: actions.on_change_book_status,
-                        }
-                    } else if books.read().is_empty() {
+                    if books.read().is_empty() {
                         div {
                             style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px 24px; max-width: 560px; margin: 0 auto; text-align: center;",
                             span { style: "font-size: 46px;", "📚" }
@@ -411,6 +403,25 @@ fn App() -> Element {
                                     {translate(*ui_locale.read(), "onboarding.step_gdrive")}
                                 }
                             }
+                        }
+                    } else if *view_mode.read() == ViewMode::Home {
+                        HomeDashboard {
+                            locale: *ui_locale.read(),
+                            books: books.read().clone(),
+                            stats: reading_stats.clone(),
+                            current_filter,
+                            selected_series,
+                            view_mode,
+                            on_select: move |selected| selected_book.set(Some(selected)),
+                            on_read: actions.on_read,
+                        }
+                    } else if *view_mode.read() == ViewMode::Kanban {
+                        KanbanBoard {
+                            locale: *ui_locale.read(),
+                            books: filtered_books.clone(),
+                            on_select: move |selected| selected_book.set(Some(selected)),
+                            on_read: actions.on_read,
+                            on_change_status: actions.on_change_book_status,
                         }
                     } else if filtered_books.is_empty() {
                         div {

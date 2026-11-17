@@ -4,6 +4,7 @@ use vellum_domain::Book;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
+    Home,
     Grid,
     Table,
     TableCarousel,
