@@ -216,24 +216,76 @@ pub(super) async fn api_book_notes_handler(
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UserBookProgress {
+    chapter_index: i32,
+    progress_percent: f64,
+    is_finished: bool,
+}
+
+fn extract_vellum_user(headers: &HeaderMap) -> Option<String> {
+    let raw = headers
+        .get("x-vellum-user")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)?;
+    let clean: String = raw
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    if clean.is_empty() || clean.eq_ignore_ascii_case("default") {
+        None
+    } else {
+        Some(clean.to_ascii_lowercase())
+    }
+}
+
+fn apply_user_progress(service: &BookService, user: Option<&str>, dto: &mut BookDto) {
+    let Some(u) = user else {
+        return;
+    };
+    let key = format!("user_progress:{u}:{}", dto.id);
+    if let Ok(Some(raw)) = service.param_repo().get_value(&key) {
+        if let Ok(p) = serde_json::from_str::<UserBookProgress>(&raw) {
+            dto.progress_percent = p.progress_percent;
+            dto.is_finished = p.is_finished;
+        }
+    } else {
+        dto.progress_percent = 0.0;
+        dto.is_finished = false;
+    }
+}
+
 pub(super) async fn api_books_handler(
     State(service): State<Arc<BookService>>,
+    headers: HeaderMap,
     Query(query): Query<CatalogQuery>,
 ) -> Response {
+    let user = extract_vellum_user(&headers);
     let books = service
         .get_books(query.search.as_deref(), query.tag.as_deref())
         .unwrap_or_default();
 
-    let dtos: Vec<BookDto> = books.into_iter().map(BookDto::from_book).collect();
+    let dtos: Vec<BookDto> = books
+        .into_iter()
+        .map(|b| {
+            let mut dto = BookDto::from_book(b);
+            apply_user_progress(&service, user.as_deref(), &mut dto);
+            dto
+        })
+        .collect();
     Json(dtos).into_response()
 }
 
 pub(super) async fn api_book_detail_handler(
     State(service): State<Arc<BookService>>,
+    headers: HeaderMap,
     AxPath(book_id): AxPath<String>,
 ) -> Response {
+    let user = extract_vellum_user(&headers);
     if let Ok(Some(b)) = service.get_book_by_id(&book_id) {
-        Json(BookDto::from_book(b)).into_response()
+        let mut dto = BookDto::from_book(b);
+        apply_user_progress(&service, user.as_deref(), &mut dto);
+        Json(dto).into_response()
     } else {
         StatusCode::NOT_FOUND.into_response()
     }
@@ -299,11 +351,43 @@ pub(super) async fn api_book_chapter_handler(
 
 pub(super) async fn api_book_progress_handler(
     State(service): State<Arc<BookService>>,
+    headers: HeaderMap,
     AxPath(book_id): AxPath<String>,
     Json(body): Json<ProgressUpdateDto>,
 ) -> Response {
-    let percent = body.percentage.unwrap_or(0.0) * 100.0;
+    let percent = (body.percentage.unwrap_or(0.0) * 100.0).clamp(0.0, 100.0);
     let finished = percent >= 99.0;
+
+    if let Some(u) = extract_vellum_user(&headers) {
+        let Ok(Some(_)) = service.get_book_by_id(&book_id) else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        let key = format!("user_progress:{u}:{book_id}");
+        let rec = UserBookProgress {
+            chapter_index: body.chapter_index as i32,
+            progress_percent: percent,
+            is_finished: finished,
+        };
+        if let Ok(json_str) = serde_json::to_string(&rec) {
+            let _ = service.param_repo().set_value(&key, &json_str);
+            let mut known: Vec<String> = service
+                .param_repo()
+                .get_value("vellum_users")
+                .ok()
+                .flatten()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+            if !known.contains(&u) {
+                known.push(u);
+                if let Ok(k_json) = serde_json::to_string(&known) {
+                    let _ = service.param_repo().set_value("vellum_users", &k_json);
+                }
+            }
+            return Json(serde_json::json!({ "status": "ok" })).into_response();
+        }
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
     if service
         .update_reading_progress(&book_id, body.chapter_index as i32, 0, percent, finished)
         .is_ok()
@@ -311,6 +395,25 @@ pub(super) async fn api_book_progress_handler(
         return Json(serde_json::json!({ "status": "ok" })).into_response();
     }
     StatusCode::NOT_FOUND.into_response()
+}
+
+pub(super) async fn api_users_handler(
+    State(service): State<Arc<BookService>>,
+    headers: HeaderMap,
+) -> Response {
+    let active = extract_vellum_user(&headers).unwrap_or_else(|| "default".to_string());
+    let users: Vec<String> = service
+        .param_repo()
+        .get_value("vellum_users")
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    Json(serde_json::json!({
+        "active_user": active,
+        "users": users,
+    }))
+    .into_response()
 }
 
 pub(super) async fn api_i18n_handler(State(service): State<Arc<BookService>>) -> impl IntoResponse {

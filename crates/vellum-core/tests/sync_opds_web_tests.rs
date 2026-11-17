@@ -1146,4 +1146,39 @@ async fn test_web_companion_upload_and_metadata_edit() {
         Some("bytes 4-9/16")
     );
     assert_eq!(range_res.bytes().await.unwrap().as_ref(), b"456789");
+
+    // 7. Lightweight multi-user progress isolation via X-Vellum-User
+    let alice_prog = client
+        .post(format!(
+            "http://127.0.0.1:{port}/api/books/{}/progress",
+            uploaded.id
+        ))
+        .header("X-Vellum-User", "Alice")
+        .json(&serde_json::json!({ "chapter_index": 3, "percentage": 0.72 }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(alice_prog.status(), 200);
+
+    let alice_detail: vellum_core::opds_server::BookDto = client
+        .get(format!("http://127.0.0.1:{port}/api/books/{}", uploaded.id))
+        .header("X-Vellum-User", "alice")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!((alice_detail.progress_percent - 72.0).abs() < 0.01);
+
+    let bob_detail: vellum_core::opds_server::BookDto = client
+        .get(format!("http://127.0.0.1:{port}/api/books/{}", uploaded.id))
+        .header("X-Vellum-User", "bob")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(bob_detail.progress_percent, 0.0);
 }

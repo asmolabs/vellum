@@ -193,8 +193,8 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [x] Routes compatibles KOReader Progress Sync sur `OpdsServer` (`/users/auth`, `/users/create`, `PUT /syncs/progress`, `GET /syncs/progress/:document`).
 - [x] **Fournisseurs de métadonnées supplémentaires**
   - [x] Enrichisseurs `HardcoverEnricherPlugin` (GraphQL Hardcover) et `ComicVineEnricherPlugin` (API ComicVine pour CBZ/CBR) ajoutés et enregistrés dans `vellum-plugins` et `PluginService`.
-- [ ] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**
-  - [ ] Isolation optionnelle des progressions/statuts par utilisateur lorsque Vellum tourne en mode `vellum serve`.
+- [x] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**
+  - [x] Isolation optionnelle des progressions/statuts par utilisateur via `X-Vellum-User` (`GET /api/users`, sélecteur `👤` dans le Web Companion).
 - [ ] **Revue d'ergonomie & UX (inspirée de BookOrbit)**
   - [x] Web Companion : section *« Reprendre la lecture »* en tête de page, onglets de filtrage rapide (`Tous`, `En cours`, `Terminés`, `Audio`) et barres de progression.
   - [x] Simplifier `SettingsModal` en 4 onglets (`Général`, `Cloud & Sync`, `Serveur & Kindle`, `Outils & Plugins`) avec largeur responsive (`min(680px, 94vw)`).

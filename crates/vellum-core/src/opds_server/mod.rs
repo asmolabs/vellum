@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use axum::extract::{DefaultBodyLimit, Request, State};
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
-use axum::http::{HeaderValue, Method, StatusCode};
+use axum::http::{HeaderName, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
@@ -54,7 +54,11 @@ impl OpdsServer {
         let cors = CorsLayer::new()
             .allow_origin(Any)
             .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
-            .allow_headers([CONTENT_TYPE, AUTHORIZATION]);
+            .allow_headers([
+                CONTENT_TYPE,
+                AUTHORIZATION,
+                HeaderName::from_static("x-vellum-user"),
+            ]);
 
         let protected = Router::new()
             // 1. Web Companion & Mobile Reader UI
@@ -62,6 +66,7 @@ impl OpdsServer {
             .route("/read/:id", get(web_api::web_reader_handler))
             // 2. REST API for Web & Mobile Clients
             .route("/api/status", get(web_api::api_status_handler))
+            .route("/api/users", get(web_api::api_users_handler))
             .route("/api/stats", get(web_api::api_stats_handler))
             .route("/api/sync/status", get(web_api::api_sync_status_handler))
             .route("/api/sync", post(web_api::api_sync_now_handler))

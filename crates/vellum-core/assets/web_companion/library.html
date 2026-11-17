@@ -322,6 +322,7 @@
           <span>Vellum Companion</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button type="button" id="profile-btn" class="badge-count" style="cursor:pointer;" onclick="switchProfile()">👤 default</button>
           <button type="button" id="sync-btn" class="badge-count" style="cursor:pointer;display:none;" onclick="triggerWebSync()">☁️ Sync</button>
           <button type="button" id="upload-btn" class="badge-count" style="cursor:pointer;background:var(--primary);color:#fff;border-color:var(--primary);" onclick="document.getElementById('upload-input').click()">📤 Importer</button>
           <a href="/api/export?format=csv" class="badge-count" style="text-decoration:none;">CSV</a>
@@ -400,6 +401,27 @@
     let allBooks = [];
     let selectedSeries = null;
     let statusFilter = 'all';
+    let currentUser = localStorage.getItem('vellum_user') || '';
+
+    function authHeaders(extra = {}) {
+      const h = { ...extra };
+      if (currentUser) h['X-Vellum-User'] = currentUser;
+      return h;
+    }
+
+    function updateProfileButton() {
+      const btn = document.getElementById('profile-btn');
+      if (btn) btn.textContent = `👤 ${currentUser || 'default'}`;
+    }
+
+    function switchProfile() {
+      const next = window.prompt('Nom du profil (laisser vide pour default) :', currentUser);
+      if (next === null) return;
+      currentUser = next.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      localStorage.setItem('vellum_user', currentUser);
+      updateProfileButton();
+      loadLibrary();
+    }
     let i18nMessages = {
       'web.search_ph': 'Rechercher par titre, auteur, saga, tag...',
       'web.loading_library': 'Chargement de la bibliothèque...',
@@ -488,9 +510,10 @@
     }
 
     async function loadLibrary() {
+      updateProfileButton();
       await loadI18n();
       try {
-        const res = await fetch('/api/books');
+        const res = await fetch('/api/books', { headers: authHeaders() });
         if (!res.ok) throw new Error(t('web.load_error'));
         allBooks = await res.json();
         renderSeriesChips();
