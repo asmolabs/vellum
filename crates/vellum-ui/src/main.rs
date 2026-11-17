@@ -375,6 +375,33 @@ fn App() -> Element {
                             on_read: actions.on_read,
                             on_change_status: actions.on_change_book_status,
                         }
+                    } else if books.read().is_empty() {
+                        div {
+                            style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px 24px; max-width: 560px; margin: 0 auto; text-align: center;",
+                            span { style: "font-size: 46px;", "📚" }
+                            h2 { style: "font-size: 20px; font-weight: 700; margin: 0;", {translate(*ui_locale.read(), "onboarding.welcome")} }
+                            p { style: "font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0;", {translate(*ui_locale.read(), "onboarding.subtitle")} }
+                            div { style: "display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 8px;",
+                                button {
+                                    class: "btn btn-primary",
+                                    style: "justify-content: flex-start; padding: 10px 16px;",
+                                    onclick: move |_| actions.on_import.call(()),
+                                    {translate(*ui_locale.read(), "onboarding.step_import")}
+                                }
+                                button {
+                                    class: "btn btn-secondary",
+                                    style: "justify-content: flex-start; padding: 10px 16px;",
+                                    onclick: move |_| actions.on_import_calibre.call(()),
+                                    {translate(*ui_locale.read(), "onboarding.step_calibre")}
+                                }
+                                button {
+                                    class: "btn btn-secondary",
+                                    style: "justify-content: flex-start; padding: 10px 16px;",
+                                    onclick: move |_| settings_open.set(true),
+                                    {translate(*ui_locale.read(), "onboarding.step_gdrive")}
+                                }
+                            }
+                        }
                     } else if filtered_books.is_empty() {
                         div {
                             style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); padding: 60px 0;",
@@ -401,6 +428,13 @@ fn App() -> Element {
                         }
                     } else {
                         {
+                            let continue_books: Vec<vellum_domain::Book> = books
+                                .read()
+                                .iter()
+                                .filter(|b| !b.is_finished && b.progress_percent > 0.0)
+                                .take(5)
+                                .cloned()
+                                .collect();
                             let (scroll_top, grid_w, view_h) = *grid_scroll_metrics.read();
                             let grid_win = library_logic::compute_grid_window(
                                 filtered_books.len(),
@@ -409,6 +443,30 @@ fn App() -> Element {
                                 view_h,
                             );
                             rsx! {
+                                if !continue_books.is_empty() {
+                                    div {
+                                        style: "display: flex; flex-direction: column; gap: 8px; padding: 0 24px 12px;",
+                                        span { style: "font-size: 12px; font-weight: 700; color: var(--text-secondary);", {translate(*ui_locale.read(), "library.continue_reading")} }
+                                        div { style: "display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;",
+                                            for cb in continue_books {
+                                                {
+                                                    let cb_clone = cb.clone();
+                                                    let pct = cb.progress_percent.round() as i32;
+                                                    rsx! {
+                                                        button {
+                                                            key: "cont-{cb.id}",
+                                                            class: "btn btn-secondary",
+                                                            style: "display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 190px; max-width: 220px; padding: 8px 12px; text-align: left;",
+                                                            onclick: move |_| actions.on_read.call(cb_clone.clone()),
+                                                            span { style: "font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;", "{cb.title}" }
+                                                            span { style: "font-size: 11px; color: var(--text-muted);", "{pct}%" }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 if grid_win.top_spacer_px > 0.0 {
                                     div {
                                         key: "grid-top-spacer",

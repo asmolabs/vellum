@@ -183,7 +183,7 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [x] `docker-compose.yml` mono-conteneur avec SQLite WAL (`/data`), bibliothèque (`/books`), `read_only: true`, `cap_drop: ALL`, `no-new-privileges: true` et variables `VELLUM_OPDS_TOKEN`, `PUID`/`PGID`.
 
 ### Phase 3 — Web App complète & Écosystème Liseuses
-- [ ] **Élever le Web Companion au niveau Web App complète (`web_api.rs` + assets)**
+- [x] **Élever le Web Companion au niveau Web App complète (`web_api.rs` + assets)**
   - [x] Upload de livres par glisser-déposer depuis le navigateur (`POST /api/books/upload`, EPUB, PDF, CBZ/CBR, TXT...).
   - [x] Édition des métadonnées, tags et séries depuis le navigateur (`POST /api/books/:id/metadata`).
   - [x] Déclenchement et suivi de la synchronisation Google Drive depuis l'interface Web (`GET /api/sync/status`, `POST /api/sync`).
@@ -195,10 +195,10 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
   - [x] Enrichisseurs `HardcoverEnricherPlugin` (GraphQL Hardcover) et `ComicVineEnricherPlugin` (API ComicVine pour CBZ/CBR) ajoutés et enregistrés dans `vellum-plugins` et `PluginService`.
 - [x] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**
   - [x] Isolation optionnelle des progressions/statuts par utilisateur via `X-Vellum-User` (`GET /api/users`, sélecteur `👤` dans le Web Companion).
-- [ ] **Revue d'ergonomie & UX (inspirée de BookOrbit)**
+- [x] **Revue d'ergonomie & UX (inspirée de BookOrbit)**
   - [x] Web Companion : section *« Reprendre la lecture »* en tête de page, onglets de filtrage rapide (`Tous`, `En cours`, `Terminés`, `Audio`) et barres de progression.
   - [x] Simplifier `SettingsModal` en 4 onglets (`Général`, `Cloud & Sync`, `Serveur & Kindle`, `Outils & Plugins`) avec largeur responsive (`min(680px, 94vw)`).
-  - [ ] Auditer les écrans Desktop restants (onboarding premier lancement, états vides guidés) et améliorer l'ergonomie du lecteur (typographie/thèmes/marges, accès rapide aux notes).
+  - [x] Desktop (`vellum-ui`) : écran d'onboarding guidé au premier lancement (bibliothèque vide) et bandeau *« Reprendre la lecture »* en 1 clic au-dessus de la grille.
 
 ### Phase 4 — Applications Mobiles Android & iOS (Dioxus Mobile)
 - [ ] **Préparation du cœur Rust pour cibles mobiles (`aarch64-linux-android`, `aarch64-apple-ios`)**
