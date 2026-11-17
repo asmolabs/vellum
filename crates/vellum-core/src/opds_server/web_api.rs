@@ -44,6 +44,7 @@ pub struct BookDto {
     pub formats: Vec<FormatDto>,
     pub has_cover: bool,
     pub progress_percent: f64,
+    pub is_finished: bool,
     pub added_at: String,
 }
 
@@ -118,6 +119,7 @@ impl BookDto {
             formats,
             has_cover,
             progress_percent: b.progress_percent,
+            is_finished: b.is_finished,
             added_at: b.added_at,
         }
     }

@@ -196,9 +196,9 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 - [ ] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**
   - [ ] Isolation optionnelle des progressions/statuts par utilisateur lorsque Vellum tourne en mode `vellum serve`.
 - [ ] **Revue d'ergonomie & UX (inspirée de BookOrbit)**
-  - [ ] Auditer les écrans Desktop (`vellum-ui`) et Web Companion face aux parcours de BookOrbit (tableau de bord d'accueil / "En cours de lecture", navigation par étagères/collections, lecteur unifié, onboarding premier lancement).
-  - [ ] Simplifier les modales chargées (`SettingsModal`, tiroirs de détails) en onglets ou sections repliables avec états vides guidés et feedback visuel clair.
-  - [ ] Améliorer l'ergonomie de lecture (personnalisation typographie/thèmes/marges, reprise rapide sur le dernier chapitre, accès rapide aux surlignages et notes).
+  - [x] Web Companion : section *« Reprendre la lecture »* en tête de page, onglets de filtrage rapide (`Tous`, `En cours`, `Terminés`, `Audio`) et barres de progression.
+  - [x] Simplifier `SettingsModal` en 4 onglets (`Général`, `Cloud & Sync`, `Serveur & Kindle`, `Outils & Plugins`) avec largeur responsive (`min(680px, 94vw)`).
+  - [ ] Auditer les écrans Desktop restants (onboarding premier lancement, états vides guidés) et améliorer l'ergonomie du lecteur (typographie/thèmes/marges, accès rapide aux notes).
 
 ### Phase 4 — Applications Mobiles Android & iOS (Dioxus Mobile)
 - [ ] **Préparation du cœur Rust pour cibles mobiles (`aarch64-linux-android`, `aarch64-apple-ios`)**

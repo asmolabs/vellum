@@ -335,11 +335,21 @@
         <span class="search-icon">🔍</span>
         <input type="text" id="search-box" class="search-input" placeholder="Rechercher par titre, auteur, saga, tag...">
       </div>
+      <div class="chips-row" id="status-tabs">
+        <div class="chip active" onclick="setStatusFilter('all', this)">📚 Tous</div>
+        <div class="chip" onclick="setStatusFilter('reading', this)">📖 En cours</div>
+        <div class="chip" onclick="setStatusFilter('finished', this)">✅ Terminés</div>
+        <div class="chip" onclick="setStatusFilter('audio', this)">🎧 Audio</div>
+      </div>
       <div class="chips-row" id="series-chips"></div>
     </div>
   </header>
 
   <main>
+    <section id="continue-section" style="display:none;margin-bottom:20px;">
+      <h2 style="font-size:14px;font-weight:700;margin-bottom:10px;color:#c7d2fe;">📖 Reprendre la lecture</h2>
+      <div id="continue-row" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;"></div>
+    </section>
     <div class="book-grid" id="books-container">
       <div class="empty-state">
         <span>⏳</span>
@@ -389,6 +399,7 @@
   <script>
     let allBooks = [];
     let selectedSeries = null;
+    let statusFilter = 'all';
     let i18nMessages = {
       'web.search_ph': 'Rechercher par titre, auteur, saga, tag...',
       'web.loading_library': 'Chargement de la bibliothèque...',
@@ -483,6 +494,7 @@
         if (!res.ok) throw new Error(t('web.load_error'));
         allBooks = await res.json();
         renderSeriesChips();
+        renderContinueReading();
         renderBooks();
         loadStatsAndSync();
       } catch (e) {
@@ -516,6 +528,44 @@
       container.innerHTML = html;
     }
 
+    function setStatusFilter(mode, el) {
+      statusFilter = mode;
+      document.querySelectorAll('#status-tabs .chip').forEach(c => c.classList.remove('active'));
+      if (el) el.classList.add('active');
+      renderBooks();
+    }
+
+    function renderContinueReading() {
+      const inProgress = allBooks
+        .filter(b => !b.is_finished && b.progress_percent > 0)
+        .slice(0, 8);
+      const sec = document.getElementById('continue-section');
+      const row = document.getElementById('continue-row');
+      if (inProgress.length === 0) {
+        sec.style.display = 'none';
+        return;
+      }
+      sec.style.display = 'block';
+      const audioExts = ['mp3', 'm4b', 'm4a', 'ogg', 'flac', 'opus'];
+      row.innerHTML = inProgress.map(b => {
+        const isAudio = (b.formats || []).some(f => audioExts.includes((f.format || '').toLowerCase()));
+        const pct = Math.round(b.progress_percent || 0);
+        const action = isAudio
+          ? `onclick="openAudioModal('${escapeHtml(b.id)}')" style="cursor:pointer;"`
+          : `onclick="window.location.href='/read/${escapeHtml(b.id)}'" style="cursor:pointer;"`;
+        return `
+          <div class="book-card" ${action} style="min-width:210px;max-width:210px;padding:10px;gap:6px;">
+            <div class="book-title" style="margin:0;">${escapeHtml(b.title)}</div>
+            <div class="book-author" style="margin:0;">${escapeHtml(b.author)}</div>
+            <div style="height:4px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:var(--primary);"></div>
+            </div>
+            <div style="font-size:11px;color:#c7d2fe;">${pct}%</div>
+          </div>
+        `;
+      }).join('');
+    }
+
     function filterSeries(s) {
       selectedSeries = s;
       renderSeriesChips();
@@ -523,8 +573,13 @@
     }
 
     function renderBooks() {
+      const audioExts = ['mp3', 'm4b', 'm4a', 'ogg', 'flac', 'opus'];
       const q = document.getElementById('search-box').value.toLowerCase().trim();
       const filtered = allBooks.filter(b => {
+        if (statusFilter === 'reading' && (b.is_finished || !(b.progress_percent > 0))) return false;
+        if (statusFilter === 'finished' && !b.is_finished) return false;
+        if (statusFilter === 'audio' && !(b.formats || []).some(f => audioExts.includes((f.format || '').toLowerCase()))) return false;
+
         const matchSeries = selectedSeries ? (b.series && b.series.trim() === selectedSeries) : true;
         if (!matchSeries) return false;
 

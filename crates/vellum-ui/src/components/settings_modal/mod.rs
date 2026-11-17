@@ -93,6 +93,7 @@ pub fn SettingsModal(
         Some(email) => translate_fmt(locale, "settings.gdrive_connected_as", &[("email", email)]),
         None => translate(locale, "settings.gdrive_connected_anon").to_string(),
     };
+    let mut active_tab = use_signal(|| "cloud");
 
     rsx! {
         div {
@@ -101,7 +102,7 @@ pub fn SettingsModal(
 
             div {
                 class: "drawer-panel",
-                style: "width: 660px; max-height: 90vh; overflow-y: auto;",
+                style: "width: min(680px, 94vw); max-height: 90vh; overflow-y: auto;",
                 onclick: move |evt| evt.stop_propagation(),
 
                 div { class: "drawer-header",
@@ -113,7 +114,25 @@ pub fn SettingsModal(
                     }
                 }
 
+                // Barre d'onglets pour aérer les paramètres
+                div { style: "display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle);",
+                    for (tab_id, tab_key) in [
+                        ("general", "settings.tab_general"),
+                        ("cloud", "settings.tab_cloud"),
+                        ("server", "settings.tab_server"),
+                        ("tools", "settings.tab_tools"),
+                    ] {
+                        button {
+                            class: if *active_tab.read() == tab_id { "btn btn-primary" } else { "btn btn-secondary" },
+                            style: "font-size: 12px; padding: 6px 12px;",
+                            onclick: move |_| active_tab.set(tab_id),
+                            "{translate(locale, tab_key)}"
+                        }
+                    }
+                }
+
                 // 0. Langue de l'interface (i18n)
+                if *active_tab.read() == "general" {
                 div { style: "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
                     span { style: "font-size: 13px; font-weight: 600;", "{translate(locale, \"settings.language\")}" }
                     div { style: "display: flex; gap: 8px;",
@@ -127,8 +146,10 @@ pub fn SettingsModal(
                         }
                     }
                 }
+                }
 
                 // 1. Synchronisation Google Drive Multi-Postes
+                if *active_tab.read() == "cloud" {
                 div { style: "display: flex; flex-direction: column; gap: 12px; padding: 16px; background: rgba(59, 130, 246, 0.04); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px;",
                     div { style: "display: flex; justify-content: space-between; align-items: center;",
                         div { style: "display: flex; align-items: center; gap: 8px;",
@@ -321,6 +342,22 @@ pub fn SettingsModal(
                     }
                 }
 
+                // 4. Litestream
+                div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
+                    div { style: "display: flex; justify-content: space-between; align-items: center;",
+                        span { style: "font-weight: 600; font-size: 13px;", {translate(locale, "settings.litestream_title")} }
+                        span { class: "format-pill", "WAL STREAM" }
+                    }
+                    p { style: "font-size: 12px; color: var(--text-secondary);",
+                        {translate(locale, "settings.litestream_desc")}
+                    }
+                    div { style: "font-size: 12px; color: var(--text-muted);",
+                        {translate_fmt(locale, "settings.litestream_status", &[("status", &litestream_status_text)])}
+                    }
+                }
+                }
+
+                if *active_tab.read() == "server" {
                 // 2. Envoi sans-fil Kindle (Send-to-Kindle via SMTP)
                 SmtpSettingsSection {
                     locale,
@@ -358,21 +395,9 @@ pub fn SettingsModal(
                         span { style: "font-size: 11px; color: var(--text-muted);", {translate(locale, "settings.opds_restart_hint")} }
                     }
                 }
-
-                // 4. Litestream
-                div { style: "display: flex; flex-direction: column; gap: 8px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
-                    div { style: "display: flex; justify-content: space-between; align-items: center;",
-                        span { style: "font-weight: 600; font-size: 13px;", {translate(locale, "settings.litestream_title")} }
-                        span { class: "format-pill", "WAL STREAM" }
-                    }
-                    p { style: "font-size: 12px; color: var(--text-secondary);",
-                        {translate(locale, "settings.litestream_desc")}
-                    }
-                    div { style: "font-size: 12px; color: var(--text-muted);",
-                        {translate_fmt(locale, "settings.litestream_status", &[("status", &litestream_status_text)])}
-                    }
                 }
 
+                if *active_tab.read() == "tools" {
                 LibraryToolsSection {
                     locale,
                     custom_columns,
@@ -404,6 +429,7 @@ pub fn SettingsModal(
                             }
                         }
                     }
+                }
                 }
             }
         }
