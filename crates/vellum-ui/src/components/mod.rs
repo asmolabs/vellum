@@ -24,6 +24,7 @@ pub mod reading_stats_modal;
 pub mod settings_modal;
 pub mod sidebar;
 pub mod translate_modal;
+pub mod upload_modal;
 
 pub use audio_mini_player::AudioMiniPlayer;
 pub use book_card::BookCard;
@@ -50,3 +51,4 @@ pub use reading_stats_modal::ReadingStatsModal;
 pub use settings_modal::SettingsModal;
 pub use sidebar::Sidebar;
 pub use translate_modal::{TranslateModal, TranslationRequest};
+pub use upload_modal::UploadModal;

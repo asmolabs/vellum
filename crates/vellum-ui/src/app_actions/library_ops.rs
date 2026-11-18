@@ -17,13 +17,16 @@ use super::{show_toast, AppActionContext};
 
 pub(super) struct LibraryHandlers {
     pub on_import: EventHandler<()>,
+    pub on_import_folder: EventHandler<()>,
     pub on_import_calibre: EventHandler<()>,
+    pub on_attach_format: EventHandler<String>,
     pub on_read: EventHandler<Book>,
     pub on_progress: EventHandler<(usize, usize, f64)>,
     pub on_delete: EventHandler<String>,
     pub on_toggle_select: EventHandler<String>,
     pub on_bulk_edit_save: EventHandler<BulkEditRequest>,
     pub on_bulk_delete: EventHandler<()>,
+    pub on_bulk_export: EventHandler<()>,
     pub on_change_book_status: EventHandler<(String, KanbanTargetStatus)>,
     pub on_convert: EventHandler<(String, String)>,
     pub on_save_metadata: EventHandler<SaveMetadataRequest>,
@@ -602,5 +605,146 @@ pub(super) fn build_library_handlers(
         on_change_cover,
         on_start_translate,
         on_export_file,
+        on_import_folder: EventHandler::new({
+            let bs = ctx.book_service.clone();
+            move |()| {
+                let locale = *ctx.ui_locale.read();
+                if let Some(folder) =
+                    crate::platform::pick_folder("Importer un dossier (Audio / Comics / Livres)")
+                {
+                    let bs_c = bs.clone();
+                    spawn(async move {
+                        let res =
+                            tokio::task::spawn_blocking(move || bs_c.import_folder(&folder)).await;
+                        match res {
+                            Ok(Ok(imported)) => {
+                                on_refresh.call(());
+                                show_toast(
+                                    ctx.toast_msg,
+                                    format!(
+                                        "{} élément(s) importé(s) depuis le dossier.",
+                                        imported.len()
+                                    ),
+                                    true,
+                                );
+                            }
+                            Ok(Err(e)) => show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                                false,
+                            ),
+                            Err(e) => show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(
+                                    locale,
+                                    "common.task_interrupted",
+                                    &[("error", &e.to_string())],
+                                ),
+                                false,
+                            ),
+                        }
+                    });
+                }
+            }
+        }),
+        on_attach_format: EventHandler::new({
+            let bs = ctx.book_service.clone();
+            let mut sel_book = ctx.selected_book;
+            move |b_id: String| {
+                let locale = *ctx.ui_locale.read();
+                let picked = crate::platform::pick_file(
+                    "Ajouter un format au livre",
+                    &[(
+                        "Livres, Audio & Comics",
+                        &[
+                            "epub", "pdf", "cbz", "cbr", "cb7", "mobi", "azw3", "m4b", "mp3",
+                            "m4a", "flac", "opus", "ogg",
+                        ],
+                    )],
+                );
+                if let Some(path) = picked {
+                    let bs_c = bs.clone();
+                    spawn(async move {
+                        let res = tokio::task::spawn_blocking(move || {
+                            bs_c.attach_format_to_book(&b_id, &path)
+                        })
+                        .await;
+                        match res {
+                            Ok(Ok(updated)) => {
+                                sel_book.set(Some(updated));
+                                on_refresh.call(());
+                                show_toast(
+                                    ctx.toast_msg,
+                                    "Format ajouté au livre.".to_string(),
+                                    true,
+                                );
+                            }
+                            Ok(Err(e)) => show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                                false,
+                            ),
+                            Err(e) => show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(
+                                    locale,
+                                    "common.task_interrupted",
+                                    &[("error", &e.to_string())],
+                                ),
+                                false,
+                            ),
+                        }
+                    });
+                }
+            }
+        }),
+        on_bulk_export: EventHandler::new({
+            let bs = ctx.book_service.clone();
+            let sel_ids = ctx.selected_ids;
+            move |()| {
+                let locale = *ctx.ui_locale.read();
+                let ids: Vec<String> = sel_ids.read().iter().cloned().collect();
+                if ids.is_empty() {
+                    return;
+                }
+                if let Some(dest_dir) =
+                    crate::platform::pick_folder(translate(locale, "actions.export_folder_title"))
+                {
+                    let bs_c = bs.clone();
+                    spawn(async move {
+                        let count = ids.len();
+                        let res = tokio::task::spawn_blocking(move || {
+                            let mut ok = 0usize;
+                            for id in ids {
+                                if bs_c
+                                    .export_book_to_directory(&id, &dest_dir, None, None)
+                                    .is_ok()
+                                {
+                                    ok += 1;
+                                }
+                            }
+                            ok
+                        })
+                        .await;
+                        match res {
+                            Ok(ok) => show_toast(
+                                ctx.toast_msg,
+                                format!("{ok}/{count} fichier(s) téléchargé(s) dans le dossier."),
+                                ok > 0,
+                            ),
+                            Err(e) => show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(
+                                    locale,
+                                    "common.task_interrupted",
+                                    &[("error", &e.to_string())],
+                                ),
+                                false,
+                            ),
+                        }
+                    });
+                }
+            }
+        }),
     }
 }

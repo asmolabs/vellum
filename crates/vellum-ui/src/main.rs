@@ -25,8 +25,8 @@ mod styles;
 
 use components::{
     letter_bucket, AnnotationsView, AudioMiniPlayer, AuthorsView, BookCard, BookQuickView,
-    BooksTable, DetailDrawer, HomeDashboard, JumpRail, LibraryToolbar, ReadingHistoryView,
-    SeriesView, Sidebar,
+    BooksTable, DetailDrawer, HomeDashboard, IconKind, JumpRail, LibraryToolbar, LucideIcon,
+    ReadingHistoryView, SeriesView, Sidebar, UploadModal,
 };
 use state::{FilterStatus, MediaType, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -125,6 +125,7 @@ fn App() -> Element {
     let mut palette_open = use_signal(|| false);
     let bulk_edit_open = use_signal(|| false);
     let bulk_convert_open = use_signal(|| false);
+    let mut upload_open = use_signal(|| false);
     let selected_ids = use_signal(std::collections::HashSet::<String>::new);
     let mut translating_book = use_signal(|| None::<Book>);
     let is_translating = use_signal(|| false);
@@ -424,7 +425,7 @@ fn App() -> Element {
                 connected_devices: connected_devices.read().clone(),
                 sync_available: sync_service.is_backend_available(),
                 is_syncing: *is_syncing.read(),
-                on_import: actions.on_import,
+                on_import: move |_| upload_open.set(true),
                 on_import_calibre: actions.on_import_calibre,
                 on_open_audit: move |_| audit_open.set(true),
                 on_open_import_rules: move |_| import_rules_open.set(true),
@@ -436,8 +437,53 @@ fn App() -> Element {
                 on_open_settings: move |_| settings_open.set(true),
             }
 
-            // Main Right Column (sans barre supérieure, façon BookOrbit)
+            // Main Right Column (contrôles de fenêtre style VS Code + contenu)
             div { class: "main-column",
+                if cfg!(feature = "desktop") {
+                    div {
+                        class: "win-ctrl-bar",
+                        div {
+                            style: "flex: 1; height: 100%;",
+                            onmousedown: move |_| {
+                                #[cfg(feature = "desktop")]
+                                dioxus::desktop::window().drag();
+                            },
+                            ondoubleclick: move |_| {
+                                #[cfg(feature = "desktop")]
+                                dioxus::desktop::window().toggle_maximized();
+                            },
+                        }
+                        div { style: "display: flex; align-items: center; gap: 2px;",
+                            button {
+                                class: "win-ctrl-btn",
+                                title: "Réduire",
+                                onclick: move |_| {
+                                    #[cfg(feature = "desktop")]
+                                    dioxus::desktop::window().set_minimized(true);
+                                },
+                                LucideIcon { kind: IconKind::Minus, size: 14 }
+                            }
+                            button {
+                                class: "win-ctrl-btn",
+                                title: "Agrandir / Restaurer",
+                                onclick: move |_| {
+                                    #[cfg(feature = "desktop")]
+                                    dioxus::desktop::window().toggle_maximized();
+                                },
+                                LucideIcon { kind: IconKind::Square, size: 12 }
+                            }
+                            button {
+                                class: "win-ctrl-btn win-ctrl-btn-close",
+                                title: "Fermer",
+                                onclick: move |_| {
+                                    #[cfg(feature = "desktop")]
+                                    dioxus::desktop::window().close();
+                                },
+                                LucideIcon { kind: IconKind::X, size: 14 }
+                            }
+                        }
+                    }
+                }
                 // Books Library
                 main {
                     id: "vellum-library-scroll",
@@ -567,6 +613,7 @@ fn App() -> Element {
                                     on_toggle_select: actions.on_toggle_select,
                                     on_select: move |selected| selected_book.set(Some(selected)),
                                     on_read: actions.on_read,
+                                    on_download: move |b: Book| actions.on_export_file.call((b.id, None)),
                                 }
                             }
                             if !available_letters.is_empty() {
@@ -705,6 +752,7 @@ fn App() -> Element {
                             custom_values: custom_vals,
                             on_save_custom_value: detail_extra.on_save_custom_value,
                             on_change_status: actions.on_change_book_status,
+                            on_attach_format: actions.on_attach_format,
                         }
 
                     }
@@ -723,6 +771,17 @@ fn App() -> Element {
                         }
                     },
                     on_open_details: move |b| selected_book.set(Some(b)),
+                    on_download: move |b: Book| actions.on_export_file.call((b.id, None)),
+                }
+            }
+
+            if *upload_open.read() {
+                UploadModal {
+                    book_service: book_service.clone(),
+                    on_close: move |_| upload_open.set(false),
+                    on_pick_files: actions.on_import,
+                    on_pick_folder: actions.on_import_folder,
+                    on_imported: move |_| actions.overlay_handlers.on_refresh.call(()),
                 }
             }
 

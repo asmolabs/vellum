@@ -15,6 +15,7 @@ pub fn BooksTable(
     on_toggle_select: EventHandler<String>,
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
+    #[props(default)] on_download: Option<EventHandler<Book>>,
 ) -> Element {
     let mut table_scroll = use_signal(|| (0.0_f64, 560.0_f64));
     let mut cols_open = use_signal(|| false);
@@ -273,6 +274,7 @@ pub fn BooksTable(
                                 let b_row_select = b.clone();
                                 let b_read = b.clone();
                                 let b_detail = b.clone();
+                                let b_dl = b.clone();
                                 rsx! {
                                     tr {
                                         key: "row-{b.id}",
@@ -340,6 +342,15 @@ pub fn BooksTable(
                                                     title: translate(locale, "table.details_short"),
                                                     onclick: move |_| on_select.call(b_detail.clone()),
                                                     "ℹ️"
+                                                }
+                                                if let Some(dl_cb) = on_download {
+                                                    button {
+                                                        class: "btn btn-secondary",
+                                                        style: "padding: 4px 8px; font-size: 11px; display: inline-flex; align-items: center;",
+                                                        title: "Télécharger",
+                                                        onclick: move |_| dl_cb.call(b_dl.clone()),
+                                                        crate::components::LucideIcon { kind: crate::components::IconKind::Download, size: 13 }
+                                                    }
                                                 }
                                             }
                                         }

@@ -56,7 +56,9 @@ pub(crate) struct AppActionContext {
 
 pub(crate) struct AppActions {
     pub on_import: EventHandler<()>,
+    pub on_import_folder: EventHandler<()>,
     pub on_import_calibre: EventHandler<()>,
+    pub on_attach_format: EventHandler<String>,
     pub on_read: EventHandler<Book>,
     pub on_delete: EventHandler<String>,
     pub on_toggle_select: EventHandler<String>,
@@ -170,6 +172,7 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         on_palette_action,
         on_bulk_edit_save: lib.on_bulk_edit_save,
         on_bulk_delete: lib.on_bulk_delete,
+        on_bulk_export: lib.on_bulk_export,
         on_sync_now,
         on_pick_sync_folder: sync.on_pick_sync_folder,
         on_auto_detect_folder: sync.on_auto_detect_folder,
@@ -185,7 +188,9 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
 
     AppActions {
         on_import,
+        on_import_folder: lib.on_import_folder,
         on_import_calibre,
+        on_attach_format: lib.on_attach_format,
         on_read,
         on_delete: lib.on_delete,
         on_toggle_select: lib.on_toggle_select,

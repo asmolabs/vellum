@@ -156,6 +156,40 @@ select option {
   overflow: hidden;
 }
 
+.win-ctrl-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  padding: 2px 8px 0;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.win-ctrl-btn {
+  width: 34px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.win-ctrl-btn:hover {
+  background: var(--accent-glow);
+  color: var(--text-primary);
+}
+
+.win-ctrl-btn-close:hover {
+  background: #e81123;
+  color: #ffffff;
+}
+
 /* Header (slim right-column action strip) */
 .app-header {
   height: 52px;

@@ -51,6 +51,7 @@ pub fn DetailDrawer(
     #[props(default)] on_change_status: Option<
         EventHandler<(String, crate::components::KanbanTargetStatus)>,
     >,
+    #[props(default)] on_attach_format: Option<EventHandler<String>>,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
     let mut show_more_actions = use_signal(|| false);
@@ -480,16 +481,46 @@ pub fn DetailDrawer(
                     }
 
                     div {
-                        div { class: "sidebar-section-title", {translate(locale, "drawer.files_formats")} }
+                        div {
+                            style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;",
+                            div { class: "sidebar-section-title", style: "margin-bottom: 0;", {translate(locale, "drawer.files_formats")} }
+                            if let Some(attach_cb) = on_attach_format {
+                                button {
+                                    class: "btn btn-secondary",
+                                    style: "padding: 3px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;",
+                                    onclick: {
+                                        let b_id = book_id.clone();
+                                        move |_| attach_cb.call(b_id.clone())
+                                    },
+                                    crate::components::LucideIcon { kind: crate::components::IconKind::Plus, size: 12 }
+                                    span { "Ajouter format" }
+                                }
+                            }
+                        }
                         div { style: "display: flex; flex-direction: column; gap: 6px;",
                             for fmt in formats.iter() {
-                                div {
-                                    style: "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 8px; font-size: 12px;",
-                                    div { style: "display: flex; align-items: center; gap: 8px;",
-                                        span { class: "format-pill", "{fmt.format.to_uppercase()}" }
-                                        span { style: "color: var(--text-primary);", "{fmt.filename}" }
+                                {
+                                    let b_id = book_id.clone();
+                                    let fmt_ext = fmt.format.clone();
+                                    rsx! {
+                                        div {
+                                            style: "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 8px; font-size: 12px; gap: 8px;",
+                                            div { style: "display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;",
+                                                span { class: "format-pill", "{fmt.format.to_uppercase()}" }
+                                                span { style: "color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{fmt.filename}" }
+                                            }
+                                            div { style: "display: flex; align-items: center; gap: 8px; flex-shrink: 0;",
+                                                span { style: "color: var(--text-muted);", "{fmt.filesize / 1024} KB" }
+                                                button {
+                                                    class: "btn btn-secondary",
+                                                    style: "padding: 3px 7px; font-size: 11px; display: inline-flex; align-items: center;",
+                                                    title: "Télécharger ce format",
+                                                    onclick: move |_| on_export_file.call((b_id.clone(), Some(fmt_ext.clone()))),
+                                                    crate::components::LucideIcon { kind: crate::components::IconKind::Download, size: 12 }
+                                                }
+                                            }
+                                        }
                                     }
-                                    span { style: "color: var(--text-muted);", "{fmt.filesize / 1024} KB" }
                                 }
                             }
                         }

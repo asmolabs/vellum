@@ -79,6 +79,7 @@ pub(crate) struct OverlayHandlers {
     pub on_palette_action: EventHandler<PaletteAction>,
     pub on_bulk_edit_save: EventHandler<BulkEditRequest>,
     pub on_bulk_delete: EventHandler<()>,
+    pub on_bulk_export: EventHandler<()>,
     pub on_sync_now: EventHandler<()>,
     pub on_pick_sync_folder: EventHandler<()>,
     pub on_auto_detect_folder: EventHandler<()>,
@@ -364,6 +365,13 @@ pub(crate) fn render_app_overlays(
                             onclick: move |_| st.bulk_regex_open.set(true),
                             crate::components::LucideIcon { kind: crate::components::IconKind::Wrench, size: 13 }
                             {vellum_core::translate(loc, "selection.regex")}
+                        }
+                        button {
+                            class: "btn btn-secondary",
+                            style: "padding: 5px 12px; font-size: 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                            onclick: move |_| hd.on_bulk_export.call(()),
+                            crate::components::LucideIcon { kind: crate::components::IconKind::Download, size: 13 }
+                            "Exporter"
                         }
                         button {
                             class: "btn btn-danger",

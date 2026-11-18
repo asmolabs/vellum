@@ -12,6 +12,7 @@ pub fn BookQuickView(
     on_close: EventHandler<()>,
     on_read: EventHandler<Book>,
     on_open_details: EventHandler<Book>,
+    #[props(default)] on_download: Option<EventHandler<Book>>,
 ) -> Element {
     let cover_src = resolve_cover_src(&book.id, book.cover_path.as_deref(), true);
     let (score, missing) = compute_metadata_score(&book);
@@ -101,6 +102,18 @@ pub fn BookQuickView(
 
                 // Footer actions
                 div { style: "display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border-subtle); padding-top: 12px;",
+                    if let Some(dl_cb) = on_download {
+                        button {
+                            class: "btn btn-secondary",
+                            style: "display: inline-flex; align-items: center; gap: 6px; margin-right: auto;",
+                            onclick: {
+                                let b = book.clone();
+                                move |_| dl_cb.call(b.clone())
+                            },
+                            LucideIcon { kind: IconKind::Download, size: 14 }
+                            span { "Télécharger" }
+                        }
+                    }
                     button {
                         class: "btn btn-secondary",
                         onclick: {
