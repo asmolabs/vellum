@@ -52,6 +52,7 @@ pub fn DetailDrawer(
         EventHandler<(String, crate::components::KanbanTargetStatus)>,
     >,
     #[props(default)] on_attach_format: Option<EventHandler<String>>,
+    #[props(default)] on_rate_book: Option<EventHandler<(String, Option<i32>)>>,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
     let mut show_more_actions = use_signal(|| false);
@@ -267,6 +268,32 @@ pub fn DetailDrawer(
                                                     },
                                                     onclick: move |_| status_cb.call((b_id.clone(), target)),
                                                     "{label}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Quick Star Rating 1..5 (Calibre + BookOrbit style)
+                            if let Some(rate_cb) = on_rate_book {
+                                div { style: "display: flex; align-items: center; gap: 3px; margin-top: 6px;",
+                                    for star in 1_i32..=5 {
+                                        {
+                                            let b_id = book_id.clone();
+                                            let cur_r = book.rating.unwrap_or(0);
+                                            let filled = cur_r >= star;
+                                            let next_val = if book.rating == Some(star) { None } else { Some(star) };
+                                            rsx! {
+                                                button {
+                                                    title: "{star} ★",
+                                                    style: if filled {
+                                                        "background: none; border: none; color: #fbbf24; font-size: 16px; cursor: pointer; padding: 0 2px; line-height: 1;"
+                                                    } else {
+                                                        "background: none; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; padding: 0 2px; line-height: 1; opacity: 0.45;"
+                                                    },
+                                                    onclick: move |_| rate_cb.call((b_id.clone(), next_val)),
+                                                    "★"
                                                 }
                                             }
                                         }

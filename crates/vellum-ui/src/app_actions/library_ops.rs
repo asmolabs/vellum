@@ -27,6 +27,8 @@ pub(super) struct LibraryHandlers {
     pub on_bulk_edit_save: EventHandler<BulkEditRequest>,
     pub on_bulk_delete: EventHandler<()>,
     pub on_bulk_export: EventHandler<()>,
+    pub on_bulk_merge: EventHandler<()>,
+    pub on_rate_book: EventHandler<(String, Option<i32>)>,
     pub on_change_book_status: EventHandler<(String, KanbanTargetStatus)>,
     pub on_convert: EventHandler<(String, String)>,
     pub on_save_metadata: EventHandler<SaveMetadataRequest>,
@@ -542,6 +544,7 @@ pub(super) fn build_library_handlers(
                 let bs_cloned = bs.clone();
                 spawn(async move {
                     let res = tokio::task::spawn_blocking(move || {
+                        let _ = bs_cloned.polish_book(&b_id, vellum_core::PolishOptions::default());
                         bs_cloned.export_book_to_directory(
                             &b_id,
                             &dest_dir,
@@ -716,6 +719,8 @@ pub(super) fn build_library_handlers(
                         let res = tokio::task::spawn_blocking(move || {
                             let mut ok = 0usize;
                             for id in ids {
+                                let _ =
+                                    bs_c.polish_book(&id, vellum_core::PolishOptions::default());
                                 if bs_c
                                     .export_book_to_directory(&id, &dest_dir, None, None)
                                     .is_ok()
@@ -743,6 +748,67 @@ pub(super) fn build_library_handlers(
                             ),
                         }
                     });
+                }
+            }
+        }),
+        on_bulk_merge: EventHandler::new({
+            let bs = ctx.book_service.clone();
+            let mut sel_ids = ctx.selected_ids;
+            move |()| {
+                let locale = *ctx.ui_locale.read();
+                let mut ids: Vec<String> = sel_ids.read().iter().cloned().collect();
+                if ids.len() < 2 {
+                    return;
+                }
+                ids.sort();
+                let target_id = ids.remove(0);
+                let bs_c = bs.clone();
+                spawn(async move {
+                    let res = tokio::task::spawn_blocking(move || {
+                        for src_id in ids {
+                            bs_c.merge_books(&target_id, &src_id)?;
+                        }
+                        Ok::<_, vellum_domain::VellumError>(())
+                    })
+                    .await;
+                    match res {
+                        Ok(Ok(())) => {
+                            sel_ids.set(HashSet::new());
+                            on_refresh.call(());
+                            show_toast(
+                                ctx.toast_msg,
+                                "Livres fusionnés en une seule fiche.".to_string(),
+                                true,
+                            );
+                        }
+                        Ok(Err(e)) => show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        ),
+                        Err(e) => show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(
+                                locale,
+                                "common.task_interrupted",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        ),
+                    }
+                });
+            }
+        }),
+        on_rate_book: EventHandler::new({
+            let bs = ctx.book_service.clone();
+            let mut sel_book = ctx.selected_book;
+            move |(b_id, rating): (String, Option<i32>)| {
+                if let Ok(Some(mut book)) = bs.book_repo().find_by_id(&b_id) {
+                    book.rating = rating;
+                    if let Ok(saved) = bs.book_repo().save(&book) {
+                        sel_book.set(Some(saved));
+                        on_refresh.call(());
+                    }
                 }
             }
         }),

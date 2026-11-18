@@ -126,6 +126,7 @@ fn App() -> Element {
     let bulk_edit_open = use_signal(|| false);
     let bulk_convert_open = use_signal(|| false);
     let mut upload_open = use_signal(|| false);
+    let mut shortcuts_open = use_signal(|| false);
     let selected_ids = use_signal(std::collections::HashSet::<String>::new);
     let mut translating_book = use_signal(|| None::<Book>);
     let is_translating = use_signal(|| false);
@@ -267,7 +268,10 @@ fn App() -> Element {
         active_reader,
         focused_book_id,
         selected_book,
+        quick_view_book,
         palette_open,
+        upload_open,
+        shortcuts_open,
         settings_open,
         bulk_edit_open,
         bulk_convert_open,
@@ -753,6 +757,7 @@ fn App() -> Element {
                             on_save_custom_value: detail_extra.on_save_custom_value,
                             on_change_status: actions.on_change_book_status,
                             on_attach_format: actions.on_attach_format,
+                            on_rate_book: actions.on_rate_book,
                         }
 
                     }
@@ -778,10 +783,49 @@ fn App() -> Element {
             if *upload_open.read() {
                 UploadModal {
                     book_service: book_service.clone(),
+                    opds_port,
                     on_close: move |_| upload_open.set(false),
                     on_pick_files: actions.on_import,
                     on_pick_folder: actions.on_import_folder,
                     on_imported: move |_| actions.overlay_handlers.on_refresh.call(()),
+                }
+            }
+
+            if *shortcuts_open.read() {
+                div {
+                    class: "modal-overlay",
+                    onclick: move |_| shortcuts_open.set(false),
+                    div {
+                        style: "width: min(440px, 92vw); background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 14px; padding: 20px; box-shadow: 0 24px 64px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 12px;",
+                        onclick: move |e| e.stop_propagation(),
+                        div { style: "display: flex; align-items: center; justify-content: space-between;",
+                            h3 { style: "margin: 0; font-size: 16px; font-weight: 700; color: var(--text-primary);", "Raccourcis clavier (Calibre + BookOrbit)" }
+                            button {
+                                class: "btn btn-icon",
+                                onclick: move |_| shortcuts_open.set(false),
+                                LucideIcon { kind: IconKind::X, size: 15 }
+                            }
+                        }
+                        for (key_label, desc) in [
+                            ("⌘K / Ctrl+K", "Palette de commandes & recherche"),
+                            ("Espace", "Aperçu rapide (QuickView)"),
+                            ("E", "Ouvrir la fiche détail / métadonnées"),
+                            ("I", "Importer / Télécharger des médias"),
+                            ("Entrée", "Ouvrir le lecteur"),
+                            ("Flèches", "Naviguer entre les livres"),
+                            ("?", "Afficher / masquer cette aide"),
+                            ("Échap", "Fermer la fenêtre active"),
+                        ] {
+                            div {
+                                style: "display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 8px; background: var(--bg-primary); border: 1px solid var(--border-subtle); font-size: 12.5px;",
+                                span { style: "color: var(--text-secondary);", "{desc}" }
+                                kbd {
+                                    style: "font-family: monospace; font-size: 11px; padding: 2px 7px; border-radius: 5px; background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--accent-primary); font-weight: 700;",
+                                    "{key_label}"
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

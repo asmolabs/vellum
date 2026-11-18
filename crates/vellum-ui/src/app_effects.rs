@@ -27,7 +27,10 @@ pub(crate) struct KeyboardNavContext {
     pub active_reader: Signal<Option<ReaderSession>>,
     pub focused_book_id: Signal<Option<String>>,
     pub selected_book: Signal<Option<Book>>,
+    pub quick_view_book: Signal<Option<Book>>,
     pub palette_open: Signal<bool>,
+    pub upload_open: Signal<bool>,
+    pub shortcuts_open: Signal<bool>,
     pub settings_open: Signal<bool>,
     pub bulk_edit_open: Signal<bool>,
     pub bulk_convert_open: Signal<bool>,
@@ -114,7 +117,13 @@ fn active_book(ctx: &KeyboardNavContext, list: &[Book]) -> Option<Book> {
 }
 
 fn close_top_overlay(ctx: &mut KeyboardNavContext) {
-    if *ctx.palette_open.peek() {
+    if *ctx.shortcuts_open.peek() {
+        ctx.shortcuts_open.set(false);
+    } else if *ctx.upload_open.peek() {
+        ctx.upload_open.set(false);
+    } else if ctx.quick_view_book.peek().is_some() {
+        ctx.quick_view_book.set(None);
+    } else if *ctx.palette_open.peek() {
         ctx.palette_open.set(false);
     } else if *ctx.bulk_convert_open.peek() {
         ctx.bulk_convert_open.set(false);
@@ -162,7 +171,12 @@ pub(crate) fn use_keyboard_shortcuts(ctx: KeyboardNavContext) {
                     return;
                 }
                 if (isEditable) return;
-                if (document.querySelector('.reader-modal, .modal-backdrop, .palette-overlay')) return;
+                if (e.key === '?') {
+                    e.preventDefault();
+                    dioxus.send('toggle_shortcuts');
+                    return;
+                }
+                if (document.querySelector('.reader-modal, .modal-backdrop, .modal-overlay, .palette-overlay')) return;
                 if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                     e.preventDefault();
                     dioxus.send('prev');
@@ -174,7 +188,13 @@ pub(crate) fn use_keyboard_shortcuts(ctx: KeyboardNavContext) {
                     dioxus.send('open_reader');
                 } else if (e.key === ' ' && tag !== 'BUTTON' && tag !== 'A') {
                     e.preventDefault();
+                    dioxus.send('toggle_quick_view');
+                } else if ((e.key === 'e' || e.key === 'E') && tag !== 'BUTTON' && tag !== 'A') {
+                    e.preventDefault();
                     dioxus.send('toggle_detail');
+                } else if ((e.key === 'i' || e.key === 'I') && tag !== 'BUTTON' && tag !== 'A') {
+                    e.preventDefault();
+                    dioxus.send('open_upload');
                 }
             });
         "#,
@@ -217,6 +237,29 @@ pub(crate) fn use_keyboard_shortcuts(ctx: KeyboardNavContext) {
                             ctx_spawn.on_read.call(book);
                         }
                     }
+                    "toggle_shortcuts" => {
+                        let cur = *ctx_spawn.shortcuts_open.peek();
+                        ctx_spawn.shortcuts_open.set(!cur);
+                    }
+                    "open_upload" => {
+                        ctx_spawn.upload_open.set(true);
+                    }
+                    "toggle_quick_view" => {
+                        let list = current_filtered(&ctx_spawn);
+                        if let Some(book) = active_book(&ctx_spawn, &list) {
+                            ctx_spawn.focused_book_id.set(Some(book.id.clone()));
+                            let already_open = ctx_spawn
+                                .quick_view_book
+                                .peek()
+                                .as_ref()
+                                .is_some_and(|b| b.id == book.id);
+                            if already_open {
+                                ctx_spawn.quick_view_book.set(None);
+                            } else {
+                                ctx_spawn.quick_view_book.set(Some(book));
+                            }
+                        }
+                    }
                     "toggle_detail" => {
                         let list = current_filtered(&ctx_spawn);
                         if let Some(book) = active_book(&ctx_spawn, &list) {
@@ -244,6 +287,9 @@ pub(crate) fn use_keyboard_shortcuts(ctx: KeyboardNavContext) {
 pub(crate) fn handle_container_keydown(evt: KeyboardEvent, mut ctx: KeyboardNavContext) {
     if evt.key() == Key::Escape {
         ctx.palette_open.set(false);
+        ctx.shortcuts_open.set(false);
+        ctx.upload_open.set(false);
+        ctx.quick_view_book.set(None);
         ctx.selected_book.set(None);
         ctx.settings_open.set(false);
         ctx.bulk_edit_open.set(false);

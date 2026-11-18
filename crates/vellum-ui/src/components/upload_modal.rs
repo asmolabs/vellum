@@ -10,6 +10,7 @@ use crate::components::{IconKind, LucideIcon};
 #[component]
 pub fn UploadModal(
     book_service: Arc<BookService>,
+    opds_port: u16,
     on_close: EventHandler<()>,
     on_pick_files: EventHandler<()>,
     on_pick_folder: EventHandler<()>,
@@ -89,6 +90,7 @@ pub fn UploadModal(
                         ("files", "Fichiers locaux", IconKind::Upload),
                         ("folder", "Dossier Audio / Comics", IconKind::FolderPlus),
                         ("url", "Télécharger (URL / Libre)", IconKind::Download),
+                        ("network", "Réseau / Liseuses", IconKind::Cloud),
                     ] {
                         {
                             let active = *tab.read() == id;
@@ -159,7 +161,7 @@ pub fn UploadModal(
                             span { "Choisir un dossier à importer..." }
                         }
                     }
-                } else {
+                } else if *tab.read() == "url" {
                     div { style: "display: flex; flex-direction: column; gap: 12px;",
                         // URL directe
                         div { style: "display: flex; gap: 8px;",
@@ -252,6 +254,46 @@ pub fn UploadModal(
                                                 if is_busy { "⏳" } else { "Télécharger" }
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    div { style: "display: flex; flex-direction: column; gap: 10px;",
+                        for (title, sub, url, openable) in [
+                            (
+                                "Web Companion (Upload & Lecture navigateur)",
+                                "Téléversez des livres, comics ou audio depuis un navigateur mobile/PC.",
+                                format!("http://localhost:{opds_port}"),
+                                true,
+                            ),
+                            (
+                                "Catalogue OPDS (KOReader, Kobo, Moon+ Reader)",
+                                "Ajoutez cette adresse dans votre liseuse pour parcourir et télécharger.",
+                                format!("http://localhost:{opds_port}/opds"),
+                                false,
+                            ),
+                            (
+                                "Synchronisation KOReader",
+                                "Serveur de progression compatible KOReader Progress Sync.",
+                                format!("http://localhost:{opds_port}/koreader"),
+                                false,
+                            ),
+                        ] {
+                            div {
+                                style: "padding: 12px; border-radius: 10px; background: var(--bg-primary); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 12px;",
+                                div { style: "min-width: 0; flex: 1;",
+                                    div { style: "font-size: 13px; font-weight: 600; color: var(--text-primary);", "{title}" }
+                                    div { style: "font-size: 11px; color: var(--text-muted); margin-top: 2px;", "{sub}" }
+                                    code { style: "display: inline-block; margin-top: 4px; font-size: 11.5px; color: var(--accent-primary);", "{url}" }
+                                }
+                                if openable {
+                                    button {
+                                        class: "btn btn-primary",
+                                        style: "font-size: 11.5px; padding: 6px 12px;",
+                                        onclick: move |_| crate::platform::open_url(&url),
+                                        "Ouvrir"
                                     }
                                 }
                             }
