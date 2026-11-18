@@ -44,9 +44,7 @@ pub fn Header(
         ViewMode::Series => translate(locale, "nav.series").to_string(),
         ViewMode::History => translate(locale, "nav.history").to_string(),
         ViewMode::Annotations => "Annotations".to_string(),
-        ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel | ViewMode::Kanban => {
-            translate(locale, "nav.library").to_string()
-        }
+        ViewMode::Grid | ViewMode::Table => translate(locale, "nav.library").to_string(),
     };
 
     rsx! {

@@ -38,7 +38,7 @@ pub use epub_editor_modal::EpubEditorModal;
 pub use home_dashboard::HomeDashboard;
 pub use icons::{IconKind, LucideIcon};
 pub use import_rules_modal::ImportRulesModal;
-pub use kanban_board::{KanbanBoard, KanbanTargetStatus};
+pub use kanban_board::KanbanTargetStatus;
 pub use library_audit_modal::LibraryAuditModal;
 pub use library_toolbar::LibraryToolbar;
 pub use news_recipes_modal::NewsRecipesModal;

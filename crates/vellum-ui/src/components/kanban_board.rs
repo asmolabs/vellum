@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use dioxus::prelude::*;
 use vellum_core::{translate, Locale};
 use vellum_domain::Book;

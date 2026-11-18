@@ -110,8 +110,6 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         PaletteAction::ReadBook(b) => on_read.call(b),
         PaletteAction::SetViewGrid => ctx.view_mode.set(ViewMode::Grid),
         PaletteAction::SetViewTable => ctx.view_mode.set(ViewMode::Table),
-        PaletteAction::SetViewTableCarousel => ctx.view_mode.set(ViewMode::TableCarousel),
-        PaletteAction::SetViewKanban => ctx.view_mode.set(ViewMode::Kanban),
         PaletteAction::FilterAll => {
             ctx.current_filter.set(FilterStatus::All);
             ctx.selected_tag.set(None);

@@ -344,8 +344,6 @@ pub fn LibraryToolbar(
                         for (mode, icon_kind, label_key) in [
                             (ViewMode::Grid, IconKind::Grid, "toolbar.view_grid"),
                             (ViewMode::Table, IconKind::List, "toolbar.view_table"),
-                            (ViewMode::TableCarousel, IconKind::Columns, "toolbar.view_carousel"),
-                            (ViewMode::Kanban, IconKind::LayoutDashboard, "toolbar.view_kanban"),
                         ] {
                             button {
                                 title: translate(locale, label_key),

@@ -25,8 +25,7 @@ mod styles;
 
 use components::{
     AnnotationsView, AudioMiniPlayer, AuthorsView, BookCard, BookQuickView, BooksTable,
-    DetailDrawer, HomeDashboard, KanbanBoard, LibraryToolbar, ReadingHistoryView, SeriesView,
-    Sidebar,
+    DetailDrawer, HomeDashboard, LibraryToolbar, ReadingHistoryView, SeriesView, Sidebar,
 };
 use state::{FilterStatus, MediaType, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -416,10 +415,7 @@ fn App() -> Element {
                 main {
                     id: "vellum-library-scroll",
                     class: "library-area",
-                    if matches!(
-                        *view_mode.read(),
-                        ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel | ViewMode::Kanban
-                    ) {
+                    if matches!(*view_mode.read(), ViewMode::Grid | ViewMode::Table) {
                         LibraryToolbar {
                             locale: *ui_locale.read(),
                             current_filter,
@@ -519,14 +515,6 @@ fn App() -> Element {
                             on_select: move |selected| selected_book.set(Some(selected)),
                             on_read: actions.on_read,
                         }
-                    } else if *view_mode.read() == ViewMode::Kanban {
-                        KanbanBoard {
-                            locale: *ui_locale.read(),
-                            books: filtered_books.clone(),
-                            on_select: move |selected| selected_book.set(Some(selected)),
-                            on_read: actions.on_read,
-                            on_change_status: actions.on_change_book_status,
-                        }
                     } else if filtered_books.is_empty() {
                         div {
                             style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); padding: 60px 0;",
@@ -540,11 +528,11 @@ fn App() -> Element {
                                 {translate(*ui_locale.read(), "toolbar.add_book")}
                             }
                         }
-                    } else if *view_mode.read() == ViewMode::Table || *view_mode.read() == ViewMode::TableCarousel {
+                    } else if *view_mode.read() == ViewMode::Table {
                         BooksTable {
                             locale: *ui_locale.read(),
                             books: filtered_books.clone(),
-                            show_carousel: *view_mode.read() == ViewMode::TableCarousel,
+                            show_carousel: false,
                             selected_ids: selected_ids.read().clone(),
                             focused_book_id,
                             on_toggle_select: actions.on_toggle_select,

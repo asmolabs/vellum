@@ -16,8 +16,6 @@ pub enum PaletteAction {
     FilterToRead,
     SetViewGrid,
     SetViewTable,
-    SetViewTableCarousel,
-    SetViewKanban,
     ImportBooks,
     ImportCalibre,
     OpenNewsRecipes,
@@ -113,16 +111,6 @@ pub fn CommandPalette(
             translate(locale, "palette.act_table"),
             PaletteAction::SetViewTable,
             "vue tableau liste table calibre",
-        ),
-        (
-            translate(locale, "palette.act_carousel"),
-            PaletteAction::SetViewTableCarousel,
-            "vue tableau carrousel cover browser calibre",
-        ),
-        (
-            translate(locale, "palette.act_kanban"),
-            PaletteAction::SetViewKanban,
-            "vue kanban pal pile a lire tableau trello colonnes",
         ),
         (
             translate(locale, "palette.act_import"),
