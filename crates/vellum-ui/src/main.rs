@@ -25,8 +25,8 @@ mod styles;
 
 use components::{
     AnnotationsView, AudioMiniPlayer, AuthorsView, BookCard, BookQuickView, BooksTable,
-    DetailDrawer, Header, HomeDashboard, KanbanBoard, LibraryToolbar, ReadingHistoryView,
-    SeriesView, Sidebar,
+    DetailDrawer, HomeDashboard, KanbanBoard, LibraryToolbar, ReadingHistoryView, SeriesView,
+    Sidebar,
 };
 use state::{FilterStatus, MediaType, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -393,30 +393,23 @@ fn App() -> Element {
                         ui_theme.set(t);
                     }
                 },
+                connected_devices: connected_devices.read().clone(),
+                sync_available: sync_service.is_backend_available(),
+                is_syncing: *is_syncing.read(),
+                on_import: actions.on_import,
+                on_import_calibre: actions.on_import_calibre,
+                on_open_audit: move |_| audit_open.set(true),
+                on_open_import_rules: move |_| import_rules_open.set(true),
+                on_open_bulk_regex: move |_| bulk_regex_open.set(true),
+                on_open_news: move |_| news_recipes_open.set(true),
+                on_open_web_companion: actions.on_open_web_companion,
+                on_sync_device: actions.on_sync_device,
+                on_sync_cloud: actions.on_sync_cloud,
+                on_open_settings: move |_| settings_open.set(true),
             }
 
-            // Main Right Column (Header utilitaire + Contenu)
+            // Main Right Column (sans barre supérieure, façon BookOrbit)
             div { class: "main-column",
-                Header {
-                    locale: *ui_locale.read(),
-                    view_mode,
-                    sidebar_collapsed,
-                    connected_devices: connected_devices.read().clone(),
-                    sync_available: sync_service.is_backend_available(),
-                    is_syncing: *is_syncing.read(),
-                    on_import: actions.on_import,
-                    on_import_calibre: actions.on_import_calibre,
-                    on_open_audit: move |_| audit_open.set(true),
-                    on_open_content_search: move |_| content_search_open.set(true),
-                    on_open_import_rules: move |_| import_rules_open.set(true),
-                    on_open_bulk_regex: move |_| bulk_regex_open.set(true),
-                    on_open_news: move |_| news_recipes_open.set(true),
-                    on_open_web_companion: actions.on_open_web_companion,
-                    on_sync_device: actions.on_sync_device,
-                    on_sync_cloud: actions.on_sync_cloud,
-                    on_open_settings: move |_| settings_open.set(true),
-                }
-
                 // Books Library
                 main {
                     id: "vellum-library-scroll",

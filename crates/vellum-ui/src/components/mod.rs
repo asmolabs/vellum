@@ -35,7 +35,6 @@ pub use command_palette::{CommandPalette, PaletteAction};
 pub use content_search_modal::ContentSearchModal;
 pub use detail_drawer::DetailDrawer;
 pub use epub_editor_modal::EpubEditorModal;
-pub use header::Header;
 pub use home_dashboard::HomeDashboard;
 pub use icons::{IconKind, LucideIcon};
 pub use import_rules_modal::ImportRulesModal;

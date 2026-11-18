@@ -2,8 +2,8 @@ use crate::components::header::VELLUM_LOGO_DATA_URI;
 use crate::components::{IconKind, LucideIcon};
 use crate::state::{FilterStatus, MediaType, ViewMode};
 use dioxus::prelude::*;
-use vellum_core::{translate, Locale};
-use vellum_domain::{ReadingStats, VirtualLibrary};
+use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
+use vellum_domain::{DeviceKind, ReadingStats, VirtualLibrary};
 
 #[component]
 pub fn Sidebar(
@@ -28,12 +28,26 @@ pub fn Sidebar(
     on_open_stats: EventHandler<()>,
     ui_theme: String,
     on_change_theme: EventHandler<String>,
+    connected_devices: Vec<ConnectedDevice>,
+    sync_available: bool,
+    is_syncing: bool,
+    on_import: EventHandler<()>,
+    on_import_calibre: EventHandler<()>,
+    on_open_audit: EventHandler<()>,
+    on_open_import_rules: EventHandler<()>,
+    on_open_bulk_regex: EventHandler<()>,
+    on_open_news: EventHandler<()>,
+    on_open_web_companion: EventHandler<()>,
+    on_sync_device: EventHandler<DeviceKind>,
+    on_sync_cloud: EventHandler<()>,
+    on_open_settings: EventHandler<()>,
 ) -> Element {
     let mut show_new_vl = use_signal(|| false);
     let mut new_vl_name = use_signal(String::new);
     let mut new_vl_query = use_signal(String::new);
     let mut show_series = use_signal(|| true);
     let mut show_tags = use_signal(|| true);
+    let mut tools_open = use_signal(|| false);
     let collapsed = *sidebar_collapsed.read();
     let cur_view = *view_mode.read();
 
@@ -126,11 +140,25 @@ pub fn Sidebar(
                 }
                 div { style: "flex: 1;" }
                 button {
+                    class: "btn btn-primary",
+                    style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
+                    title: translate(locale, "action.import"),
+                    onclick: move |_| on_import.call(()),
+                    LucideIcon { kind: IconKind::Plus, size: 18 }
+                }
+                button {
                     class: "btn btn-icon",
                     style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
                     title: translate(locale, "sidebar.stats_tooltip"),
                     onclick: move |_| on_open_stats.call(()),
                     LucideIcon { kind: IconKind::BarChart, size: 18 }
+                }
+                button {
+                    class: "btn btn-icon",
+                    style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
+                    title: translate(locale, "header.settings_tooltip"),
+                    onclick: move |_| on_open_settings.call(()),
+                    LucideIcon { kind: IconKind::Settings, size: 18 }
                 }
             }
         };
@@ -555,34 +583,155 @@ pub fn Sidebar(
                 }
             }
 
-            // Dock Thème compact (inspiré de SidebarDock dans BookOrbit)
-            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 6px;",
-                span { style: "display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--text-muted);",
-                    LucideIcon { kind: IconKind::Palette, size: 13 }
-                    span { "Thème" }
-                }
-                div { style: "display: flex; align-items: center; gap: 5px;",
-                    for (id, label, bg, accent) in [
-                        ("midnight", "Nuit", "#0a0c14", "#6366f1"),
-                        ("nordic", "Nord", "#0b1120", "#0ea5e9"),
-                        ("emerald", "Forêt", "#06130f", "#10b981"),
-                        ("amber", "Ambre", "#130e09", "#f59e0b"),
-                        ("sepia", "Sépia", "#f4ede2", "#b45309"),
-                        ("paper", "Clair", "#f1f5f9", "#4f46e5"),
-                    ] {
-                        {
-                            let is_active = ui_theme == id;
-                            rsx! {
-                                button {
-                                    title: "{label}",
-                                    style: if is_active {
-                                        "width: 20px; height: 20px; border-radius: 999px; border: 2px solid var(--text-primary); box-shadow: 0 0 0 2px var(--accent-primary); background: linear-gradient(135deg, {bg} 45%, {accent} 55%); cursor: pointer; transition: transform 0.15s;"
-                                    } else {
-                                        "width: 18px; height: 18px; border-radius: 999px; border: 1px solid var(--border-subtle); background: linear-gradient(135deg, {bg} 45%, {accent} 55%); cursor: pointer; opacity: 0.75; transition: transform 0.15s, opacity 0.15s;"
-                                    },
-                                    onclick: move |_| on_change_theme.call(id.to_string()),
+            // Dock Thème & Actions (inspiré de SidebarDock dans BookOrbit — remplace la barre du haut)
+            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; flex-direction: column; gap: 10px; position: relative;",
+                // Ligne 1 : Pastilles de thème
+                div { style: "display: flex; align-items: center; justify-content: space-between; gap: 6px;",
+                    span { style: "display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--text-muted);",
+                        LucideIcon { kind: IconKind::Palette, size: 13 }
+                        span { "Thème" }
+                    }
+                    div { style: "display: flex; align-items: center; gap: 5px;",
+                        for (id, label, bg, accent) in [
+                            ("midnight", "Nuit", "#0a0c14", "#6366f1"),
+                            ("nordic", "Nord", "#0b1120", "#0ea5e9"),
+                            ("emerald", "Forêt", "#06130f", "#10b981"),
+                            ("amber", "Ambre", "#130e09", "#f59e0b"),
+                            ("sepia", "Sépia", "#f4ede2", "#b45309"),
+                            ("paper", "Clair", "#f1f5f9", "#4f46e5"),
+                        ] {
+                            {
+                                let is_active = ui_theme == id;
+                                rsx! {
+                                    button {
+                                        title: "{label}",
+                                        style: if is_active {
+                                            "width: 20px; height: 20px; border-radius: 999px; border: 2px solid var(--text-primary); box-shadow: 0 0 0 2px var(--accent-primary); background: linear-gradient(135deg, {bg} 45%, {accent} 55%); cursor: pointer; transition: transform 0.15s;"
+                                        } else {
+                                            "width: 18px; height: 18px; border-radius: 999px; border: 1px solid var(--border-subtle); background: linear-gradient(135deg, {bg} 45%, {accent} 55%); cursor: pointer; opacity: 0.75; transition: transform 0.15s, opacity 0.15s;"
+                                        },
+                                        onclick: move |_| on_change_theme.call(id.to_string()),
+                                    }
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Ligne 2 : Dock d'actions (Importer, Sync, Liseuses, Outils, Paramètres)
+                div { style: "display: flex; align-items: center; gap: 6px;",
+                    button {
+                        class: "btn btn-primary",
+                        style: "flex: 1; justify-content: center; height: 32px; padding: 0 10px; font-size: 12px;",
+                        onclick: move |_| on_import.call(()),
+                        LucideIcon { kind: IconKind::Plus, size: 14 }
+                        span { "{translate(locale, \"action.import\")}" }
+                    }
+                    if sync_available {
+                        button {
+                            class: "btn btn-icon",
+                            style: "width: 32px; height: 32px; color: #60a5fa;",
+                            title: translate(locale, "header.sync_tooltip"),
+                            disabled: is_syncing,
+                            onclick: move |_| on_sync_cloud.call(()),
+                            LucideIcon { kind: IconKind::Cloud, size: 15 }
+                        }
+                    }
+                    for dev in connected_devices.iter().take(1) {
+                        {
+                            let kind = dev.kind;
+                            let name = dev.name.clone();
+                            rsx! {
+                                button {
+                                    class: "btn btn-icon",
+                                    style: "width: 32px; height: 32px; color: #34d399;",
+                                    title: translate_fmt(locale, "header.sync_device_tooltip", &[("name", &name)]),
+                                    onclick: move |_| on_sync_device.call(kind),
+                                    LucideIcon { kind: IconKind::BookOpen, size: 15 }
+                                }
+                            }
+                        }
+                    }
+                    button {
+                        class: "btn btn-icon",
+                        style: "width: 32px; height: 32px;",
+                        title: translate(locale, "header.tools"),
+                        onclick: move |_| {
+                            let cur = *tools_open.read();
+                            tools_open.set(!cur);
+                        },
+                        LucideIcon { kind: IconKind::Wrench, size: 15 }
+                    }
+                    button {
+                        class: "btn btn-icon",
+                        style: "width: 32px; height: 32px;",
+                        title: translate(locale, "header.settings_tooltip"),
+                        onclick: move |_| on_open_settings.call(()),
+                        LucideIcon { kind: IconKind::Settings, size: 15 }
+                    }
+                }
+
+                if *tools_open.read() {
+                    div {
+                        style: "position: fixed; inset: 0; z-index: 1199;",
+                        onclick: move |_| tools_open.set(false),
+                    }
+                    div {
+                        class: "tools-menu",
+                        style: "top: auto; bottom: 44px; left: 0; right: 0; min-width: 220px;",
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
+                                on_open_audit.call(());
+                            },
+                            span { "🛡️" }
+                            span { "{translate(locale, \"header.tools_audit\")}" }
+                        }
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
+                                on_open_import_rules.call(());
+                            },
+                            span { "⚡" }
+                            span { "{translate(locale, \"header.tools_import_rules\")}" }
+                        }
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
+                                on_open_bulk_regex.call(());
+                            },
+                            span { "🔤" }
+                            span { "{translate(locale, \"header.tools_bulk_regex\")}" }
+                        }
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
+                                on_open_news.call(());
+                            },
+                            span { "📰" }
+                            span { "{translate(locale, \"header.tools_news\")}" }
+                        }
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
+                                on_open_web_companion.call(());
+                            },
+                            span { "🌐" }
+                            span { "{translate(locale, \"header.tools_web_companion\")}" }
+                        }
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
+                                on_import_calibre.call(());
+                            },
+                            span { "📦" }
+                            span { "{translate(locale, \"header.tools_import_calibre\")}" }
                         }
                     }
                 }

@@ -12,6 +12,7 @@ pub static VELLUM_LOGO_DATA_URI: LazyLock<String> = LazyLock::new(|| {
     format!("data:image/png;base64,{}", BASE64.encode(bytes))
 });
 
+#[allow(dead_code)]
 #[component]
 pub fn Header(
     locale: Locale,
