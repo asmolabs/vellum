@@ -39,7 +39,7 @@ fn main() {
     #[cfg(feature = "desktop")]
     {
         let window_title = translate(Locale::detect_system(), "app.title");
-        let cfg = Config::new().with_window(
+        let cfg = Config::new().with_menu(None).with_window(
             WindowBuilder::new()
                 .with_title(window_title)
                 .with_inner_size(dioxus::desktop::LogicalSize::new(1200.0, 800.0))
