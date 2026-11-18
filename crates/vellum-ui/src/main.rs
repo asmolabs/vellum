@@ -37,10 +37,16 @@ fn main() {
 
     #[cfg(feature = "desktop")]
     {
+        #[cfg(target_os = "linux")]
+        {
+            std::env::set_var("GDK_BACKEND", "x11");
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
         let window_title = translate(Locale::detect_system(), "app.title");
         let cfg = Config::new().with_menu(None).with_window(
             WindowBuilder::new()
                 .with_title(window_title)
+                .with_decorations(false)
                 .with_inner_size(dioxus::desktop::LogicalSize::new(1200.0, 800.0))
                 .with_min_inner_size(dioxus::desktop::LogicalSize::new(960.0, 640.0)),
         );
