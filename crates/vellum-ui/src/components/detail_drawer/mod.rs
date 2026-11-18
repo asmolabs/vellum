@@ -48,6 +48,9 @@ pub fn DetailDrawer(
     custom_columns: Vec<CustomColumnDefinition>,
     custom_values: BTreeMap<String, String>,
     on_save_custom_value: EventHandler<(String, String, String)>,
+    #[props(default)] on_change_status: Option<
+        EventHandler<(String, crate::components::KanbanTargetStatus)>,
+    >,
 ) -> Element {
     let mut is_editing = use_signal(|| false);
     let mut show_more_actions = use_signal(|| false);
@@ -230,6 +233,44 @@ pub fn DetailDrawer(
                             }
                             if let Some(ref date_val) = book.publish_date {
                                 div { style: "font-size: 11px; color: var(--text-muted); margin-top: 2px;", {translate_fmt(locale, "drawer.published", &[("date", date_val)])} }
+                            }
+
+                            // Quick Status & Rating pills (BookOrbit BookDetailView style)
+                            if let Some(status_cb) = on_change_status {
+                                div { style: "display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap;",
+                                    for (label, target, is_cur) in [
+                                        (
+                                            translate(locale, "nav.to_read"),
+                                            crate::components::KanbanTargetStatus::ToRead,
+                                            !book.is_finished && book.progress_percent == 0.0,
+                                        ),
+                                        (
+                                            translate(locale, "nav.reading"),
+                                            crate::components::KanbanTargetStatus::Reading,
+                                            !book.is_finished && book.progress_percent > 0.0,
+                                        ),
+                                        (
+                                            translate(locale, "nav.finished"),
+                                            crate::components::KanbanTargetStatus::Finished,
+                                            book.is_finished,
+                                        ),
+                                    ] {
+                                        {
+                                            let b_id = book_id.clone();
+                                            rsx! {
+                                                button {
+                                                    style: if is_cur {
+                                                        "padding: 3px 9px; font-size: 11px; border-radius: 6px; background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-primary); font-weight: 600; cursor: pointer;"
+                                                    } else {
+                                                        "padding: 3px 9px; font-size: 11px; border-radius: 6px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); cursor: pointer;"
+                                                    },
+                                                    onclick: move |_| status_cb.call((b_id.clone(), target)),
+                                                    "{label}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             if book.progress_percent > 0.0 {

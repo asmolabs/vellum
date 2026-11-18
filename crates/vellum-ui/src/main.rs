@@ -100,6 +100,8 @@ fn App() -> Element {
     let format_filter = use_signal(|| None::<String>);
     let min_rating = use_signal(|| None::<i32>);
     let collapse_series = use_signal(|| false);
+    let grid_card_size = use_signal(|| 154_u32);
+    let grid_show_labels = use_signal(|| false);
     let mut quick_view_book = use_signal(|| None::<Book>);
     let mut audio_player_book = use_signal(|| None::<Book>);
     let current_sort = use_signal(|| SortOption::RecentAdded);
@@ -446,6 +448,8 @@ fn App() -> Element {
                             selected_ids,
                             view_mode,
                             current_sort,
+                            grid_card_size,
+                            grid_show_labels,
                         }
                     }
 
@@ -549,13 +553,6 @@ fn App() -> Element {
                         }
                     } else {
                         {
-                            let continue_books: Vec<vellum_domain::Book> = books
-                                .read()
-                                .iter()
-                                .filter(|b| !b.is_finished && b.progress_percent > 0.0)
-                                .take(5)
-                                .cloned()
-                                .collect();
                             let (scroll_top, grid_w, view_h) = *grid_scroll_metrics.read();
                             let grid_win = library_logic::compute_grid_window(
                                 filtered_books.len(),
@@ -563,31 +560,9 @@ fn App() -> Element {
                                 scroll_top,
                                 view_h,
                             );
+                            let card_sz = *grid_card_size.read();
+                            let show_lbl = *grid_show_labels.read();
                             rsx! {
-                                if !continue_books.is_empty() {
-                                    div {
-                                        style: "display: flex; flex-direction: column; gap: 8px; padding: 0 24px 12px;",
-                                        span { style: "font-size: 12px; font-weight: 700; color: var(--text-secondary);", {translate(*ui_locale.read(), "library.continue_reading")} }
-                                        div { style: "display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;",
-                                            for cb in continue_books {
-                                                {
-                                                    let cb_clone = cb.clone();
-                                                    let pct = cb.progress_percent.round() as i32;
-                                                    rsx! {
-                                                        button {
-                                                            key: "cont-{cb.id}",
-                                                            class: "btn btn-secondary",
-                                                            style: "display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 190px; max-width: 220px; padding: 8px 12px; text-align: left;",
-                                                            onclick: move |_| actions.on_read.call(cb_clone.clone()),
-                                                            span { style: "font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;", "{cb.title}" }
-                                                            span { style: "font-size: 11px; color: var(--text-muted);", "{pct}%" }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                                 if grid_win.top_spacer_px > 0.0 {
                                     div {
                                         key: "grid-top-spacer",
@@ -597,6 +572,7 @@ fn App() -> Element {
                                 div {
                                     id: "vellum-books-grid",
                                     class: "books-grid",
+                                    style: "grid-template-columns: repeat(auto-fill, minmax({card_sz}px, 1fr));",
                                     if *collapse_series.read() {
                                         for (b, stack) in library_logic::collapse_books_by_series(&filtered_books) {
                                             {
@@ -611,6 +587,7 @@ fn App() -> Element {
                                                         is_selected: is_selected,
                                                         selection_mode: selection_mode,
                                                         series_stack: stack,
+                                                        show_label: show_lbl,
                                                         on_toggle_select: actions.on_toggle_select,
                                                         on_select: move |selected| {
                                                             if let Some(ref s_name) = stack_series {
@@ -637,6 +614,7 @@ fn App() -> Element {
                                                         book: b.clone(),
                                                         is_selected: is_selected,
                                                         selection_mode: selection_mode,
+                                                        show_label: show_lbl,
                                                         on_toggle_select: actions.on_toggle_select,
                                                         on_select: move |selected| selected_book.set(Some(selected)),
                                                         on_read: actions.on_read,
@@ -691,6 +669,7 @@ fn App() -> Element {
                             custom_columns: custom_columns.read().clone(),
                             custom_values: custom_vals,
                             on_save_custom_value: detail_extra.on_save_custom_value,
+                            on_change_status: actions.on_change_book_status,
                         }
 
                     }

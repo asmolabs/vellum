@@ -25,8 +25,11 @@ pub fn LibraryToolbar(
     mut selected_ids: Signal<HashSet<String>>,
     mut view_mode: Signal<ViewMode>,
     mut current_sort: Signal<SortOption>,
+    mut grid_card_size: Signal<u32>,
+    mut grid_show_labels: Signal<bool>,
 ) -> Element {
     let mut filter_open = use_signal(|| false);
+    let mut display_open = use_signal(|| false);
     let cur_view = *view_mode.read();
     let cur_media = *media_type.read();
     let cur_filter = *current_filter.read();
@@ -347,12 +350,68 @@ pub fn LibraryToolbar(
                             button {
                                 title: translate(locale, label_key),
                                 style: if cur_view == mode {
-                                    "width: 28px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: rgba(99, 102, 241, 0.25); color: #c7d2fe; border: none; cursor: pointer;"
+                                    "width: 28px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--accent-primary); color: #fff; border: none; cursor: pointer;"
                                 } else {
                                     "width: 28px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: transparent; color: var(--text-muted); border: none; cursor: pointer;"
                                 },
                                 onclick: move |_| view_mode.set(mode),
                                 LucideIcon { kind: icon_kind, size: 14 }
+                            }
+                        }
+                    }
+
+                    // Display controls popover (BookOrbit ViewHeaderDisplayControls)
+                    if cur_view == ViewMode::Grid {
+                        div { style: "position: relative;",
+                            button {
+                                title: "Options d'affichage",
+                                style: if *display_open.read() {
+                                    "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: var(--accent-primary); color: #fff; border: none; cursor: pointer;"
+                                } else {
+                                    "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); cursor: pointer;"
+                                },
+                                onclick: move |_| {
+                                    let next = !*display_open.read();
+                                    display_open.set(next);
+                                },
+                                LucideIcon { kind: IconKind::Sliders, size: 14 }
+                            }
+
+                            if *display_open.read() {
+                                div {
+                                    style: "position: fixed; inset: 0; z-index: 110;",
+                                    onclick: move |_| display_open.set(false),
+                                }
+                                div {
+                                    style: "position: absolute; top: 38px; right: 0; width: 230px; background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 12px; padding: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.65); z-index: 120; display: flex; flex-direction: column; gap: 10px;",
+                                    div {
+                                        div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 5px;",
+                                            "Taille des couvertures"
+                                        }
+                                        div { style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;",
+                                            for (label, sz) in [("Compact", 120_u32), ("Normal", 154_u32), ("Grand", 195_u32)] {
+                                                button {
+                                                    style: if *grid_card_size.read() == sz {
+                                                        "padding: 5px 6px; border-radius: 6px; background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-primary); font-size: 11.5px; font-weight: 600; cursor: pointer;"
+                                                    } else {
+                                                        "padding: 5px 6px; border-radius: 6px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); font-size: 11.5px; cursor: pointer;"
+                                                    },
+                                                    onclick: move |_| grid_card_size.set(sz),
+                                                    "{label}"
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    div { style: "border-top: 1px solid var(--border-subtle); padding-top: 8px; display: flex; align-items: center; justify-content: space-between;",
+                                        span { style: "font-size: 12px; color: var(--text-primary); font-weight: 500;", "Titres sous couvertures" }
+                                        input {
+                                            r#type: "checkbox",
+                                            checked: *grid_show_labels.read(),
+                                            onchange: move |e| grid_show_labels.set(e.checked()),
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

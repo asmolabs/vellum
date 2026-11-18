@@ -1,11 +1,13 @@
-//! Écrans dédiés inspirés de BookOrbit : Auteurs, Séries/Sagas et Historique de lecture.
+//! Écrans dédiés inspirés de BookOrbit : Auteurs, Séries/Sagas, Historique de lecture et Annotations.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use dioxus::prelude::*;
+use vellum_core::reader_store::{BookUserData, Highlight};
 use vellum_core::{translate, Locale};
 use vellum_domain::Book;
 
+use crate::components::{IconKind, LucideIcon};
 use crate::cover_cache::resolve_cover_src;
 use crate::state::ViewMode;
 
@@ -16,6 +18,10 @@ pub fn AuthorsView(
     mut search_query: Signal<String>,
     mut view_mode: Signal<ViewMode>,
 ) -> Element {
+    let mut local_q = use_signal(String::new);
+    let mut sort_by_count = use_signal(|| false);
+    let mut active_letter = use_signal(|| None::<char>);
+
     let mut by_author: BTreeMap<String, Vec<Book>> = BTreeMap::new();
     for b in books {
         let key = if b.author.trim().is_empty() {
@@ -26,35 +32,139 @@ pub fn AuthorsView(
         by_author.entry(key).or_default().push(b);
     }
 
+    let q_lower = local_q.read().trim().to_lowercase();
+    let letter_filter = *active_letter.read();
+    let mut list: Vec<(String, Vec<Book>)> = by_author
+        .into_iter()
+        .filter(|(a, _)| {
+            if !q_lower.is_empty() && !a.to_lowercase().contains(&q_lower) {
+                return false;
+            }
+            if let Some(ch) = letter_filter {
+                let first = a
+                    .chars()
+                    .next()
+                    .map(|c| c.to_ascii_uppercase())
+                    .unwrap_or('#');
+                if first != ch {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    if *sort_by_count.read() {
+        list.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then_with(|| a.0.cmp(&b.0)));
+    }
+
     rsx! {
-        div { style: "padding: 8px 24px 32px; display: flex; flex-direction: column; gap: 16px;",
-            h2 { style: "font-size: 18px; font-weight: 700; margin: 0;", "{translate(locale, \"browse.authors_title\")}" }
-            div { style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;",
-                for (author, list) in by_author {
+        div { style: "padding: 4px 4px 32px; display: flex; flex-direction: column; gap: 16px;",
+            // BrowseHeader (BookOrbit style)
+            div { class: "library-header",
+                div { class: "browse-title-row",
+                    div { class: "library-title-group",
+                        div { class: "browse-eyebrow", {translate(locale, "nav.browse")} }
+                        div { style: "display: flex; align-items: center; gap: 10px;",
+                            span {
+                                style: "width: 30px; height: 30px; border-radius: 8px; background: var(--accent-glow); color: var(--accent-primary); display: inline-flex; align-items: center; justify-content: center;",
+                                LucideIcon { kind: IconKind::Users, size: 16 }
+                            }
+                            h2 { "{translate(locale, \"browse.authors_title\")}" }
+                            span { class: "library-count", style: "margin-top: 0;", "{list.len()}" }
+                        }
+                    }
+                }
+
+                div { class: "browse-command-bar",
+                    div {
+                        style: "flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; border-radius: 7px; background: var(--bg-primary);",
+                        span { style: "color: var(--text-muted); display: flex; align-items: center;",
+                            LucideIcon { kind: IconKind::Search, size: 14 }
+                        }
+                        input {
+                            r#type: "text",
+                            value: "{local_q}",
+                            placeholder: translate(locale, "action.search"),
+                            style: "flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 13px;",
+                            oninput: move |e| local_q.set(e.value()),
+                        }
+                        if !local_q.read().is_empty() {
+                            button {
+                                style: "background: none; border: none; color: var(--text-muted); cursor: pointer;",
+                                onclick: move |_| local_q.set(String::new()),
+                                "✕"
+                            }
+                        }
+                    }
+
+                    // A-Z JumpRail pills
+                    div { style: "display: flex; align-items: center; gap: 2px; flex-wrap: wrap;",
+                        button {
+                            style: if letter_filter.is_none() {
+                                "padding: 3px 7px; font-size: 11px; border-radius: 5px; background: var(--accent-primary); color: #fff; border: none; font-weight: 700; cursor: pointer;"
+                            } else {
+                                "padding: 3px 7px; font-size: 11px; border-radius: 5px; background: transparent; color: var(--text-muted); border: none; cursor: pointer;"
+                            },
+                            onclick: move |_| active_letter.set(None),
+                            "Tous"
+                        }
+                        for ch in 'A'..='Z' {
+                            button {
+                                style: if letter_filter == Some(ch) {
+                                    "width: 22px; height: 22px; font-size: 10.5px; border-radius: 5px; background: var(--accent-primary); color: #fff; border: none; font-weight: 700; cursor: pointer;"
+                                } else {
+                                    "width: 22px; height: 22px; font-size: 10.5px; border-radius: 5px; background: transparent; color: var(--text-muted); border: none; cursor: pointer;"
+                                },
+                                onclick: move |_| {
+                                    if letter_filter == Some(ch) {
+                                        active_letter.set(None);
+                                    } else {
+                                        active_letter.set(Some(ch));
+                                    }
+                                },
+                                "{ch}"
+                            }
+                        }
+                    }
+
+                    select {
+                        style: "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
+                        value: if *sort_by_count.read() { "count" } else { "name" },
+                        onchange: move |e| sort_by_count.set(e.value() == "count"),
+                        option { value: "name", "Nom (A→Z)" }
+                        option { value: "count", "Nombre de livres" }
+                    }
+                }
+            }
+
+            div { style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px;",
+                for (author, author_books) in list {
                     {
                         let author_q = author.clone();
-                        let count = list.len();
-                        let cover = list
+                        let count = author_books.len();
+                        let cover = author_books
                             .iter()
                             .find_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false));
                         rsx! {
                             div {
                                 key: "auth-{author}",
-                                style: "display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); cursor: pointer;",
+                                style: "display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; transition: transform 0.15s, border-color 0.15s;",
                                 onclick: move |_| {
                                     search_query.set(format!("author:\"{author_q}\""));
                                     view_mode.set(ViewMode::Grid);
                                 },
-                                div { style: "width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; flex-shrink: 0;",
+                                div {
+                                    style: "width: 46px; height: 46px; border-radius: 50%; overflow: hidden; background: var(--accent-glow); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; flex-shrink: 0;",
                                     if let Some(src) = cover {
                                         img { src: "{src}", style: "width: 100%; height: 100%; object-fit: cover;" }
                                     } else {
-                                        span { style: "font-size: 16px; font-weight: 700; color: #a5b4fc;", "{author.chars().next().unwrap_or('A')}" }
+                                        span { style: "font-size: 16px; font-weight: 700; color: var(--accent-primary);", "{author.chars().next().unwrap_or('A')}" }
                                     }
                                 }
                                 div { style: "min-width: 0; flex: 1;",
-                                    div { style: "font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{author}" }
-                                    div { style: "font-size: 11px; color: var(--text-muted);", "{count} livre(s)" }
+                                    div { style: "font-size: 13.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{author}" }
+                                    div { style: "font-size: 11.5px; color: var(--text-muted);", "{count} livre(s)" }
                                 }
                             }
                         }
@@ -72,6 +182,9 @@ pub fn SeriesView(
     mut selected_series: Signal<Option<String>>,
     mut view_mode: Signal<ViewMode>,
 ) -> Element {
+    let mut local_q = use_signal(String::new);
+    let mut sort_by_count = use_signal(|| false);
+
     let mut by_series: BTreeMap<String, Vec<Book>> = BTreeMap::new();
     for b in books {
         if let Some(ref s) = b.series {
@@ -82,44 +195,104 @@ pub fn SeriesView(
         }
     }
 
+    let q_lower = local_q.read().trim().to_lowercase();
+    let mut series_list: Vec<(String, Vec<Book>)> = by_series
+        .into_iter()
+        .filter(|(s, _)| q_lower.is_empty() || s.to_lowercase().contains(&q_lower))
+        .collect();
+
+    if *sort_by_count.read() {
+        series_list.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then_with(|| a.0.cmp(&b.0)));
+    }
+
     rsx! {
-        div { style: "padding: 8px 24px 32px; display: flex; flex-direction: column; gap: 16px;",
-            h2 { style: "font-size: 18px; font-weight: 700; margin: 0;", "{translate(locale, \"browse.series_title\")}" }
-            if by_series.is_empty() {
+        div { style: "padding: 4px 4px 32px; display: flex; flex-direction: column; gap: 16px;",
+            div { class: "library-header",
+                div { class: "browse-title-row",
+                    div { class: "library-title-group",
+                        div { class: "browse-eyebrow", {translate(locale, "nav.browse")} }
+                        div { style: "display: flex; align-items: center; gap: 10px;",
+                            span {
+                                style: "width: 30px; height: 30px; border-radius: 8px; background: var(--accent-glow); color: var(--accent-primary); display: inline-flex; align-items: center; justify-content: center;",
+                                LucideIcon { kind: IconKind::Layers, size: 16 }
+                            }
+                            h2 { "{translate(locale, \"browse.series_title\")}" }
+                            span { class: "library-count", style: "margin-top: 0;", "{series_list.len()}" }
+                        }
+                    }
+                }
+
+                div { class: "browse-command-bar",
+                    div {
+                        style: "flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; border-radius: 7px; background: var(--bg-primary);",
+                        span { style: "color: var(--text-muted); display: flex; align-items: center;",
+                            LucideIcon { kind: IconKind::Search, size: 14 }
+                        }
+                        input {
+                            r#type: "text",
+                            value: "{local_q}",
+                            placeholder: translate(locale, "action.search"),
+                            style: "flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 13px;",
+                            oninput: move |e| local_q.set(e.value()),
+                        }
+                    }
+
+                    select {
+                        style: "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
+                        value: if *sort_by_count.read() { "count" } else { "name" },
+                        onchange: move |e| sort_by_count.set(e.value() == "count"),
+                        option { value: "name", "Nom (A→Z)" }
+                        option { value: "count", "Nombre de tomes" }
+                    }
+                }
+            }
+
+            if series_list.is_empty() {
                 div { style: "padding: 40px; text-align: center; color: var(--text-muted);",
                     "{translate(locale, \"browse.series_empty\")}"
                 }
             } else {
-                div { style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;",
-                    for (series_name, list) in by_series {
+                div { style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;",
+                    for (series_name, list) in series_list {
                         {
                             let s_clone = series_name.clone();
                             let count = list.len();
                             let finished_count = list.iter().filter(|b| b.is_finished).count();
                             let pct = if count > 0 { (finished_count * 100) / count } else { 0 };
-                            let cover = list
+                            let covers: Vec<String> = list
                                 .iter()
-                                .find_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false));
+                                .filter_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false))
+                                .take(3)
+                                .collect();
                             rsx! {
                                 div {
                                     key: "ser-{series_name}",
-                                    style: "display: flex; gap: 12px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); cursor: pointer; align-items: center;",
+                                    style: "display: flex; gap: 14px; padding: 14px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; align-items: center;",
                                     onclick: move |_| {
                                         selected_series.set(Some(s_clone.clone()));
                                         view_mode.set(ViewMode::Grid);
                                     },
-                                    div { style: "width: 52px; height: 76px; border-radius: 6px; overflow: hidden; background: #1e293b; flex-shrink: 0; display: flex; align-items: center; justify-content: center;",
-                                        if let Some(src) = cover {
-                                            img { src: "{src}", style: "width: 100%; height: 100%; object-fit: cover;" }
+                                    // BookOrbit-style 3-cover stacked fan
+                                    div { style: "position: relative; width: 68px; height: 80px; flex-shrink: 0; display: flex; align-items: center;",
+                                        if covers.is_empty() {
+                                            div {
+                                                style: "width: 54px; height: 78px; border-radius: 6px; background: var(--accent-glow); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--accent-primary);",
+                                                LucideIcon { kind: IconKind::Layers, size: 20 }
+                                            }
                                         } else {
-                                            span { style: "font-size: 20px;", "📚" }
+                                            for (idx, src) in covers.iter().enumerate() {
+                                                img {
+                                                    src: "{src}",
+                                                    style: "position: absolute; left: {idx * 8}px; z-index: {10 - idx}; width: 52px; height: 76px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-subtle); box-shadow: 0 4px 10px rgba(0,0,0,0.3);",
+                                                }
+                                            }
                                         }
                                     }
                                     div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;",
-                                        div { style: "font-size: 13px; font-weight: 700; color: #c4b5fd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{series_name}" }
-                                        div { style: "font-size: 11px; color: var(--text-muted);", "{count} vol. • {finished_count} terminé(s)" }
-                                        div { style: "height: 4px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;",
-                                            div { style: "width: {pct}%; height: 100%; background: #8b5cf6;" }
+                                        div { style: "font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{series_name}" }
+                                        div { style: "font-size: 11.5px; color: var(--text-muted);", "{count} vol. • {finished_count} terminé(s)" }
+                                        div { style: "height: 5px; background: var(--border-subtle); border-radius: 4px; overflow: hidden;",
+                                            div { style: "width: {pct}%; height: 100%; background: var(--accent-primary);" }
                                         }
                                     }
                                 }
@@ -139,15 +312,54 @@ pub fn ReadingHistoryView(
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
 ) -> Element {
+    let mut local_q = use_signal(String::new);
+    let q_lower = local_q.read().trim().to_lowercase();
+
     let mut history: Vec<Book> = books
         .into_iter()
         .filter(|b| b.last_read_at.is_some() || b.progress_percent > 0.0 || b.is_finished)
+        .filter(|b| {
+            q_lower.is_empty()
+                || b.title.to_lowercase().contains(&q_lower)
+                || b.author.to_lowercase().contains(&q_lower)
+        })
         .collect();
     history.sort_by(|a, b| b.last_read_at.cmp(&a.last_read_at));
 
     rsx! {
-        div { style: "padding: 8px 24px 32px; display: flex; flex-direction: column; gap: 14px;",
-            h2 { style: "font-size: 18px; font-weight: 700; margin: 0;", "{translate(locale, \"browse.history_title\")}" }
+        div { style: "padding: 4px 4px 32px; display: flex; flex-direction: column; gap: 16px;",
+            div { class: "library-header",
+                div { class: "browse-title-row",
+                    div { class: "library-title-group",
+                        div { class: "browse-eyebrow", {translate(locale, "nav.reading_zone")} }
+                        div { style: "display: flex; align-items: center; gap: 10px;",
+                            span {
+                                style: "width: 30px; height: 30px; border-radius: 8px; background: var(--accent-glow); color: var(--accent-primary); display: inline-flex; align-items: center; justify-content: center;",
+                                LucideIcon { kind: IconKind::History, size: 16 }
+                            }
+                            h2 { "{translate(locale, \"browse.history_title\")}" }
+                            span { class: "library-count", style: "margin-top: 0;", "{history.len()}" }
+                        }
+                    }
+                }
+
+                div { class: "browse-command-bar",
+                    div {
+                        style: "flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; border-radius: 7px; background: var(--bg-primary);",
+                        span { style: "color: var(--text-muted); display: flex; align-items: center;",
+                            LucideIcon { kind: IconKind::Search, size: 14 }
+                        }
+                        input {
+                            r#type: "text",
+                            value: "{local_q}",
+                            placeholder: translate(locale, "action.search"),
+                            style: "flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 13px;",
+                            oninput: move |e| local_q.set(e.value()),
+                        }
+                    }
+                }
+            }
+
             if history.is_empty() {
                 div { style: "padding: 40px; text-align: center; color: var(--text-muted);",
                     "{translate(locale, \"browse.history_empty\")}"
@@ -160,21 +372,32 @@ pub fn ReadingHistoryView(
                             let b_read = b.clone();
                             let pct = b.progress_percent.round() as i32;
                             let date_str = b.last_read_at.as_deref().unwrap_or("-");
+                            let cover_src = resolve_cover_src(&b.id, b.cover_path.as_deref(), true);
                             rsx! {
                                 div {
                                     key: "hist-{b.id}",
-                                    style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);",
+                                    style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle);",
                                     div {
-                                        style: "flex: 1; min-width: 0; cursor: pointer;",
+                                        style: "display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; cursor: pointer;",
                                         onclick: move |_| on_select.call(b_sel.clone()),
-                                        div { style: "font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{b.title}" }
-                                        div { style: "font-size: 11px; color: var(--text-muted);", "{b.author} • {date_str}" }
+                                        div {
+                                            style: "width: 36px; height: 52px; border-radius: 6px; overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); flex-shrink: 0; display: flex; align-items: center; justify-content: center;",
+                                            if let Some(src) = cover_src {
+                                                img { src: "{src}", style: "width: 100%; height: 100%; object-fit: cover;" }
+                                            } else {
+                                                LucideIcon { kind: IconKind::BookOpen, size: 15 }
+                                            }
+                                        }
+                                        div { style: "min-width: 0; flex: 1;",
+                                            div { style: "font-size: 13.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{b.title}" }
+                                            div { style: "font-size: 11.5px; color: var(--text-muted);", "{b.author} • {date_str}" }
+                                        }
                                     }
                                     div { style: "display: flex; align-items: center; gap: 12px;",
-                                        span { style: "font-size: 12px; font-weight: 600; color: #a5b4fc;", "{pct}%" }
+                                        span { style: "font-size: 12px; font-weight: 700; color: var(--accent-primary);", "{pct}%" }
                                         button {
                                             class: "btn btn-primary",
-                                            style: "font-size: 11px; padding: 5px 12px;",
+                                            style: "font-size: 11.5px; padding: 5px 12px;",
                                             onclick: move |_| on_read.call(b_read.clone()),
                                             "{translate(locale, \"home.resume_btn\")}"
                                         }
@@ -196,10 +419,6 @@ pub fn AnnotationsView(
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
 ) -> Element {
-    use crate::components::{IconKind, LucideIcon};
-    use std::collections::HashMap;
-    use vellum_core::reader_store::{BookUserData, Highlight};
-
     let mut query = use_signal(String::new);
     let mut color_filter = use_signal(|| None::<String>);
 
@@ -237,42 +456,56 @@ pub fn AnnotationsView(
         .collect();
 
     rsx! {
-        div { style: "padding: 8px 24px 32px; display: flex; flex-direction: column; gap: 14px;",
-            div { style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;",
-                div { style: "display: flex; align-items: center; gap: 10px;",
-                    span {
-                        style: "width: 30px; height: 30px; border-radius: 8px; background: rgba(250, 204, 21, 0.16); color: #facc15; display: inline-flex; align-items: center; justify-content: center;",
-                        LucideIcon { kind: IconKind::Highlighter, size: 16 }
+        div { style: "padding: 4px 4px 32px; display: flex; flex-direction: column; gap: 16px;",
+            div { class: "library-header",
+                div { class: "browse-title-row",
+                    div { class: "library-title-group",
+                        div { class: "browse-eyebrow", "Lecture" }
+                        div { style: "display: flex; align-items: center; gap: 10px;",
+                            span {
+                                style: "width: 30px; height: 30px; border-radius: 8px; background: rgba(250, 204, 21, 0.16); color: #facc15; display: inline-flex; align-items: center; justify-content: center;",
+                                LucideIcon { kind: IconKind::Highlighter, size: 16 }
+                            }
+                            h2 { "Cahier d'annotations" }
+                            span { class: "library-count", style: "margin-top: 0;", "{filtered.len()}" }
+                        }
                     }
-                    h2 { style: "font-size: 20px; font-weight: 700; margin: 0;", "Cahier d'annotations ({filtered.len()})" }
                 }
 
-                div { style: "display: flex; align-items: center; gap: 8px;",
-                    input {
-                        r#type: "text",
-                        value: "{query}",
-                        placeholder: "Filtrer surlignages, notes ou livres...",
-                        style: "width: 240px; padding: 6px 10px; font-size: 12.5px; border-radius: 8px; background: rgba(255,255,255,0.04); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none;",
-                        oninput: move |e| query.set(e.value()),
+                div { class: "browse-command-bar",
+                    div {
+                        style: "flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; border-radius: 7px; background: var(--bg-primary);",
+                        span { style: "color: var(--text-muted); display: flex; align-items: center;",
+                            LucideIcon { kind: IconKind::Search, size: 14 }
+                        }
+                        input {
+                            r#type: "text",
+                            value: "{query}",
+                            placeholder: "Filtrer surlignages, notes ou livres...",
+                            style: "flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 13px;",
+                            oninput: move |e| query.set(e.value()),
+                        }
                     }
-                    for (label, val) in [
-                        ("Toutes", None),
-                        ("Jaune", Some("yellow")),
-                        ("Vert", Some("green")),
-                        ("Bleu", Some("blue")),
-                        ("Rose", Some("pink")),
-                    ] {
-                        {
-                            let is_on = cur_color.as_deref() == val;
-                            rsx! {
-                                button {
-                                    style: if is_on {
-                                        "padding: 5px 10px; border-radius: 7px; background: rgba(99, 102, 241, 0.25); color: #c7d2fe; border: none; font-size: 12px; font-weight: 600; cursor: pointer;"
-                                    } else {
-                                        "padding: 5px 10px; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-muted); border: 1px solid var(--border-subtle); font-size: 12px; cursor: pointer;"
-                                    },
-                                    onclick: move |_| color_filter.set(val.map(str::to_string)),
-                                    "{label}"
+                    div { style: "display: flex; align-items: center; gap: 4px;",
+                        for (label, val) in [
+                            ("Toutes", None),
+                            ("Jaune", Some("yellow")),
+                            ("Vert", Some("green")),
+                            ("Bleu", Some("blue")),
+                            ("Rose", Some("pink")),
+                        ] {
+                            {
+                                let is_on = cur_color.as_deref() == val;
+                                rsx! {
+                                    button {
+                                        style: if is_on {
+                                            "padding: 4px 9px; border-radius: 6px; background: var(--accent-primary); color: #fff; border: none; font-size: 11.5px; font-weight: 600; cursor: pointer;"
+                                        } else {
+                                            "padding: 4px 9px; border-radius: 6px; background: var(--bg-primary); color: var(--text-muted); border: 1px solid var(--border-subtle); font-size: 11.5px; cursor: pointer;"
+                                        },
+                                        onclick: move |_| color_filter.set(val.map(str::to_string)),
+                                        "{label}"
+                                    }
                                 }
                             }
                         }
@@ -281,7 +514,7 @@ pub fn AnnotationsView(
             }
 
             if filtered.is_empty() {
-                div { style: "padding: 48px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed var(--border-subtle);",
+                div { style: "padding: 48px; text-align: center; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; border: 1px dashed var(--border-subtle);",
                     "Aucun surlignage ou note pour le moment. Sélectionnez du texte dans le lecteur pour créer des annotations."
                 }
             } else {
@@ -295,10 +528,10 @@ pub fn AnnotationsView(
                             rsx! {
                                 div {
                                     key: "ann-{h.id}",
-                                    style: "padding: 14px 16px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px;",
+                                    style: "padding: 14px 16px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px;",
                                     div { style: "display: flex; justify-content: space-between; align-items: center; gap: 8px;",
                                         div {
-                                            style: "font-size: 12.5px; font-weight: 600; color: #a5b4fc; cursor: pointer;",
+                                            style: "font-size: 12.5px; font-weight: 600; color: var(--accent-primary); cursor: pointer;",
                                             onclick: {
                                                 let b = book_opt.clone();
                                                 move |_| {

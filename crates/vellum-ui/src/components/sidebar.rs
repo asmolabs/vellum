@@ -45,8 +45,8 @@ pub fn Sidebar(
     let mut show_new_vl = use_signal(|| false);
     let mut new_vl_name = use_signal(String::new);
     let mut new_vl_query = use_signal(String::new);
-    let mut show_series = use_signal(|| true);
-    let mut show_tags = use_signal(|| true);
+    let mut show_series = use_signal(|| false);
+    let mut show_tags = use_signal(|| false);
     let mut tools_open = use_signal(|| false);
     let collapsed = *sidebar_collapsed.read();
     let cur_view = *view_mode.read();
@@ -558,33 +558,8 @@ pub fn Sidebar(
                 }
             }
 
-            if let Some(s) = stats {
-                div {
-                    class: "sidebar-stats-card",
-                    style: "cursor: pointer; transition: transform 0.15s, border-color 0.15s;",
-                    onclick: move |_| on_open_stats.call(()),
-                    title: translate(locale, "sidebar.stats_tooltip"),
-                    div { class: "stat-row",
-                        span { "{translate(locale, \"sidebar.stats_total\")}" }
-                        span { class: "stat-val", "{s.total_books}" }
-                    }
-                    div { class: "stat-row",
-                        span { "{translate(locale, \"sidebar.stats_reading\")}" }
-                        span { class: "stat-val", "{s.in_progress_books}" }
-                    }
-                    div { class: "stat-row",
-                        span { "{translate(locale, \"sidebar.stats_finished\")}" }
-                        span { class: "stat-val", "{s.finished_books}" }
-                    }
-                    div {
-                        style: "margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11px; color: #818cf8; text-align: center; font-weight: 600;",
-                        "{translate(locale, \"sidebar.stats_open\")}"
-                    }
-                }
-            }
-
             // Dock Thème & Actions (inspiré de SidebarDock dans BookOrbit — remplace la barre du haut)
-            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; flex-direction: column; gap: 10px; position: relative;",
+            div { style: "margin-top: auto; border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; flex-direction: column; gap: 10px; position: relative;",
                 // Ligne 1 : Pastilles de thème
                 div { style: "display: flex; align-items: center; justify-content: space-between; gap: 6px;",
                     span { style: "display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--text-muted);",

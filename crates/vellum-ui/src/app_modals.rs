@@ -326,7 +326,7 @@ pub(crate) fn render_app_overlays(
             }
         }
 
-        // Floating Selection Toolbar
+        // Floating Selection Toolbar (BookOrbit SelectionActionBar style)
         if !st.selected_ids.read().is_empty() {
             {
                 let count = st.selected_ids.read().len();
@@ -334,49 +334,49 @@ pub(crate) fn render_app_overlays(
                 let loc = *st.ui_locale.read();
                 rsx! {
                     div {
-                        style: "position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: rgba(24, 24, 27, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 12px 32px rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 9999px; display: flex; align-items: center; gap: 14px; z-index: 1000;",
+                        style: "position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--bg-surface); border: 1px solid var(--border-active); box-shadow: 0 18px 48px rgba(0,0,0,0.65); padding: 8px 16px; border-radius: 9999px; display: flex; align-items: center; gap: 10px; z-index: 1000;",
                         div {
-                            style: "display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #fff;",
+                            style: "display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-primary); padding-left: 4px;",
                             span {
-                                style: "background: var(--accent-primary); color: #fff; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;",
+                                style: "background: var(--accent-primary); color: #fff; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;",
                                 "{count}"
                             }
                             span { {vellum_core::translate(loc, "selection.count_suffix")} }
                         }
-                        div { style: "width: 1px; height: 20px; background: rgba(255,255,255,0.15);" }
+                        div { style: "width: 1px; height: 20px; background: var(--border-subtle);" }
                         button {
                             class: "btn btn-primary",
-                            style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                            style: "padding: 5px 12px; font-size: 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| st.bulk_edit_open.set(true),
-                            span { "✏️" }
+                            crate::components::LucideIcon { kind: crate::components::IconKind::Edit, size: 13 }
                             {vellum_core::translate(loc, "selection.bulk_edit")}
                         }
                         button {
                             class: "btn btn-secondary",
-                            style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                            style: "padding: 5px 12px; font-size: 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| st.bulk_convert_open.set(true),
-                            span { "🔄" }
+                            crate::components::LucideIcon { kind: crate::components::IconKind::RefreshCw, size: 13 }
                             {vellum_core::translate(loc, "selection.convert")}
                         }
                         button {
                             class: "btn btn-secondary",
-                            style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                            style: "padding: 5px 12px; font-size: 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| st.bulk_regex_open.set(true),
-                            span { "🔤" }
+                            crate::components::LucideIcon { kind: crate::components::IconKind::Wrench, size: 13 }
                             {vellum_core::translate(loc, "selection.regex")}
                         }
                         button {
                             class: "btn btn-danger",
-                            style: "padding: 6px 14px; font-size: 13px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
+                            style: "padding: 5px 12px; font-size: 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; cursor: pointer;",
                             onclick: move |_| hd.on_bulk_delete.call(()),
-                            span { "🗑️" }
+                            crate::components::LucideIcon { kind: crate::components::IconKind::Trash, size: 13 }
                             {vellum_core::translate_fmt(loc, "selection.delete_count", &[("count", &count_str)])}
                         }
                         button {
                             class: "btn btn-secondary",
-                            style: "padding: 6px 12px; font-size: 12px; border-radius: 20px; color: var(--text-muted); cursor: pointer;",
+                            style: "padding: 5px 10px; font-size: 12px; border-radius: 20px; color: var(--text-muted); cursor: pointer;",
                             onclick: move |_| st.selected_ids.set(HashSet::new()),
-                            {vellum_core::translate(loc, "action.cancel")}
+                            "✕"
                         }
                     }
                 }

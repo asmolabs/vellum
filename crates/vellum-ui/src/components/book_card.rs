@@ -14,6 +14,7 @@ pub fn BookCard(
     on_read: EventHandler<Book>,
     #[props(default)] series_stack: Option<(String, usize)>,
     #[props(default)] on_quick_view: Option<EventHandler<Book>>,
+    #[props(default = false)] show_label: bool,
 ) -> Element {
     let title = book.title.clone();
     let author = book.author.clone();
@@ -152,6 +153,15 @@ pub fn BookCard(
                             class: "progress-bar",
                             style: "width: {progress.clamp(0.0, 100.0)}%;",
                         }
+                    }
+                }
+            }
+
+            if show_label {
+                div { class: "book-card-meta",
+                    div { class: "book-card-title", "{title}" }
+                    div { class: "book-card-author",
+                        if author.is_empty() { "—" } else { "{author}" }
                     }
                 }
             }

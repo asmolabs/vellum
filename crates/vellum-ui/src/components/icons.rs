@@ -38,6 +38,10 @@ pub enum IconKind {
     Play,
     Pause,
     Palette,
+    Sliders,
+    Trash,
+    Edit,
+    RefreshCw,
 }
 
 #[component]
@@ -206,6 +210,31 @@ pub fn LucideIcon(kind: IconKind, #[props(default = 16)] size: u32) -> Element {
                     circle { cx: "8.5", cy: "7.5", r: ".5", fill: "currentColor" }
                     circle { cx: "6.5", cy: "12.5", r: ".5", fill: "currentColor" }
                     path { d: "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" }
+                },
+                IconKind::Sliders => rsx! {
+                    line { x1: "4", x2: "4", y1: "21", y2: "14" }
+                    line { x1: "4", x2: "4", y1: "10", y2: "3" }
+                    line { x1: "12", x2: "12", y1: "21", y2: "12" }
+                    line { x1: "12", x2: "12", y1: "8", y2: "3" }
+                    line { x1: "20", x2: "20", y1: "21", y2: "16" }
+                    line { x1: "20", x2: "20", y1: "12", y2: "3" }
+                    line { x1: "2", x2: "6", y1: "14", y2: "14" }
+                    line { x1: "10", x2: "14", y1: "8", y2: "8" }
+                    line { x1: "18", x2: "22", y1: "16", y2: "16" }
+                },
+                IconKind::Trash => rsx! {
+                    path { d: "M3 6h18" }
+                    path { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" }
+                    path { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" }
+                },
+                IconKind::Edit => rsx! {
+                    path { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" }
+                },
+                IconKind::RefreshCw => rsx! {
+                    path { d: "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" }
+                    path { d: "M21 3v5h-5" }
+                    path { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" }
+                    path { d: "M8 16H3v5" }
                 },
             }
         }
