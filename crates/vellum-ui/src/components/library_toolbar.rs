@@ -124,7 +124,7 @@ pub fn LibraryToolbar(
 
                 // Sort control
                 select {
-                    style: "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
+                    style: "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
                     value: match *current_sort.read() {
                         SortOption::RecentAdded => "recent",
                         SortOption::TitleAsc => "title_asc",
@@ -174,13 +174,17 @@ pub fn LibraryToolbar(
 
                     if *filter_open.read() {
                         div {
-                            style: "position: absolute; top: 38px; right: 0; width: 270px; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 10px; padding: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 40; display: flex; flex-direction: column; gap: 10px;",
+                            style: "position: fixed; inset: 0; z-index: 110;",
+                            onclick: move |_| filter_open.set(false),
+                        }
+                        div {
+                            style: "position: absolute; top: 38px; right: 0; width: 280px; background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 12px; padding: 14px; box-shadow: 0 18px 48px rgba(0,0,0,0.65); z-index: 120; display: flex; flex-direction: column; gap: 12px;",
                             // Statut
                             div {
                                 div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px;",
                                     {translate(locale, "nav.reading_zone")}
                                 }
-                                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 4px;",
+                                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 5px;",
                                     for f in [
                                         FilterStatus::All,
                                         FilterStatus::Reading,
@@ -189,9 +193,9 @@ pub fn LibraryToolbar(
                                     ] {
                                         button {
                                             style: if cur_filter == f {
-                                                "text-align: left; padding: 5px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.22); color: #c7d2fe; border: none; font-size: 12px; font-weight: 600; cursor: pointer;"
+                                                "text-align: left; padding: 6px 8px; border-radius: 6px; background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-primary); font-size: 12px; font-weight: 600; cursor: pointer;"
                                             } else {
-                                                "text-align: left; padding: 5px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); color: var(--text-secondary); border: none; font-size: 12px; cursor: pointer;"
+                                                "text-align: left; padding: 6px 8px; border-radius: 6px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); font-size: 12px; cursor: pointer;"
                                             },
                                             onclick: move |_| current_filter.set(f),
                                             {translate(locale, f.i18n_key())}
@@ -205,7 +209,7 @@ pub fn LibraryToolbar(
                                 div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px;",
                                     "Format"
                                 }
-                                div { style: "display: flex; flex-wrap: wrap; gap: 4px;",
+                                div { style: "display: flex; flex-wrap: wrap; gap: 5px;",
                                     for (label, val) in [
                                         ("Tous", None),
                                         ("EPUB", Some("epub")),
@@ -218,9 +222,9 @@ pub fn LibraryToolbar(
                                             rsx! {
                                                 button {
                                                     style: if is_on {
-                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.22); color: #c7d2fe; border: none; font-size: 11.5px; font-weight: 600; cursor: pointer;"
+                                                        "padding: 5px 8px; border-radius: 6px; background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-primary); font-size: 11.5px; font-weight: 600; cursor: pointer;"
                                                     } else {
-                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); color: var(--text-secondary); border: none; font-size: 11.5px; cursor: pointer;"
+                                                        "padding: 5px 8px; border-radius: 6px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); font-size: 11.5px; cursor: pointer;"
                                                     },
                                                     onclick: move |_| format_filter.set(val.map(str::to_string)),
                                                     "{label}"
@@ -236,7 +240,7 @@ pub fn LibraryToolbar(
                                 div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px;",
                                     "Note minimale"
                                 }
-                                div { style: "display: flex; gap: 4px;",
+                                div { style: "display: flex; gap: 5px;",
                                     for (label, val) in [
                                         ("Toutes", None),
                                         ("3+ ★", Some(3_i32)),
@@ -248,9 +252,9 @@ pub fn LibraryToolbar(
                                             rsx! {
                                                 button {
                                                     style: if is_on {
-                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(251, 191, 36, 0.2); color: #fde68a; border: none; font-size: 11.5px; font-weight: 600; cursor: pointer;"
+                                                        "padding: 5px 8px; border-radius: 6px; background: var(--warning); color: #111827; border: 1px solid var(--warning); font-size: 11.5px; font-weight: 700; cursor: pointer;"
                                                     } else {
-                                                        "padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); color: var(--text-secondary); border: none; font-size: 11.5px; cursor: pointer;"
+                                                        "padding: 5px 8px; border-radius: 6px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); font-size: 11.5px; cursor: pointer;"
                                                     },
                                                     onclick: move |_| min_rating.set(val),
                                                     "{label}"
@@ -264,7 +268,7 @@ pub fn LibraryToolbar(
                             if active_filter_count > 0 {
                                 div { style: "border-top: 1px solid var(--border-subtle); padding-top: 8px;",
                                     button {
-                                        style: "width: 100%; padding: 5px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text-muted); border: none; font-size: 12px; cursor: pointer;",
+                                        style: "width: 100%; padding: 6px 8px; border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-subtle); font-size: 12px; font-weight: 600; cursor: pointer;",
                                         onclick: move |_| {
                                             current_filter.set(FilterStatus::All);
                                             selected_series.set(None);

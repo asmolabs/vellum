@@ -116,6 +116,11 @@ body {
   width: 100vw;
 }
 
+select option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -723,7 +728,7 @@ body {
   padding: 5px 8px;
   border-radius: 10px;
   border: 1px solid var(--border-subtle);
-  background: var(--bg-card);
+  background: var(--bg-surface);
   flex-wrap: wrap;
 }
 

@@ -199,7 +199,11 @@ pub fn BooksTable(
                 }
                 if *cols_open.read() {
                     div {
-                        style: "position: absolute; top: 32px; right: 4px; width: 190px; background: var(--bg-card); border: 1px solid var(--border-active); border-radius: 10px; padding: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 40; display: flex; flex-direction: column; gap: 6px; font-size: 12px;",
+                        style: "position: fixed; inset: 0; z-index: 110;",
+                        onclick: move |_| cols_open.set(false),
+                    }
+                    div {
+                        style: "position: absolute; top: 32px; right: 4px; width: 190px; background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 10px; padding: 10px; box-shadow: 0 16px 40px rgba(0,0,0,0.6); z-index: 120; display: flex; flex-direction: column; gap: 6px; font-size: 12px;",
                         for (label, mut sig) in [
                             (translate(locale, "table.col_author"), show_author),
                             (translate(locale, "table.col_series"), show_series),
