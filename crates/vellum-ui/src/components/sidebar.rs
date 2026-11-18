@@ -25,6 +25,8 @@ pub fn Sidebar(
     on_delete_virtual_library: EventHandler<String>,
     stats: Option<ReadingStats>,
     on_open_stats: EventHandler<()>,
+    ui_theme: String,
+    on_change_theme: EventHandler<String>,
 ) -> Element {
     let mut show_new_vl = use_signal(|| false);
     let mut new_vl_name = use_signal(String::new);
@@ -521,6 +523,45 @@ pub fn Sidebar(
                     div {
                         style: "margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11px; color: #818cf8; text-align: center; font-weight: 600;",
                         "{translate(locale, \"sidebar.stats_open\")}"
+                    }
+                }
+            }
+
+            // Sélecteur de thème (inspiré de SidebarAppearanceMenu dans BookOrbit)
+            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; flex-direction: column; gap: 6px;",
+                div {
+                    class: "sidebar-section-title",
+                    style: "display: flex; align-items: center; gap: 6px;",
+                    LucideIcon { kind: IconKind::Palette, size: 13 }
+                    span { "Thème" }
+                }
+                div { style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;",
+                    for (id, label, bg, accent) in [
+                        ("midnight", "Nuit", "#0a0c14", "#6366f1"),
+                        ("nordic", "Nord", "#0b1120", "#0ea5e9"),
+                        ("emerald", "Forêt", "#06130f", "#10b981"),
+                        ("amber", "Ambre", "#130e09", "#f59e0b"),
+                        ("sepia", "Sépia", "#f4ede2", "#b45309"),
+                        ("paper", "Clair", "#f1f5f9", "#4f46e5"),
+                    ] {
+                        {
+                            let is_active = ui_theme == id;
+                            rsx! {
+                                button {
+                                    title: "{label}",
+                                    style: if is_active {
+                                        "display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 6px; border-radius: 7px; border: 1.5px solid var(--accent-primary); background: var(--accent-glow); color: var(--text-primary); font-size: 11px; font-weight: 700; cursor: pointer;"
+                                    } else {
+                                        "display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 6px; border-radius: 7px; border: 1px solid var(--border-subtle); background: rgba(255,255,255,0.03); color: var(--text-secondary); font-size: 11px; cursor: pointer;"
+                                    },
+                                    onclick: move |_| on_change_theme.call(id.to_string()),
+                                    span {
+                                        style: "width: 10px; height: 10px; border-radius: 999px; background: linear-gradient(135deg, {bg} 45%, {accent} 55%); border: 1px solid rgba(255,255,255,0.3); flex-shrink: 0;",
+                                    }
+                                    span { "{label}" }
+                                }
+                            }
+                        }
                     }
                 }
             }

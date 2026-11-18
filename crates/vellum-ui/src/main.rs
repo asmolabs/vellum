@@ -73,6 +73,14 @@ fn App() -> Element {
     let is_syncing = use_signal(|| false);
     let sync_message = use_signal(|| None::<String>);
     let ui_locale = use_signal(|| book_service.get_ui_locale());
+    let mut ui_theme = use_signal(|| {
+        book_service
+            .param_repo()
+            .get_value("ui_theme")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "midnight".to_string())
+    });
 
     let books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
     let mut virtual_libraries = use_signal(|| virtual_library_service.list().unwrap_or_default());
@@ -314,6 +322,7 @@ fn App() -> Element {
 
         div {
             class: "app-container",
+            "data-theme": "{ui_theme.read()}",
             tabindex: "0",
             onkeydown: move |evt: KeyboardEvent| {
                 app_effects::handle_container_keydown(evt, kb_ctx.clone());
@@ -399,6 +408,14 @@ fn App() -> Element {
                     },
                     stats: reading_stats.clone(),
                     on_open_stats: move |_| stats_open.set(true),
+                    ui_theme: ui_theme.read().clone(),
+                    on_change_theme: {
+                        let bs = book_service.clone();
+                        move |t: String| {
+                            let _ = bs.param_repo().set_value("ui_theme", &t);
+                            ui_theme.set(t);
+                        }
+                    },
                 }
 
                 // Books Library
