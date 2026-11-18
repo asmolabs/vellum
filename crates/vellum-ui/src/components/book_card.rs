@@ -17,9 +17,6 @@ pub fn BookCard(
 ) -> Element {
     let title = book.title.clone();
     let author = book.author.clone();
-    let series = book.series.clone();
-    let series_index = book.series_index;
-    let rating = book.rating;
     let formats = book.formats.clone();
     let progress = book.progress_percent;
     let is_finished = book.is_finished;
@@ -154,34 +151,6 @@ pub fn BookCard(
                         div {
                             class: "progress-bar",
                             style: "width: {progress.clamp(0.0, 100.0)}%;",
-                        }
-                    }
-                }
-            }
-
-            // Title & Author caption below cover (BookOrbit BookCoverCard)
-            div { class: "book-card-meta",
-                div { class: "book-card-title", "{title}" }
-                div { class: "book-card-author",
-                    if author.is_empty() { "—" } else { "{author}" }
-                }
-                if series.as_ref().is_some_and(|s| !s.trim().is_empty()) || rating.is_some() {
-                    div {
-                        style: "display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 2px; font-size: 10.5px; color: var(--text-muted);",
-                        if let Some(ref s) = series {
-                            if !s.trim().is_empty() {
-                                span {
-                                    style: "overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
-                                    if let Some(idx) = series_index {
-                                        "{s} #{idx}"
-                                    } else {
-                                        "{s}"
-                                    }
-                                }
-                            }
-                        }
-                        if let Some(r) = rating {
-                            span { style: "color: #fbbf24; font-weight: 600; flex-shrink: 0;", "★ {r:.1}" }
                         }
                     }
                 }
