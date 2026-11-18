@@ -28,6 +28,8 @@ pub fn Sidebar(
     on_open_stats: EventHandler<()>,
     ui_theme: String,
     on_change_theme: EventHandler<String>,
+    ui_font_size: String,
+    on_change_font_size: EventHandler<String>,
     connected_devices: Vec<ConnectedDevice>,
     sync_available: bool,
     is_syncing: bool,
@@ -586,6 +588,38 @@ pub fn Sidebar(
                                             "width: 18px; height: 18px; border-radius: 999px; border: 1px solid var(--border-subtle); background: linear-gradient(135deg, {bg} 45%, {accent} 55%); cursor: pointer; opacity: 0.75; transition: transform 0.15s, opacity 0.15s;"
                                         },
                                         onclick: move |_| on_change_theme.call(id.to_string()),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Ligne 1b : Taille de la police globale
+                div { style: "display: flex; align-items: center; justify-content: space-between; gap: 6px;",
+                    span { style: "display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--text-muted);",
+                        span { "Aa" }
+                        span { "Police" }
+                    }
+                    div { style: "display: inline-flex; align-items: center; gap: 3px; background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 7px; padding: 2px;",
+                        for (id, label_key) in [
+                            ("small", "settings.font_small"),
+                            ("normal", "settings.font_normal"),
+                            ("large", "settings.font_large"),
+                        ] {
+                            {
+                                let is_active = ui_font_size == id;
+                                let label = translate(locale, label_key);
+                                rsx! {
+                                    button {
+                                        title: "{label}",
+                                        style: if is_active {
+                                            "padding: 2px 7px; border-radius: 5px; background: var(--accent-primary); color: #fff; border: none; font-size: 11px; font-weight: 600; cursor: pointer;"
+                                        } else {
+                                            "padding: 2px 7px; border-radius: 5px; background: transparent; color: var(--text-secondary); border: none; font-size: 11px; font-weight: 500; cursor: pointer;"
+                                        },
+                                        onclick: move |_| on_change_font_size.call(id.to_string()),
+                                        "{label}"
                                     }
                                 }
                             }

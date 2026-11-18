@@ -653,5 +653,9 @@
   "browse.series_title": "Sagas & Séries",
   "browse.series_empty": "Aucune série détectée dans votre bibliothèque.",
   "browse.history_title": "Historique de lecture",
-  "browse.history_empty": "Aucune lecture enregistrée pour le moment."
+  "browse.history_empty": "Aucune lecture enregistrée pour le moment.",
+  "settings.font_size": "Taille de la police de l'interface",
+  "settings.font_small": "Petit",
+  "settings.font_normal": "Normal",
+  "settings.font_large": "Grand"
 }

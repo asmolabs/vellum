@@ -27,6 +27,8 @@ pub fn LibraryToolbar(
     mut current_sort: Signal<SortOption>,
     mut grid_card_size: Signal<u32>,
     mut grid_show_labels: Signal<bool>,
+    ui_font_size: String,
+    on_change_font_size: EventHandler<String>,
 ) -> Element {
     let mut filter_open = use_signal(|| false);
     let mut display_open = use_signal(|| false);
@@ -359,29 +361,29 @@ pub fn LibraryToolbar(
                     }
 
                     // Display controls popover (BookOrbit ViewHeaderDisplayControls)
-                    if cur_view == ViewMode::Grid {
-                        div { style: "position: relative;",
-                            button {
-                                title: "Options d'affichage",
-                                style: if *display_open.read() {
-                                    "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: var(--accent-primary); color: #fff; border: none; cursor: pointer;"
-                                } else {
-                                    "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); cursor: pointer;"
-                                },
-                                onclick: move |_| {
-                                    let next = !*display_open.read();
-                                    display_open.set(next);
-                                },
-                                LucideIcon { kind: IconKind::Sliders, size: 14 }
-                            }
+                    div { style: "position: relative;",
+                        button {
+                            title: "Options d'affichage",
+                            style: if *display_open.read() {
+                                "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: var(--accent-primary); color: #fff; border: none; cursor: pointer;"
+                            } else {
+                                "width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); cursor: pointer;"
+                            },
+                            onclick: move |_| {
+                                let next = !*display_open.read();
+                                display_open.set(next);
+                            },
+                            LucideIcon { kind: IconKind::Sliders, size: 14 }
+                        }
 
-                            if *display_open.read() {
-                                div {
-                                    style: "position: fixed; inset: 0; z-index: 110;",
-                                    onclick: move |_| display_open.set(false),
-                                }
-                                div {
-                                    style: "position: absolute; top: 38px; right: 0; width: 230px; background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 12px; padding: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.65); z-index: 120; display: flex; flex-direction: column; gap: 10px;",
+                        if *display_open.read() {
+                            div {
+                                style: "position: fixed; inset: 0; z-index: 110;",
+                                onclick: move |_| display_open.set(false),
+                            }
+                            div {
+                                style: "position: absolute; top: 38px; right: 0; width: 230px; background: var(--bg-surface); border: 1px solid var(--border-active); border-radius: 12px; padding: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.65); z-index: 120; display: flex; flex-direction: column; gap: 10px;",
+                                if cur_view == ViewMode::Grid {
                                     div {
                                         div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 5px;",
                                             "Taille des couvertures"
@@ -407,6 +409,40 @@ pub fn LibraryToolbar(
                                             r#type: "checkbox",
                                             checked: *grid_show_labels.read(),
                                             onchange: move |e| grid_show_labels.set(e.checked()),
+                                        }
+                                    }
+                                }
+
+                                div {
+                                    style: if cur_view == ViewMode::Grid {
+                                        "border-top: 1px solid var(--border-subtle); padding-top: 8px;"
+                                    } else {
+                                        ""
+                                    },
+                                    div { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 5px;",
+                                        "Taille de la police"
+                                    }
+                                    div { style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;",
+                                        for (id, label_key) in [
+                                            ("small", "settings.font_small"),
+                                            ("normal", "settings.font_normal"),
+                                            ("large", "settings.font_large"),
+                                        ] {
+                                            {
+                                                let is_active = ui_font_size == id;
+                                                let label = translate(locale, label_key);
+                                                rsx! {
+                                                    button {
+                                                        style: if is_active {
+                                                            "padding: 5px 6px; border-radius: 6px; background: var(--accent-primary); color: #fff; border: 1px solid var(--accent-primary); font-size: 11.5px; font-weight: 600; cursor: pointer;"
+                                                        } else {
+                                                            "padding: 5px 6px; border-radius: 6px; background: var(--bg-primary); color: var(--text-secondary); border: 1px solid var(--border-subtle); font-size: 11.5px; cursor: pointer;"
+                                                        },
+                                                        onclick: move |_| on_change_font_size.call(id.to_string()),
+                                                        "{label}"
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }

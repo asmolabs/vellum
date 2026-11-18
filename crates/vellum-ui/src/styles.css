@@ -16,11 +16,26 @@
   --danger: #ef4444;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-serif: Georgia, Cambria, "Times New Roman", serif;
+  --font-scale: 1;
 }
 
 .app-container {
   background-color: var(--bg-primary);
   color: var(--text-primary);
+  font-size: calc(14px * var(--font-scale, 1));
+}
+
+.app-container,
+.app-container[data-font-size="normal"] {
+  --font-scale: 1;
+}
+
+.app-container[data-font-size="small"] {
+  --font-scale: 0.88;
+}
+
+.app-container[data-font-size="large"] {
+  --font-scale: 1.15;
 }
 
 .app-container[data-theme="nordic"] {
@@ -109,7 +124,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale, 1));
   line-height: 1.5;
   overflow: hidden;
   height: 100vh;
@@ -219,21 +234,21 @@ select option {
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 18px;
+  font-size: calc(18px * var(--font-scale, 1));
   color: #fff;
   box-shadow: 0 0 15px var(--accent-glow);
 }
 
 .logo-text {
   font-family: var(--font-serif);
-  font-size: 18px;
+  font-size: calc(18px * var(--font-scale, 1));
   font-weight: 700;
   letter-spacing: -0.3px;
   color: var(--text-primary);
 }
 
 .logo-badge {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale, 1));
   font-weight: 600;
   background: rgba(99, 102, 241, 0.15);
   color: #818cf8;
@@ -259,7 +274,7 @@ select option {
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   outline: none;
   transition: all 0.2s ease;
 }
@@ -292,7 +307,7 @@ select option {
   gap: 6px;
   padding: 7px 12px;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--font-scale, 1));
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -366,7 +381,7 @@ select option {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -429,7 +444,7 @@ select option {
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   text-align: left;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -446,7 +461,7 @@ select option {
   z-index: 2200;
   padding: 10px 16px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   font-weight: 500;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
@@ -515,7 +530,7 @@ select option {
   background: rgba(18, 22, 38, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--text-primary);
-  font-size: 20px;
+  font-size: calc(20px * var(--font-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -532,7 +547,7 @@ select option {
 
 .coverflow-info {
   text-align: center;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   color: var(--text-primary);
   z-index: 25;
   display: flex;
@@ -552,7 +567,7 @@ select option {
 .books-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--font-scale, 1));
   text-align: left;
 }
 
@@ -562,7 +577,7 @@ select option {
   z-index: 2;
   background: rgba(18, 22, 38, 0.96);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -618,7 +633,7 @@ select option {
 }
 
 .sidebar-section-title {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -641,7 +656,7 @@ select option {
   border-radius: 8px;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   transition: all 0.15s ease;
 }
 
@@ -657,7 +672,7 @@ select option {
 }
 
 .nav-badge {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   padding: 1px 7px;
   border-radius: 12px;
   background: var(--bg-card);
@@ -680,7 +695,7 @@ select option {
 }
 
 .tag-pill {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   padding: 4px 10px;
   border-radius: 6px;
   background: var(--bg-card);
@@ -710,7 +725,7 @@ select option {
 .stat-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale, 1));
   color: var(--text-secondary);
 }
 
@@ -745,7 +760,7 @@ select option {
 }
 
 .browse-eyebrow {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -767,14 +782,14 @@ select option {
 }
 
 .library-title-group h2 {
-  font-size: 22px;
+  font-size: calc(22px * var(--font-scale, 1));
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
 .library-count {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--font-scale, 1));
   color: var(--text-muted);
   margin-top: 2px;
 }
@@ -793,7 +808,7 @@ select option {
 }
 
 .book-card-title {
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
@@ -804,7 +819,7 @@ select option {
 }
 
 .book-card-author {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--font-scale, 1));
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -892,14 +907,14 @@ select option {
 
 .fallback-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale, 1));
   color: #fff;
   line-height: 1.3;
   margin-top: 20px;
 }
 
 .fallback-author {
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale, 1));
   color: #a5b4fc;
 }
 
@@ -916,7 +931,7 @@ select option {
 }
 
 .format-pill {
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale, 1));
   font-weight: 700;
   text-transform: uppercase;
   padding: 2px 6px;
@@ -936,7 +951,7 @@ select option {
 }
 
 .book-title {
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale, 1));
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -945,7 +960,7 @@ select option {
 }
 
 .book-author {
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale, 1));
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -1018,18 +1033,18 @@ select option {
 }
 
 .drawer-title {
-  font-size: 18px;
+  font-size: calc(18px * var(--font-scale, 1));
   font-weight: 700;
   line-height: 1.3;
 }
 
 .drawer-author {
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale, 1));
   color: #818cf8;
 }
 
 .drawer-description {
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   color: var(--text-secondary);
   line-height: 1.6;
   max-height: 160px;
@@ -1104,7 +1119,7 @@ select option {
 }
 
 .reader-screen-header-title {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   letter-spacing: 0.8px;
   text-transform: uppercase;
   opacity: 0.55;
@@ -1140,7 +1155,7 @@ select option {
   justify-content: space-between;
   padding: 0 28px;
   border-top: 1px dashed rgba(130, 130, 160, 0.2);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   opacity: 0.55;
   user-select: none;
 }
@@ -1186,7 +1201,7 @@ select option {
 }
 
 .reader-tap-indicator {
-  font-size: 44px;
+  font-size: calc(44px * var(--font-scale, 1));
   line-height: 1;
   opacity: 0;
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -1329,7 +1344,7 @@ select option {
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(4px);
   color: #e2e8f0;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   font-weight: 500;
   padding: 3px 8px;
   border-radius: 12px;
@@ -1411,7 +1426,7 @@ select option {
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1493,7 +1508,7 @@ select option {
   padding: 10px 14px;
   border-radius: 8px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: left;
@@ -1523,7 +1538,7 @@ select option {
 }
 
 .drawer-form-label {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1537,7 +1552,7 @@ select option {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   font-family: inherit;
   outline: none;
   transition: all 0.2s ease;
@@ -1556,7 +1571,7 @@ select option {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
   font-family: inherit;
   outline: none;
   resize: vertical;
@@ -1577,7 +1592,7 @@ select option {
   gap: 6px;
   padding: 7px 12px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale, 1));
   font-weight: 500;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
@@ -1674,7 +1689,7 @@ select option {
   flex: 1;
   padding: 10px 4px;
   text-align: center;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale, 1));
   font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
@@ -1713,7 +1728,7 @@ select option {
 }
 
 .reader-search-snippet {
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale, 1));
   color: var(--text-secondary);
   line-height: 1.5;
   margin-top: 4px;
@@ -1821,7 +1836,7 @@ select option {
 }
 
 .settings-label {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale, 1));
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--text-muted);
@@ -1885,4 +1900,98 @@ select option {
   .chip {
     min-height: 40px;
   }
+}
+
+/* Global UI Font Size Scaling for inline styles */
+.app-container[data-font-size="small"] [style*="font-size: 9px"],
+.app-container[data-font-size="large"] [style*="font-size: 9px"] {
+  font-size: calc(9px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 10px"],
+.app-container[data-font-size="large"] [style*="font-size: 10px"] {
+  font-size: calc(10px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 10.5px"],
+.app-container[data-font-size="large"] [style*="font-size: 10.5px"] {
+  font-size: calc(10.5px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 11px"],
+.app-container[data-font-size="large"] [style*="font-size: 11px"] {
+  font-size: calc(11px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 11.5px"],
+.app-container[data-font-size="large"] [style*="font-size: 11.5px"] {
+  font-size: calc(11.5px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 12px"],
+.app-container[data-font-size="large"] [style*="font-size: 12px"] {
+  font-size: calc(12px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 12.5px"],
+.app-container[data-font-size="large"] [style*="font-size: 12.5px"] {
+  font-size: calc(12.5px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 13px"],
+.app-container[data-font-size="large"] [style*="font-size: 13px"] {
+  font-size: calc(13px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 13.5px"],
+.app-container[data-font-size="large"] [style*="font-size: 13.5px"] {
+  font-size: calc(13.5px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 14px"],
+.app-container[data-font-size="large"] [style*="font-size: 14px"] {
+  font-size: calc(14px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 15px"],
+.app-container[data-font-size="large"] [style*="font-size: 15px"] {
+  font-size: calc(15px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 16px"],
+.app-container[data-font-size="large"] [style*="font-size: 16px"] {
+  font-size: calc(16px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 17px"],
+.app-container[data-font-size="large"] [style*="font-size: 17px"] {
+  font-size: calc(17px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 18px"],
+.app-container[data-font-size="large"] [style*="font-size: 18px"] {
+  font-size: calc(18px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 20px"],
+.app-container[data-font-size="large"] [style*="font-size: 20px"] {
+  font-size: calc(20px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 22px"],
+.app-container[data-font-size="large"] [style*="font-size: 22px"] {
+  font-size: calc(22px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 24px"],
+.app-container[data-font-size="large"] [style*="font-size: 24px"] {
+  font-size: calc(24px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 26px"],
+.app-container[data-font-size="large"] [style*="font-size: 26px"] {
+  font-size: calc(26px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 32px"],
+.app-container[data-font-size="large"] [style*="font-size: 32px"] {
+  font-size: calc(32px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 36px"],
+.app-container[data-font-size="large"] [style*="font-size: 36px"] {
+  font-size: calc(36px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 40px"],
+.app-container[data-font-size="large"] [style*="font-size: 40px"] {
+  font-size: calc(40px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 44px"],
+.app-container[data-font-size="large"] [style*="font-size: 44px"] {
+  font-size: calc(44px * var(--font-scale, 1)) !important;
+}
+.app-container[data-font-size="small"] [style*="font-size: 46px"],
+.app-container[data-font-size="large"] [style*="font-size: 46px"] {
+  font-size: calc(46px * var(--font-scale, 1)) !important;
 }

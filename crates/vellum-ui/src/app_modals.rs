@@ -43,6 +43,7 @@ pub(crate) struct OverlayState {
     pub custom_columns: Signal<Vec<CustomColumnDefinition>>,
     pub watch_folder_path: Signal<String>,
     pub ui_locale: Signal<Locale>,
+    pub ui_font_size: Signal<String>,
     pub sync_config: Signal<CloudSyncConfig>,
     pub opds_enabled: Signal<bool>,
     pub is_syncing: Signal<bool>,
@@ -182,6 +183,14 @@ pub(crate) fn render_app_overlays(
                     move |new_loc| {
                         let _ = bs.set_ui_locale(new_loc);
                         st.ui_locale.set(new_loc);
+                    }
+                },
+                ui_font_size: st.ui_font_size.read().clone(),
+                on_change_font_size: {
+                    let bs = book_service.clone();
+                    move |sz: String| {
+                        let _ = bs.param_repo().set_value("ui_font_size", &sz);
+                        st.ui_font_size.set(sz);
                     }
                 },
                 opds_port: svc.opds_port,

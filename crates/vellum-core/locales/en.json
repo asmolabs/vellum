@@ -653,5 +653,9 @@
   "browse.series_title": "Series",
   "browse.series_empty": "No series found in your library.",
   "browse.history_title": "Reading History",
-  "browse.history_empty": "No reading activity recorded yet."
+  "browse.history_empty": "No reading activity recorded yet.",
+  "settings.font_size": "Interface font size",
+  "settings.font_small": "Small",
+  "settings.font_normal": "Normal",
+  "settings.font_large": "Large"
 }

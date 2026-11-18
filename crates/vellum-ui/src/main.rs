@@ -87,6 +87,14 @@ fn App() -> Element {
             .flatten()
             .unwrap_or_else(|| "midnight".to_string())
     });
+    let mut ui_font_size = use_signal(|| {
+        book_service
+            .param_repo()
+            .get_value("ui_font_size")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "normal".to_string())
+    });
 
     let books = use_signal(|| book_service.book_repo().find_all().unwrap_or_default());
     let mut virtual_libraries = use_signal(|| virtual_library_service.list().unwrap_or_default());
@@ -325,6 +333,7 @@ fn App() -> Element {
         custom_columns,
         watch_folder_path,
         ui_locale,
+        ui_font_size,
         sync_config,
         opds_enabled,
         is_syncing,
@@ -350,12 +359,20 @@ fn App() -> Element {
         import_rules_open,
         toast_msg,
     };
+    let on_change_font_size = use_callback({
+        let bs = book_service.clone();
+        move |sz: String| {
+            let _ = bs.param_repo().set_value("ui_font_size", &sz);
+            ui_font_size.set(sz);
+        }
+    });
     rsx! {
         style { "{APP_CSS}" }
 
         div {
             class: "app-container",
             "data-theme": "{ui_theme.read()}",
+            "data-font-size": "{ui_font_size.read()}",
             tabindex: "0",
             onkeydown: move |evt: KeyboardEvent| {
                 app_effects::handle_container_keydown(evt, kb_ctx.clone());
@@ -426,6 +443,8 @@ fn App() -> Element {
                         ui_theme.set(t);
                     }
                 },
+                ui_font_size: ui_font_size.read().clone(),
+                on_change_font_size,
                 connected_devices: connected_devices.read().clone(),
                 sync_available: sync_service.is_backend_available(),
                 is_syncing: *is_syncing.read(),
@@ -523,6 +542,8 @@ fn App() -> Element {
                             current_sort,
                             grid_card_size,
                             grid_show_labels,
+                            ui_font_size: ui_font_size.read().clone(),
+                            on_change_font_size,
                         }
                     }
 

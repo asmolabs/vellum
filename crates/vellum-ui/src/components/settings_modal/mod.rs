@@ -17,6 +17,8 @@ use smtp_section::SmtpSettingsSection;
 pub fn SettingsModal(
     locale: Locale,
     on_change_locale: EventHandler<Locale>,
+    ui_font_size: String,
+    on_change_font_size: EventHandler<String>,
     opds_port: u16,
     opds_running: bool,
     opds_enabled: bool,
@@ -142,6 +144,29 @@ pub fn SettingsModal(
                                 style: "font-size: 12px; padding: 4px 12px;",
                                 onclick: move |_| on_change_locale.call(loc),
                                 "{loc.display_name()}"
+                            }
+                        }
+                    }
+                }
+                div { style: "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 10px;",
+                    span { style: "font-size: 13px; font-weight: 600;", "{translate(locale, \"settings.font_size\")}" }
+                    div { style: "display: flex; gap: 8px;",
+                        for (id, label_key) in [
+                            ("small", "settings.font_small"),
+                            ("normal", "settings.font_normal"),
+                            ("large", "settings.font_large"),
+                        ] {
+                            {
+                                let is_active = ui_font_size == id;
+                                let label = translate(locale, label_key);
+                                rsx! {
+                                    button {
+                                        class: if is_active { "btn btn-primary" } else { "btn btn-secondary" },
+                                        style: "font-size: 12px; padding: 4px 12px;",
+                                        onclick: move |_| on_change_font_size.call(id.to_string()),
+                                        "{label}"
+                                    }
+                                }
                             }
                         }
                     }
