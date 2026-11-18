@@ -1,3 +1,4 @@
+use crate::components::header::VELLUM_LOGO_DATA_URI;
 use crate::components::{IconKind, LucideIcon};
 use crate::state::{FilterStatus, MediaType, ViewMode};
 use dioxus::prelude::*;
@@ -47,7 +48,17 @@ pub fn Sidebar(
         return rsx! {
             aside {
                 class: "sidebar",
-                style: "width: 56px; min-width: 56px; padding: 12px 6px; align-items: center; gap: 8px;",
+                style: "width: 58px; min-width: 58px; padding: 12px 6px; align-items: center; gap: 8px;",
+                button {
+                    style: "width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--border-subtle); background: var(--bg-card); padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer;",
+                    title: "Vellum",
+                    onclick: move |_| sidebar_collapsed.set(false),
+                    img {
+                        src: "{*VELLUM_LOGO_DATA_URI}",
+                        alt: "Vellum",
+                        style: "width: 24px; height: 24px; border-radius: 6px; object-fit: contain;",
+                    }
+                }
                 button {
                     class: "btn btn-icon",
                     style: "width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;",
@@ -127,24 +138,48 @@ pub fn Sidebar(
 
     rsx! {
         aside { class: "sidebar",
+            // Brand Header (BookOrbit AppSidebar header)
+            div {
+                style: "display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 10px; border-bottom: 1px solid var(--border-subtle);",
+                div {
+                    style: "display: flex; align-items: center; gap: 10px; cursor: pointer;",
+                    onclick: move |_| view_mode.set(ViewMode::Home),
+                    img {
+                        src: "{*VELLUM_LOGO_DATA_URI}",
+                        alt: "Vellum",
+                        style: "width: 30px; height: 30px; border-radius: 8px; object-fit: contain;",
+                    }
+                    span { class: "logo-text",
+                        "Vellum"
+                    }
+                }
+                button {
+                    class: "btn btn-icon",
+                    style: "width: 28px; height: 28px; border: none; background: transparent;",
+                    title: "Replier",
+                    onclick: move |_| sidebar_collapsed.set(true),
+                    LucideIcon { kind: IconKind::PanelLeft, size: 15 }
+                }
+            }
+
             // Recherche globale dans la sidebar façon BookOrbit (⌘K + recherche plein texte)
-            div { style: "display: flex; align-items: center; gap: 6px; margin-bottom: 4px;",
+            div { style: "display: flex; align-items: center; gap: 6px;",
                 button {
                     class: "nav-item",
-                    style: "flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; cursor: pointer; color: var(--text-secondary);",
+                    style: "flex: 1; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; cursor: pointer; color: var(--text-secondary);",
                     onclick: move |_| on_open_palette.call(()),
                     span { style: "display: flex; align-items: center; gap: 8px; font-size: 13px;",
                         LucideIcon { kind: IconKind::Search, size: 15 }
                         span { "{translate(locale, \"action.search\")}" }
                     }
                     span {
-                        style: "font-family: monospace; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,0.07); border: 1px solid var(--border-subtle); color: var(--text-muted);",
+                        style: "font-family: monospace; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--bg-primary); border: 1px solid var(--border-subtle); color: var(--text-muted);",
                         "⌘K"
                     }
                 }
                 button {
                     class: "btn btn-icon",
-                    style: "width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center;",
+                    style: "width: 32px; height: 32px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center;",
                     title: translate(locale, "header.content_search_tooltip"),
                     onclick: move |_| on_open_content_search.call(()),
                     LucideIcon { kind: IconKind::BookOpen, size: 14 }
@@ -152,7 +187,7 @@ pub fn Sidebar(
             }
             if !search_query.read().is_empty() {
                 div {
-                    style: "display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); font-size: 11px; color: #c7d2fe;",
+                    style: "display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; border-radius: 6px; background: var(--accent-glow); border: 1px solid var(--border-active); font-size: 11px; color: var(--accent-primary);",
                     span { style: "overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "\"{search_query}\"" }
                     button {
                         style: "background: none; border: none; color: inherit; cursor: pointer; padding: 0 4px;",
@@ -163,21 +198,14 @@ pub fn Sidebar(
             }
 
             // Zone 1 : Primary (épinglé en haut comme dans BookOrbit)
-            div { style: "display: flex; justify-content: space-between; align-items: center;",
+            div {
                 div {
                     class: if cur_view == ViewMode::Home { "nav-item active" } else { "nav-item" },
-                    style: "flex: 1;",
                     onclick: move |_| view_mode.set(ViewMode::Home),
                     span { style: "display: flex; align-items: center; gap: 8px;",
                         LucideIcon { kind: IconKind::LayoutDashboard, size: 15 }
                         span { "{translate(locale, \"toolbar.view_home\").trim_start_matches(\"🏠 \")}" }
                     }
-                }
-                button {
-                    style: "background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px 6px; display: flex; align-items: center;",
-                    title: "Collapse",
-                    onclick: move |_| sidebar_collapsed.set(true),
-                    LucideIcon { kind: IconKind::PanelLeft, size: 14 }
                 }
             }
 
@@ -527,15 +555,13 @@ pub fn Sidebar(
                 }
             }
 
-            // Sélecteur de thème (inspiré de SidebarAppearanceMenu dans BookOrbit)
-            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; flex-direction: column; gap: 6px;",
-                div {
-                    class: "sidebar-section-title",
-                    style: "display: flex; align-items: center; gap: 6px;",
+            // Dock Thème compact (inspiré de SidebarDock dans BookOrbit)
+            div { style: "border-top: 1px solid var(--border-subtle); padding-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 6px;",
+                span { style: "display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--text-muted);",
                     LucideIcon { kind: IconKind::Palette, size: 13 }
                     span { "Thème" }
                 }
-                div { style: "display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;",
+                div { style: "display: flex; align-items: center; gap: 5px;",
                     for (id, label, bg, accent) in [
                         ("midnight", "Nuit", "#0a0c14", "#6366f1"),
                         ("nordic", "Nord", "#0b1120", "#0ea5e9"),
@@ -550,15 +576,11 @@ pub fn Sidebar(
                                 button {
                                     title: "{label}",
                                     style: if is_active {
-                                        "display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 6px; border-radius: 7px; border: 1.5px solid var(--accent-primary); background: var(--accent-glow); color: var(--text-primary); font-size: 11px; font-weight: 700; cursor: pointer;"
+                                        "width: 20px; height: 20px; border-radius: 999px; border: 2px solid var(--text-primary); box-shadow: 0 0 0 2px var(--accent-primary); background: linear-gradient(135deg, {bg} 45%, {accent} 55%); cursor: pointer; transition: transform 0.15s;"
                                     } else {
-                                        "display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 6px; border-radius: 7px; border: 1px solid var(--border-subtle); background: rgba(255,255,255,0.03); color: var(--text-secondary); font-size: 11px; cursor: pointer;"
+                                        "width: 18px; height: 18px; border-radius: 999px; border: 1px solid var(--border-subtle); background: linear-gradient(135deg, {bg} 45%, {accent} 55%); cursor: pointer; opacity: 0.75; transition: transform 0.15s, opacity 0.15s;"
                                     },
                                     onclick: move |_| on_change_theme.call(id.to_string()),
-                                    span {
-                                        style: "width: 10px; height: 10px; border-radius: 999px; background: linear-gradient(135deg, {bg} 45%, {accent} 55%); border: 1px solid rgba(255,255,255,0.3); flex-shrink: 0;",
-                                    }
-                                    span { "{label}" }
                                 }
                             }
                         }

@@ -6,6 +6,7 @@ use dioxus::prelude::*;
 use vellum_core::{translate, Locale};
 use vellum_domain::{Book, ReadingStats};
 
+use crate::components::{IconKind, LucideIcon};
 use crate::cover_cache::resolve_cover_src;
 use crate::state::{FilterStatus, ViewMode};
 
@@ -75,54 +76,88 @@ pub fn HomeDashboard(
         div {
             style: "display: flex; flex-direction: column; gap: 22px; padding: 12px 24px 32px; overflow-y: auto;",
 
-            div { style: "display: flex; justify-content: space-between; align-items: center;",
-                h2 { style: "font-size: 20px; font-weight: 800; margin: 0;", "Dashboard" }
+            div { class: "browse-title-row",
+                div {
+                    div { class: "browse-eyebrow", "Vellum Hub" }
+                    div { style: "display: flex; align-items: center; gap: 10px;",
+                        span {
+                            style: "width: 30px; height: 30px; border-radius: 8px; background: var(--accent-glow); color: var(--accent-primary); display: inline-flex; align-items: center; justify-content: center;",
+                            LucideIcon { kind: IconKind::LayoutDashboard, size: 16 }
+                        }
+                        h2 { style: "font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 0;", "Dashboard" }
+                    }
+                }
             }
 
             // 1. Widgets KPI (cliquables pour filtrer directement)
             div {
-                style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;",
+                style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;",
                 div {
-                    style: "padding: 14px 16px; border-radius: 12px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); cursor: pointer;",
+                    style: "padding: 16px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.15s;",
                     onclick: move |_| {
                         current_filter.set(FilterStatus::All);
                         selected_series.set(None);
                         view_mode.set(ViewMode::Grid);
                     },
-                    div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600;", "{translate(locale, \"home.kpi_total\")}" }
-                    div { style: "font-size: 24px; font-weight: 800; color: #a5b4fc; margin-top: 4px;", "📚 {total_books}" }
+                    div {
+                        div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;", "{translate(locale, \"home.kpi_total\")}" }
+                        div { style: "font-size: 24px; font-weight: 800; color: var(--text-primary); margin-top: 4px; font-variant-numeric: tabular-nums;", "{total_books}" }
+                    }
+                    span {
+                        style: "width: 36px; height: 36px; border-radius: 10px; background: var(--accent-glow); color: var(--accent-primary); display: inline-flex; align-items: center; justify-content: center;",
+                        LucideIcon { kind: IconKind::Library, size: 18 }
+                    }
                 }
                 div {
-                    style: "padding: 14px 16px; border-radius: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); cursor: pointer;",
+                    style: "padding: 16px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.15s;",
                     onclick: move |_| {
                         current_filter.set(FilterStatus::Reading);
                         selected_series.set(None);
                         view_mode.set(ViewMode::Grid);
                     },
-                    div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600;", "{translate(locale, \"home.kpi_reading\")}" }
-                    div { style: "font-size: 24px; font-weight: 800; color: #93c5fd; margin-top: 4px;", "📖 {in_progress}" }
+                    div {
+                        div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;", "{translate(locale, \"home.kpi_reading\")}" }
+                        div { style: "font-size: 24px; font-weight: 800; color: #38bdf8; margin-top: 4px; font-variant-numeric: tabular-nums;", "{in_progress}" }
+                    }
+                    span {
+                        style: "width: 36px; height: 36px; border-radius: 10px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; display: inline-flex; align-items: center; justify-content: center;",
+                        LucideIcon { kind: IconKind::BookOpen, size: 18 }
+                    }
                 }
                 div {
-                    style: "padding: 14px 16px; border-radius: 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); cursor: pointer;",
+                    style: "padding: 16px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.15s;",
                     onclick: move |_| {
                         current_filter.set(FilterStatus::Finished);
                         selected_series.set(None);
                         view_mode.set(ViewMode::Grid);
                     },
-                    div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600;", "{translate(locale, \"home.kpi_finished\")}" }
-                    div { style: "font-size: 24px; font-weight: 800; color: #34d399; margin-top: 4px;", "✅ {finished}" }
+                    div {
+                        div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;", "{translate(locale, \"home.kpi_finished\")}" }
+                        div { style: "font-size: 24px; font-weight: 800; color: var(--success); margin-top: 4px; font-variant-numeric: tabular-nums;", "{finished}" }
+                    }
+                    span {
+                        style: "width: 36px; height: 36px; border-radius: 10px; background: rgba(16, 185, 129, 0.15); color: var(--success); display: inline-flex; align-items: center; justify-content: center;",
+                        LucideIcon { kind: IconKind::CheckCircle, size: 18 }
+                    }
                 }
                 div {
-                    style: "padding: 14px 16px; border-radius: 12px; background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25);",
-                    div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600;", "{translate(locale, \"home.kpi_series\")}" }
-                    div { style: "font-size: 24px; font-weight: 800; color: #d8b4fe; margin-top: 4px;", "🗂️ {series_count}" }
+                    style: "padding: 16px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; display: flex; align-items: center; justify-content: space-between;",
+                    onclick: move |_| view_mode.set(ViewMode::Series),
+                    div {
+                        div { style: "font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;", "{translate(locale, \"home.kpi_series\")}" }
+                        div { style: "font-size: 24px; font-weight: 800; color: #a78bfa; margin-top: 4px; font-variant-numeric: tabular-nums;", "{series_count}" }
+                    }
+                    span {
+                        style: "width: 36px; height: 36px; border-radius: 10px; background: rgba(167, 139, 250, 0.15); color: #a78bfa; display: inline-flex; align-items: center; justify-content: center;",
+                        LucideIcon { kind: IconKind::Layers, size: 18 }
+                    }
                 }
             }
 
             // 2. Reprendre la lecture (étagère horizontale avec couvertures et barres de progression)
             if !continue_reading.is_empty() {
                 section { style: "display: flex; flex-direction: column; gap: 10px;",
-                    h3 { style: "font-size: 14px; font-weight: 700; margin: 0; color: #c7d2fe;", "{translate(locale, \"library.continue_reading\")}" }
+                    h3 { style: "font-size: 14px; font-weight: 700; margin: 0; color: var(--text-primary);", "{translate(locale, \"library.continue_reading\")}" }
                     div { style: "display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px;",
                         for b in continue_reading {
                             {
@@ -133,24 +168,24 @@ pub fn HomeDashboard(
                                 rsx! {
                                     div {
                                         key: "home-cont-{b.id}",
-                                        style: "min-width: 240px; max-width: 240px; display: flex; gap: 12px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); align-items: center;",
+                                        style: "min-width: 246px; max-width: 246px; display: flex; gap: 12px; padding: 10px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); align-items: center;",
                                         div {
-                                            style: "width: 54px; height: 80px; border-radius: 6px; overflow: hidden; background: #1e293b; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;",
+                                            style: "width: 54px; height: 80px; border-radius: 6px; overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center;",
                                             onclick: move |_| on_select.call(b_sel.clone()),
                                             if let Some(src) = cover_src {
                                                 img { src: "{src}", style: "width: 100%; height: 100%; object-fit: cover;" }
                                             } else {
-                                                span { style: "font-size: 22px;", "📖" }
+                                                LucideIcon { kind: IconKind::BookOpen, size: 20 }
                                             }
                                         }
                                         div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;",
-                                            div { style: "font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{b.title}" }
+                                            div { style: "font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{b.title}" }
                                             div { style: "font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{b.author}" }
-                                            div { style: "height: 4px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;",
-                                                div { style: "width: {pct}%; height: 100%; background: #6366f1;" }
+                                            div { style: "height: 4px; background: var(--border-subtle); border-radius: 4px; overflow: hidden;",
+                                                div { style: "width: {pct}%; height: 100%; background: var(--accent-primary);" }
                                             }
                                             div { style: "display: flex; justify-content: space-between; align-items: center;",
-                                                span { style: "font-size: 11px; color: #a5b4fc;", "{pct}%" }
+                                                span { style: "font-size: 11px; font-weight: 600; color: var(--accent-primary);", "{pct}%" }
                                                 button {
                                                     class: "btn btn-primary",
                                                     style: "font-size: 11px; padding: 3px 10px;",

@@ -347,75 +347,74 @@ fn App() -> Element {
                     }
                 }
             }
-            // Header
-            Header {
+            // Sidebar flottante plein-hauteur (façon BookOrbit)
+            Sidebar {
                 locale: *ui_locale.read(),
+                current_filter: current_filter,
+                media_type,
                 view_mode,
                 sidebar_collapsed,
-                connected_devices: connected_devices.read().clone(),
-                sync_available: sync_service.is_backend_available(),
-                is_syncing: *is_syncing.read(),
-                on_import: actions.on_import,
-                on_import_calibre: actions.on_import_calibre,
-                on_open_audit: move |_| audit_open.set(true),
+                search_query,
+                on_open_palette: move |_| palette_open.set(true),
                 on_open_content_search: move |_| content_search_open.set(true),
-                on_open_import_rules: move |_| import_rules_open.set(true),
-                on_open_bulk_regex: move |_| bulk_regex_open.set(true),
-                on_open_news: move |_| news_recipes_open.set(true),
-                on_open_web_companion: actions.on_open_web_companion,
-                on_sync_device: actions.on_sync_device,
-                on_sync_cloud: actions.on_sync_cloud,
-                on_open_settings: move |_| settings_open.set(true),
+                selected_tag: selected_tag,
+                selected_series: selected_series,
+                media_counts,
+                tags_counts: tags_counts,
+                series_counts: series_counts,
+                virtual_libraries: virtual_libraries.read().clone(),
+                active_virtual_library_id: active_virtual_library_id,
+                on_create_virtual_library: {
+                    let vls = virtual_library_service.clone();
+                    move |(name, query): (String, String)| {
+                        if vls.create(&name, &query, None).is_ok() {
+                            virtual_libraries.set(vls.list().unwrap_or_default());
+                        }
+                    }
+                },
+                on_delete_virtual_library: {
+                    let vls = virtual_library_service.clone();
+                    move |id: String| {
+                        if active_virtual_library_id.read().as_ref() == Some(&id) {
+                            active_virtual_library_id.set(None);
+                        }
+                        if vls.delete(&id).is_ok() {
+                            virtual_libraries.set(vls.list().unwrap_or_default());
+                        }
+                    }
+                },
+                stats: reading_stats.clone(),
+                on_open_stats: move |_| stats_open.set(true),
+                ui_theme: ui_theme.read().clone(),
+                on_change_theme: {
+                    let bs = book_service.clone();
+                    move |t: String| {
+                        let _ = bs.param_repo().set_value("ui_theme", &t);
+                        ui_theme.set(t);
+                    }
+                },
             }
 
-            // Main Layout
-            div { class: "main-content",
-                // Sidebar
-                Sidebar {
+            // Main Right Column (Header utilitaire + Contenu)
+            div { class: "main-column",
+                Header {
                     locale: *ui_locale.read(),
-                    current_filter: current_filter,
-                    media_type,
                     view_mode,
                     sidebar_collapsed,
-                    search_query,
-                    on_open_palette: move |_| palette_open.set(true),
+                    connected_devices: connected_devices.read().clone(),
+                    sync_available: sync_service.is_backend_available(),
+                    is_syncing: *is_syncing.read(),
+                    on_import: actions.on_import,
+                    on_import_calibre: actions.on_import_calibre,
+                    on_open_audit: move |_| audit_open.set(true),
                     on_open_content_search: move |_| content_search_open.set(true),
-                    selected_tag: selected_tag,
-                    selected_series: selected_series,
-                    media_counts,
-                    tags_counts: tags_counts,
-                    series_counts: series_counts,
-                    virtual_libraries: virtual_libraries.read().clone(),
-                    active_virtual_library_id: active_virtual_library_id,
-                    on_create_virtual_library: {
-                        let vls = virtual_library_service.clone();
-                        move |(name, query): (String, String)| {
-                            if vls.create(&name, &query, None).is_ok() {
-                                virtual_libraries.set(vls.list().unwrap_or_default());
-                            }
-                        }
-                    },
-                    on_delete_virtual_library: {
-                        let vls = virtual_library_service.clone();
-                        move |id: String| {
-                            if active_virtual_library_id.read().as_ref() == Some(&id) {
-                                active_virtual_library_id.set(None);
-                            }
-                            if vls.delete(&id).is_ok() {
-                                virtual_libraries.set(vls.list().unwrap_or_default());
-                            }
-                        }
-                    },
-                    stats: reading_stats.clone(),
-                    on_open_stats: move |_| stats_open.set(true),
-                    ui_theme: ui_theme.read().clone(),
-                    on_change_theme: {
-                        let bs = book_service.clone();
-                        move |t: String| {
-                            let _ = bs.param_repo().set_value("ui_theme", &t);
-                            ui_theme.set(t);
-                        }
-                    },
+                    on_open_import_rules: move |_| import_rules_open.set(true),
+                    on_open_bulk_regex: move |_| bulk_regex_open.set(true),
+                    on_open_news: move |_| news_recipes_open.set(true),
+                    on_open_web_companion: actions.on_open_web_companion,
+                    on_sync_device: actions.on_sync_device,
+                    on_sync_cloud: actions.on_sync_cloud,
+                    on_open_settings: move |_| settings_open.set(true),
                 }
 
                 // Books Library

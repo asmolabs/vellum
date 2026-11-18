@@ -7,7 +7,7 @@ use std::sync::LazyLock;
 use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
 use vellum_domain::DeviceKind;
 
-static VELLUM_LOGO_DATA_URI: LazyLock<String> = LazyLock::new(|| {
+pub static VELLUM_LOGO_DATA_URI: LazyLock<String> = LazyLock::new(|| {
     let bytes = include_bytes!("../vellum-icon.png");
     format!("data:image/png;base64,{}", BASE64.encode(bytes))
 });
@@ -35,51 +35,39 @@ pub fn Header(
     let mut tools_open = use_signal(|| false);
     let cur_view = *view_mode.read();
 
+    let section_label = match cur_view {
+        ViewMode::Home => translate(locale, "toolbar.view_home")
+            .trim_start_matches("🏠 ")
+            .to_string(),
+        ViewMode::Authors => translate(locale, "nav.authors").to_string(),
+        ViewMode::Series => translate(locale, "nav.series").to_string(),
+        ViewMode::History => translate(locale, "nav.history").to_string(),
+        ViewMode::Annotations => "Annotations".to_string(),
+        ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel | ViewMode::Kanban => {
+            translate(locale, "nav.library").to_string()
+        }
+    };
+
     rsx! {
         header { class: "app-header", style: "justify-content: space-between;",
-            div { style: "display: flex; align-items: center; gap: 12px;",
-                button {
-                    class: "btn btn-icon",
-                    style: "width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-subtle); cursor: pointer; display: flex; align-items: center; justify-content: center;",
-                    title: "Toggle sidebar",
-                    onclick: move |_| {
-                        let cur = *sidebar_collapsed.read();
-                        sidebar_collapsed.set(!cur);
-                    },
-                    LucideIcon { kind: IconKind::PanelLeft, size: 16 }
-                }
-                div {
-                    class: "logo-area",
-                    style: "cursor: pointer;",
-                    onclick: move |_| view_mode.set(ViewMode::Home),
-                    img {
-                        src: "{*VELLUM_LOGO_DATA_URI}",
-                        alt: "Vellum",
-                        style: "width: 28px; height: 28px; border-radius: 6px; object-fit: contain;",
-                    }
-                    span { class: "logo-text", "Vellum" }
-                }
-                div { style: "display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 8px; border: 1px solid var(--border-subtle);",
+            div { style: "display: flex; align-items: center; gap: 10px;",
+                if *sidebar_collapsed.read() {
                     button {
-                        style: if cur_view == ViewMode::Home {
-                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
-                        } else {
-                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
-                        },
+                        class: "btn btn-icon",
+                        style: "width: 30px; height: 30px;",
+                        title: "Déplier la barre latérale",
+                        onclick: move |_| sidebar_collapsed.set(false),
+                        LucideIcon { kind: IconKind::PanelLeft, size: 15 }
+                    }
+                }
+                div { style: "display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted);",
+                    span {
+                        style: "cursor: pointer; font-weight: 600; color: var(--text-secondary);",
                         onclick: move |_| view_mode.set(ViewMode::Home),
-                        LucideIcon { kind: IconKind::Home, size: 14 }
-                        span { "{translate(locale, \"toolbar.view_home\").trim_start_matches(\"🏠 \")}" }
+                        "Vellum"
                     }
-                    button {
-                        style: if cur_view != ViewMode::Home {
-                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: #6366f1; color: #fff; border: none; font-weight: 600; cursor: pointer;"
-                        } else {
-                            "display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; border-radius: 6px; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;"
-                        },
-                        onclick: move |_| view_mode.set(ViewMode::Grid),
-                        LucideIcon { kind: IconKind::Library, size: 14 }
-                        span { "{translate(locale, \"nav.library\")}" }
-                    }
+                    span { "›" }
+                    span { style: "font-weight: 600; color: var(--text-primary);", "{section_label}" }
                 }
             }
 
