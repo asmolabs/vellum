@@ -1,13 +1,13 @@
 //! Écrans dédiés inspirés de BookOrbit : Auteurs, Séries/Sagas, Historique de lecture et Annotations.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use dioxus::prelude::*;
 use vellum_core::reader_store::{BookUserData, Highlight};
 use vellum_core::{translate, Locale};
 use vellum_domain::Book;
 
-use crate::components::{IconKind, LucideIcon};
+use crate::components::{letter_bucket, IconKind, JumpRail, LucideIcon};
 use crate::cover_cache::resolve_cover_src;
 use crate::state::ViewMode;
 
@@ -20,7 +20,7 @@ pub fn AuthorsView(
 ) -> Element {
     let mut local_q = use_signal(String::new);
     let mut sort_by_count = use_signal(|| false);
-    let mut active_letter = use_signal(|| None::<char>);
+    let active_letter = use_signal(|| None::<char>);
 
     let mut by_author: BTreeMap<String, Vec<Book>> = BTreeMap::new();
     for b in books {
@@ -34,24 +34,15 @@ pub fn AuthorsView(
 
     let q_lower = local_q.read().trim().to_lowercase();
     let letter_filter = *active_letter.read();
-    let mut list: Vec<(String, Vec<Book>)> = by_author
+    let base_list: Vec<(String, Vec<Book>)> = by_author
         .into_iter()
-        .filter(|(a, _)| {
-            if !q_lower.is_empty() && !a.to_lowercase().contains(&q_lower) {
-                return false;
-            }
-            if let Some(ch) = letter_filter {
-                let first = a
-                    .chars()
-                    .next()
-                    .map(|c| c.to_ascii_uppercase())
-                    .unwrap_or('#');
-                if first != ch {
-                    return false;
-                }
-            }
-            true
-        })
+        .filter(|(a, _)| q_lower.is_empty() || a.to_lowercase().contains(&q_lower))
+        .collect();
+    let available_letters: HashSet<char> =
+        base_list.iter().map(|(a, _)| letter_bucket(a)).collect();
+    let mut list: Vec<(String, Vec<Book>)> = base_list
+        .into_iter()
+        .filter(|(a, _)| letter_filter.is_none_or(|ch| letter_bucket(a) == ch))
         .collect();
 
     if *sort_by_count.read() {
@@ -98,36 +89,6 @@ pub fn AuthorsView(
                         }
                     }
 
-                    // A-Z JumpRail pills
-                    div { style: "display: flex; align-items: center; gap: 2px; flex-wrap: wrap;",
-                        button {
-                            style: if letter_filter.is_none() {
-                                "padding: 3px 7px; font-size: 11px; border-radius: 5px; background: var(--accent-primary); color: #fff; border: none; font-weight: 700; cursor: pointer;"
-                            } else {
-                                "padding: 3px 7px; font-size: 11px; border-radius: 5px; background: transparent; color: var(--text-muted); border: none; cursor: pointer;"
-                            },
-                            onclick: move |_| active_letter.set(None),
-                            "Tous"
-                        }
-                        for ch in 'A'..='Z' {
-                            button {
-                                style: if letter_filter == Some(ch) {
-                                    "width: 22px; height: 22px; font-size: 10.5px; border-radius: 5px; background: var(--accent-primary); color: #fff; border: none; font-weight: 700; cursor: pointer;"
-                                } else {
-                                    "width: 22px; height: 22px; font-size: 10.5px; border-radius: 5px; background: transparent; color: var(--text-muted); border: none; cursor: pointer;"
-                                },
-                                onclick: move |_| {
-                                    if letter_filter == Some(ch) {
-                                        active_letter.set(None);
-                                    } else {
-                                        active_letter.set(Some(ch));
-                                    }
-                                },
-                                "{ch}"
-                            }
-                        }
-                    }
-
                     select {
                         style: "height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-subtle); outline: none; cursor: pointer;",
                         value: if *sort_by_count.read() { "count" } else { "name" },
@@ -138,36 +99,44 @@ pub fn AuthorsView(
                 }
             }
 
-            div { style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px;",
-                for (author, author_books) in list {
-                    {
-                        let author_q = author.clone();
-                        let count = author_books.len();
-                        let cover = author_books
-                            .iter()
-                            .find_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false));
-                        rsx! {
-                            div {
-                                key: "auth-{author}",
-                                style: "display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; transition: transform 0.15s, border-color 0.15s;",
-                                onclick: move |_| {
-                                    search_query.set(format!("author:\"{author_q}\""));
-                                    view_mode.set(ViewMode::Grid);
-                                },
+            div { style: "display: flex; gap: 14px; align-items: flex-start;",
+                div { style: "flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px;",
+                    for (author, author_books) in list {
+                        {
+                            let author_q = author.clone();
+                            let count = author_books.len();
+                            let cover = author_books
+                                .iter()
+                                .find_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false));
+                            rsx! {
                                 div {
-                                    style: "width: 46px; height: 46px; border-radius: 50%; overflow: hidden; background: var(--accent-glow); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; flex-shrink: 0;",
-                                    if let Some(src) = cover {
-                                        img { src: "{src}", style: "width: 100%; height: 100%; object-fit: cover;" }
-                                    } else {
-                                        span { style: "font-size: 16px; font-weight: 700; color: var(--accent-primary);", "{author.chars().next().unwrap_or('A')}" }
+                                    key: "auth-{author}",
+                                    style: "display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; transition: transform 0.15s, border-color 0.15s;",
+                                    onclick: move |_| {
+                                        search_query.set(format!("author:\"{author_q}\""));
+                                        view_mode.set(ViewMode::Grid);
+                                    },
+                                    div {
+                                        style: "width: 46px; height: 46px; border-radius: 50%; overflow: hidden; background: var(--accent-glow); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; flex-shrink: 0;",
+                                        if let Some(src) = cover {
+                                            img { src: "{src}", style: "width: 100%; height: 100%; object-fit: cover;" }
+                                        } else {
+                                            span { style: "font-size: 16px; font-weight: 700; color: var(--accent-primary);", "{author.chars().next().unwrap_or('A')}" }
+                                        }
                                     }
-                                }
-                                div { style: "min-width: 0; flex: 1;",
-                                    div { style: "font-size: 13.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{author}" }
-                                    div { style: "font-size: 11.5px; color: var(--text-muted);", "{count} livre(s)" }
+                                    div { style: "min-width: 0; flex: 1;",
+                                        div { style: "font-size: 13.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{author}" }
+                                        div { style: "font-size: 11.5px; color: var(--text-muted);", "{count} livre(s)" }
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+                if !available_letters.is_empty() {
+                    JumpRail {
+                        available_letters,
+                        active_letter,
                     }
                 }
             }
@@ -184,6 +153,7 @@ pub fn SeriesView(
 ) -> Element {
     let mut local_q = use_signal(String::new);
     let mut sort_by_count = use_signal(|| false);
+    let active_letter = use_signal(|| None::<char>);
 
     let mut by_series: BTreeMap<String, Vec<Book>> = BTreeMap::new();
     for b in books {
@@ -196,9 +166,16 @@ pub fn SeriesView(
     }
 
     let q_lower = local_q.read().trim().to_lowercase();
-    let mut series_list: Vec<(String, Vec<Book>)> = by_series
+    let letter_filter = *active_letter.read();
+    let base_series: Vec<(String, Vec<Book>)> = by_series
         .into_iter()
         .filter(|(s, _)| q_lower.is_empty() || s.to_lowercase().contains(&q_lower))
+        .collect();
+    let available_letters: HashSet<char> =
+        base_series.iter().map(|(s, _)| letter_bucket(s)).collect();
+    let mut series_list: Vec<(String, Vec<Book>)> = base_series
+        .into_iter()
+        .filter(|(s, _)| letter_filter.is_none_or(|ch| letter_bucket(s) == ch))
         .collect();
 
     if *sort_by_count.read() {
@@ -252,51 +229,59 @@ pub fn SeriesView(
                     "{translate(locale, \"browse.series_empty\")}"
                 }
             } else {
-                div { style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;",
-                    for (series_name, list) in series_list {
-                        {
-                            let s_clone = series_name.clone();
-                            let count = list.len();
-                            let finished_count = list.iter().filter(|b| b.is_finished).count();
-                            let pct = if count > 0 { (finished_count * 100) / count } else { 0 };
-                            let covers: Vec<String> = list
-                                .iter()
-                                .filter_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false))
-                                .take(3)
-                                .collect();
-                            rsx! {
-                                div {
-                                    key: "ser-{series_name}",
-                                    style: "display: flex; gap: 14px; padding: 14px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; align-items: center;",
-                                    onclick: move |_| {
-                                        selected_series.set(Some(s_clone.clone()));
-                                        view_mode.set(ViewMode::Grid);
-                                    },
-                                    // BookOrbit-style 3-cover stacked fan
-                                    div { style: "position: relative; width: 68px; height: 80px; flex-shrink: 0; display: flex; align-items: center;",
-                                        if covers.is_empty() {
-                                            div {
-                                                style: "width: 54px; height: 78px; border-radius: 6px; background: var(--accent-glow); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--accent-primary);",
-                                                LucideIcon { kind: IconKind::Layers, size: 20 }
-                                            }
-                                        } else {
-                                            for (idx, src) in covers.iter().enumerate() {
-                                                img {
-                                                    src: "{src}",
-                                                    style: "position: absolute; left: {idx * 8}px; z-index: {10 - idx}; width: 52px; height: 76px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-subtle); box-shadow: 0 4px 10px rgba(0,0,0,0.3);",
+                div { style: "display: flex; gap: 14px; align-items: flex-start;",
+                    div { style: "flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;",
+                        for (series_name, list) in series_list {
+                            {
+                                let s_clone = series_name.clone();
+                                let count = list.len();
+                                let finished_count = list.iter().filter(|b| b.is_finished).count();
+                                let pct = if count > 0 { (finished_count * 100) / count } else { 0 };
+                                let covers: Vec<String> = list
+                                    .iter()
+                                    .filter_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false))
+                                    .take(3)
+                                    .collect();
+                                rsx! {
+                                    div {
+                                        key: "ser-{series_name}",
+                                        style: "display: flex; gap: 14px; padding: 14px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); cursor: pointer; align-items: center;",
+                                        onclick: move |_| {
+                                            selected_series.set(Some(s_clone.clone()));
+                                            view_mode.set(ViewMode::Grid);
+                                        },
+                                        // BookOrbit-style 3-cover stacked fan
+                                        div { style: "position: relative; width: 68px; height: 80px; flex-shrink: 0; display: flex; align-items: center;",
+                                            if covers.is_empty() {
+                                                div {
+                                                    style: "width: 54px; height: 78px; border-radius: 6px; background: var(--accent-glow); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--accent-primary);",
+                                                    LucideIcon { kind: IconKind::Layers, size: 20 }
+                                                }
+                                            } else {
+                                                for (idx, src) in covers.iter().enumerate() {
+                                                    img {
+                                                        src: "{src}",
+                                                        style: "position: absolute; left: {idx * 8}px; z-index: {10 - idx}; width: 52px; height: 76px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-subtle); box-shadow: 0 4px 10px rgba(0,0,0,0.3);",
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                    div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;",
-                                        div { style: "font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{series_name}" }
-                                        div { style: "font-size: 11.5px; color: var(--text-muted);", "{count} vol. • {finished_count} terminé(s)" }
-                                        div { style: "height: 5px; background: var(--border-subtle); border-radius: 4px; overflow: hidden;",
-                                            div { style: "width: {pct}%; height: 100%; background: var(--accent-primary);" }
+                                        div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;",
+                                            div { style: "font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;", "{series_name}" }
+                                            div { style: "font-size: 11.5px; color: var(--text-muted);", "{count} vol. • {finished_count} terminé(s)" }
+                                            div { style: "height: 5px; background: var(--border-subtle); border-radius: 4px; overflow: hidden;",
+                                                div { style: "width: {pct}%; height: 100%; background: var(--accent-primary);" }
+                                            }
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+                    if !available_letters.is_empty() {
+                        JumpRail {
+                            available_letters,
+                            active_letter,
                         }
                     }
                 }

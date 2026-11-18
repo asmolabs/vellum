@@ -24,8 +24,9 @@ mod state;
 mod styles;
 
 use components::{
-    AnnotationsView, AudioMiniPlayer, AuthorsView, BookCard, BookQuickView, BooksTable,
-    DetailDrawer, HomeDashboard, LibraryToolbar, ReadingHistoryView, SeriesView, Sidebar,
+    letter_bucket, AnnotationsView, AudioMiniPlayer, AuthorsView, BookCard, BookQuickView,
+    BooksTable, DetailDrawer, HomeDashboard, JumpRail, LibraryToolbar, ReadingHistoryView,
+    SeriesView, Sidebar,
 };
 use state::{FilterStatus, MediaType, ReaderSession, SortOption, ViewMode};
 use styles::APP_CSS;
@@ -105,6 +106,7 @@ fn App() -> Element {
     let format_filter = use_signal(|| None::<String>);
     let min_rating = use_signal(|| None::<i32>);
     let collapse_series = use_signal(|| false);
+    let letter_filter = use_signal(|| None::<char>);
     let grid_card_size = use_signal(|| 154_u32);
     let grid_show_labels = use_signal(|| false);
     let mut quick_view_book = use_signal(|| None::<Book>);
@@ -195,6 +197,25 @@ fn App() -> Element {
             list.retain(|b| b.rating.is_some_and(|r| r >= min_r));
         }
         list
+    };
+
+    let available_letters: std::collections::HashSet<char> = filtered_books
+        .iter()
+        .map(|b| letter_bucket(&b.title))
+        .collect();
+    let active_letter_val = *letter_filter.read();
+    let letter_filtered_books: Vec<Book> = match active_letter_val {
+        Some(ch) => filtered_books
+            .iter()
+            .filter(|b| letter_bucket(&b.title) == ch)
+            .cloned()
+            .collect(),
+        None => filtered_books,
+    };
+    let filtered_books = if active_letter_val.is_some() && letter_filtered_books.is_empty() {
+        Vec::new()
+    } else {
+        letter_filtered_books
     };
 
     let actions = app_actions::build_app_actions(app_actions::AppActionContext {
@@ -535,15 +556,25 @@ fn App() -> Element {
                             }
                         }
                     } else if *view_mode.read() == ViewMode::Table {
-                        BooksTable {
-                            locale: *ui_locale.read(),
-                            books: filtered_books.clone(),
-                            show_carousel: false,
-                            selected_ids: selected_ids.read().clone(),
-                            focused_book_id,
-                            on_toggle_select: actions.on_toggle_select,
-                            on_select: move |selected| selected_book.set(Some(selected)),
-                            on_read: actions.on_read,
+                        div { style: "display: flex; gap: 12px; flex: 1; min-height: 0; align-items: flex-start;",
+                            div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%;",
+                                BooksTable {
+                                    locale: *ui_locale.read(),
+                                    books: filtered_books.clone(),
+                                    show_carousel: false,
+                                    selected_ids: selected_ids.read().clone(),
+                                    focused_book_id,
+                                    on_toggle_select: actions.on_toggle_select,
+                                    on_select: move |selected| selected_book.set(Some(selected)),
+                                    on_read: actions.on_read,
+                                }
+                            }
+                            if !available_letters.is_empty() {
+                                JumpRail {
+                                    available_letters: available_letters.clone(),
+                                    active_letter: letter_filter,
+                                }
+                            }
                         }
                     } else {
                         {
@@ -557,72 +588,82 @@ fn App() -> Element {
                             let card_sz = *grid_card_size.read();
                             let show_lbl = *grid_show_labels.read();
                             rsx! {
-                                if grid_win.top_spacer_px > 0.0 {
-                                    div {
-                                        key: "grid-top-spacer",
-                                        style: "height: {grid_win.top_spacer_px:.1}px; flex-shrink: 0;",
-                                    }
-                                }
-                                div {
-                                    id: "vellum-books-grid",
-                                    class: "books-grid",
-                                    style: "grid-template-columns: repeat(auto-fill, minmax({card_sz}px, 1fr));",
-                                    if *collapse_series.read() {
-                                        for (b, stack) in library_logic::collapse_books_by_series(&filtered_books) {
-                                            {
-                                                let id = b.id.clone();
-                                                let is_selected = selected_ids.read().contains(&id);
-                                                let selection_mode = !selected_ids.read().is_empty();
-                                                let stack_series = stack.as_ref().map(|(s, _)| s.clone());
-                                                rsx! {
-                                                    BookCard {
-                                                        key: "col-{b.id}",
-                                                        book: b.clone(),
-                                                        is_selected: is_selected,
-                                                        selection_mode: selection_mode,
-                                                        series_stack: stack,
-                                                        show_label: show_lbl,
-                                                        on_toggle_select: actions.on_toggle_select,
-                                                        on_select: move |selected| {
-                                                            if let Some(ref s_name) = stack_series {
-                                                                selected_series.set(Some(s_name.clone()));
-                                                            } else {
-                                                                selected_book.set(Some(selected));
+                                div { style: "display: flex; gap: 14px; align-items: flex-start;",
+                                    div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column;",
+                                        if grid_win.top_spacer_px > 0.0 {
+                                            div {
+                                                key: "grid-top-spacer",
+                                                style: "height: {grid_win.top_spacer_px:.1}px; flex-shrink: 0;",
+                                            }
+                                        }
+                                        div {
+                                            id: "vellum-books-grid",
+                                            class: "books-grid",
+                                            style: "grid-template-columns: repeat(auto-fill, minmax({card_sz}px, 1fr));",
+                                            if *collapse_series.read() {
+                                                for (b, stack) in library_logic::collapse_books_by_series(&filtered_books) {
+                                                    {
+                                                        let id = b.id.clone();
+                                                        let is_selected = selected_ids.read().contains(&id);
+                                                        let selection_mode = !selected_ids.read().is_empty();
+                                                        let stack_series = stack.as_ref().map(|(s, _)| s.clone());
+                                                        rsx! {
+                                                            BookCard {
+                                                                key: "col-{b.id}",
+                                                                book: b.clone(),
+                                                                is_selected: is_selected,
+                                                                selection_mode: selection_mode,
+                                                                series_stack: stack,
+                                                                show_label: show_lbl,
+                                                                on_toggle_select: actions.on_toggle_select,
+                                                                on_select: move |selected| {
+                                                                    if let Some(ref s_name) = stack_series {
+                                                                        selected_series.set(Some(s_name.clone()));
+                                                                    } else {
+                                                                        selected_book.set(Some(selected));
+                                                                    }
+                                                                },
+                                                                on_read: actions.on_read,
+                                                                on_quick_view: move |qv| quick_view_book.set(Some(qv)),
                                                             }
-                                                        },
-                                                        on_read: actions.on_read,
-                                                        on_quick_view: move |qv| quick_view_book.set(Some(qv)),
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                for b in filtered_books[grid_win.start_idx..grid_win.end_idx].iter() {
+                                                    {
+                                                        let id = b.id.clone();
+                                                        let is_selected = selected_ids.read().contains(&id);
+                                                        let selection_mode = !selected_ids.read().is_empty();
+                                                        rsx! {
+                                                            BookCard {
+                                                                key: "{b.id}",
+                                                                book: b.clone(),
+                                                                is_selected: is_selected,
+                                                                selection_mode: selection_mode,
+                                                                show_label: show_lbl,
+                                                                on_toggle_select: actions.on_toggle_select,
+                                                                on_select: move |selected| selected_book.set(Some(selected)),
+                                                                on_read: actions.on_read,
+                                                                on_quick_view: move |qv| quick_view_book.set(Some(qv)),
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    } else {
-                                        for b in filtered_books[grid_win.start_idx..grid_win.end_idx].iter() {
-                                            {
-                                                let id = b.id.clone();
-                                                let is_selected = selected_ids.read().contains(&id);
-                                                let selection_mode = !selected_ids.read().is_empty();
-                                                rsx! {
-                                                    BookCard {
-                                                        key: "{b.id}",
-                                                        book: b.clone(),
-                                                        is_selected: is_selected,
-                                                        selection_mode: selection_mode,
-                                                        show_label: show_lbl,
-                                                        on_toggle_select: actions.on_toggle_select,
-                                                        on_select: move |selected| selected_book.set(Some(selected)),
-                                                        on_read: actions.on_read,
-                                                        on_quick_view: move |qv| quick_view_book.set(Some(qv)),
-                                                    }
-                                                }
+                                        if grid_win.bottom_spacer_px > 0.0 {
+                                            div {
+                                                key: "grid-bottom-spacer",
+                                                style: "height: {grid_win.bottom_spacer_px:.1}px; flex-shrink: 0;",
                                             }
                                         }
                                     }
-                                }
-                                if grid_win.bottom_spacer_px > 0.0 {
-                                    div {
-                                        key: "grid-bottom-spacer",
-                                        style: "height: {grid_win.bottom_spacer_px:.1}px; flex-shrink: 0;",
+                                    if !available_letters.is_empty() {
+                                        JumpRail {
+                                            available_letters: available_letters.clone(),
+                                            active_letter: letter_filter,
+                                        }
                                     }
                                 }
                             }
