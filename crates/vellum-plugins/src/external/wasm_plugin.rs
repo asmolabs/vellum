@@ -68,10 +68,6 @@ impl VellumPlugin for WasmExternalPlugin {
             },
         }
     }
-
-    fn as_enricher_plugin(&self) -> Option<&dyn MetadataEnricherPlugin> {
-        Some(self)
-    }
 }
 
 impl MetadataEnricherPlugin for WasmExternalPlugin {

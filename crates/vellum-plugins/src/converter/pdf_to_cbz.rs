@@ -56,10 +56,6 @@ impl VellumPlugin for PdfToCbzConverterPlugin {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Moteur de rendu PDF opérationnel pour l'exportation BD (CBZ).")
     }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        Some(self)
-    }
 }
 
 impl BookConverterPlugin for PdfToCbzConverterPlugin {

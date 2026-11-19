@@ -236,7 +236,7 @@ pub fn SeriesView(
                                 let s_clone = series_name.clone();
                                 let count = list.len();
                                 let finished_count = list.iter().filter(|b| b.is_finished).count();
-                                let pct = if count > 0 { (finished_count * 100) / count } else { 0 };
+                                let pct = (finished_count * 100).checked_div(count).unwrap_or(0);
                                 let covers: Vec<String> = list
                                     .iter()
                                     .filter_map(|b| resolve_cover_src(&b.id, b.cover_path.as_deref(), false))

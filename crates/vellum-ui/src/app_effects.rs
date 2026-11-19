@@ -322,59 +322,53 @@ pub(crate) fn build_drop_handler(
     EventHandler::new(move |evt: DragEvent| {
         evt.prevent_default();
         is_dragging_files.set(false);
-        if let Some(file_engine) = evt.files() {
-            let paths: Vec<PathBuf> = file_engine.files().into_iter().map(PathBuf::from).collect();
-            if !paths.is_empty() {
-                let bs_task = book_service.clone();
-                spawn(async move {
-                    let (ok_count, err_count) = tokio::task::spawn_blocking(move || {
-                        let mut ok = 0usize;
-                        let mut err = 0usize;
-                        for path in paths {
-                            match bs_task.import_book(&path) {
-                                Ok(_) => ok += 1,
-                                Err(e) => {
-                                    err += 1;
-                                    tracing::error!(
-                                        "Drag & drop import failed for {}: {}",
-                                        path.display(),
-                                        e
-                                    );
-                                }
+        let paths: Vec<PathBuf> = evt.files().into_iter().map(|f| f.path()).collect();
+        if !paths.is_empty() {
+            let bs_task = book_service.clone();
+            spawn(async move {
+                let (ok_count, err_count) = tokio::task::spawn_blocking(move || {
+                    let mut ok = 0usize;
+                    let mut err = 0usize;
+                    for path in paths {
+                        match bs_task.import_book(&path) {
+                            Ok(_) => ok += 1,
+                            Err(e) => {
+                                err += 1;
+                                tracing::error!(
+                                    "Drag & drop import failed for {}: {}",
+                                    path.display(),
+                                    e
+                                );
                             }
                         }
-                        (ok, err)
-                    })
-                    .await
-                    .unwrap_or((0, 1));
-                    on_refresh.call(());
-                    let loc = *ui_locale.read();
-                    if err_count == 0 {
-                        app_actions::show_toast(
-                            toast_msg,
-                            translate_fmt(
-                                loc,
-                                "toolbar.drop_ok",
-                                &[("count", &ok_count.to_string())],
-                            ),
-                            true,
-                        );
-                    } else {
-                        app_actions::show_toast(
-                            toast_msg,
-                            translate_fmt(
-                                loc,
-                                "toolbar.drop_partial",
-                                &[
-                                    ("ok", &ok_count.to_string()),
-                                    ("err", &err_count.to_string()),
-                                ],
-                            ),
-                            false,
-                        );
                     }
-                });
-            }
+                    (ok, err)
+                })
+                .await
+                .unwrap_or((0, 1));
+                on_refresh.call(());
+                let loc = *ui_locale.read();
+                if err_count == 0 {
+                    app_actions::show_toast(
+                        toast_msg,
+                        translate_fmt(loc, "toolbar.drop_ok", &[("count", &ok_count.to_string())]),
+                        true,
+                    );
+                } else {
+                    app_actions::show_toast(
+                        toast_msg,
+                        translate_fmt(
+                            loc,
+                            "toolbar.drop_partial",
+                            &[
+                                ("ok", &ok_count.to_string()),
+                                ("err", &err_count.to_string()),
+                            ],
+                        ),
+                        false,
+                    );
+                }
+            });
         }
     })
 }

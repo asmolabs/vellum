@@ -929,10 +929,10 @@ async fn test_google_drive_api_backend_and_token_refresh() {
     let app = Router::new()
         .route("/oauth/token", post(oauth_token))
         .route("/drive/v3/files", get(list_files).post(create_folder))
-        .route("/drive/v3/files/:id", get(get_file))
+        .route("/drive/v3/files/{id}", get(get_file))
         .route("/upload/drive/v3/files", post(upload_files))
-        .route("/upload/drive/v3/files/:id", patch(patch_resumable))
-        .route("/upload/session/:session_id", put(put_session))
+        .route("/upload/drive/v3/files/{id}", patch(patch_resumable))
+        .route("/upload/session/{session_id}", put(put_session))
         .with_state(state.clone());
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

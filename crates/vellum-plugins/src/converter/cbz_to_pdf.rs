@@ -48,10 +48,6 @@ impl VellumPlugin for CbzToPdfConverterPlugin {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Moteur de conversion CBZ -> PDF prêt (générateur PDF Rust intégré).")
     }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        Some(self)
-    }
 }
 
 impl BookConverterPlugin for CbzToPdfConverterPlugin {

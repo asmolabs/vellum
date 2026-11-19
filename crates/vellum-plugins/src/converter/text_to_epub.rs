@@ -56,10 +56,6 @@ impl VellumPlugin for TextToEpubConverterPlugin {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Générateur EPUB prêt (packaging OCF 2.0 / XHTML pur Rust).")
     }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        Some(self)
-    }
 }
 
 impl BookConverterPlugin for TextToEpubConverterPlugin {

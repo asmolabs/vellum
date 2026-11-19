@@ -39,10 +39,6 @@ impl VellumPlugin for AudiobookFormatPlugin {
     fn descriptor(&self) -> &PluginDescriptor {
         &self.descriptor
     }
-
-    fn as_format_plugin(&self) -> Option<&dyn BookFormatPlugin> {
-        Some(self)
-    }
 }
 
 impl BookFormatPlugin for AudiobookFormatPlugin {

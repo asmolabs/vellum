@@ -42,10 +42,6 @@ impl VellumPlugin for PdfFormatPlugin {
     fn descriptor(&self) -> &PluginDescriptor {
         &self.descriptor
     }
-
-    fn as_format_plugin(&self) -> Option<&dyn BookFormatPlugin> {
-        Some(self)
-    }
 }
 
 impl BookFormatPlugin for PdfFormatPlugin {

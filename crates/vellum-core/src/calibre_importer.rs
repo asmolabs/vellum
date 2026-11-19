@@ -200,7 +200,7 @@ impl CalibreImporter {
             let formats_info: Vec<(String, u64, String)> = data_stmt
                 .query_map([calibre_id], |row| {
                     let fmt: String = row.get(0)?;
-                    let size: u64 = row.get(1).unwrap_or(0);
+                    let size = u64::try_from(row.get::<_, i64>(1).unwrap_or(0)).unwrap_or(0);
                     let name: String = row.get(2)?;
                     Ok((fmt, size, name))
                 })

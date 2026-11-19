@@ -60,10 +60,6 @@ impl VellumPlugin for OceanOfPdfCleanerPlugin {
     fn descriptor(&self) -> &PluginDescriptor {
         &self.descriptor
     }
-
-    fn as_transformation_plugin(&self) -> Option<&dyn BookTransformationPlugin> {
-        Some(self)
-    }
 }
 
 impl BookTransformationPlugin for OceanOfPdfCleanerPlugin {

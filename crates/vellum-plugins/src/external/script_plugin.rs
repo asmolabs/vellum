@@ -174,22 +174,6 @@ impl VellumPlugin for ExternalScriptPlugin {
     fn test_configuration(&self, config: &HashMap<String, Value>) -> TestResult {
         self.test_plugin(&stringify_config(config))
     }
-
-    fn as_format_plugin(&self) -> Option<&dyn BookFormatPlugin> {
-        (self.descriptor.plugin_type == PluginType::Format).then_some(self)
-    }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        (self.descriptor.plugin_type == PluginType::Conversion).then_some(self)
-    }
-
-    fn as_enricher_plugin(&self) -> Option<&dyn MetadataEnricherPlugin> {
-        (self.descriptor.plugin_type == PluginType::Import).then_some(self)
-    }
-
-    fn as_transformation_plugin(&self) -> Option<&dyn BookTransformationPlugin> {
-        (self.descriptor.plugin_type == PluginType::Transformation).then_some(self)
-    }
 }
 
 impl BookFormatPlugin for ExternalScriptPlugin {

@@ -188,10 +188,6 @@ impl VellumPlugin for EpubTranslatorPlugin {
             ))
         }
     }
-
-    fn as_transformation_plugin(&self) -> Option<&dyn BookTransformationPlugin> {
-        Some(self)
-    }
 }
 
 impl BookTransformationPlugin for EpubTranslatorPlugin {

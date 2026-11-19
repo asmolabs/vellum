@@ -62,15 +62,24 @@ pub(super) async fn put_progress_handler(
     payload.timestamp = Some(ts);
 
     let param_key = format!("koreader_progress:{doc_key}");
-    if let Ok(json_str) = serde_json::to_string(&payload) {
-        let _ = service.param_repo().set_value(&param_key, &json_str);
-    }
+    let payload_json = serde_json::to_string(&payload).ok();
+    let pct = (payload.percentage * 100.0).clamp(0.0, 100.0);
+    let finished = pct >= 99.0;
+    let doc_key_bg = doc_key.clone();
 
-    // Si le document correspond à un book_id Vellum ou à un hash/titre connu, on répercute la progression
-    if let Ok(Some(_book)) = service.get_book_by_id(&doc_key) {
-        let pct = (payload.percentage * 100.0).clamp(0.0, 100.0);
-        let finished = pct >= 99.0;
-        let _ = service.update_reading_progress(&doc_key, 0, 0, pct, finished);
+    if let Err(status) = super::run_blocking(move || {
+        if let Some(json_str) = payload_json {
+            let _ = service.param_repo().set_value(&param_key, &json_str);
+        }
+
+        // Si le document correspond à un book_id Vellum ou à un hash/titre connu, on répercute la progression
+        if let Ok(Some(_book)) = service.get_book_by_id(&doc_key_bg) {
+            let _ = service.update_reading_progress(&doc_key_bg, 0, 0, pct, finished);
+        }
+    })
+    .await
+    {
+        return status.into_response();
     }
 
     (
@@ -93,24 +102,32 @@ pub(super) async fn get_progress_handler(
     }
 
     let param_key = format!("koreader_progress:{doc_key}");
-    if let Ok(Some(raw)) = service.param_repo().get_value(&param_key) {
-        if let Ok(payload) = serde_json::from_str::<KoreaderProgressPayload>(&raw) {
-            return (StatusCode::OK, Json(payload)).into_response();
+    match super::run_blocking(move || {
+        if let Ok(Some(raw)) = service.param_repo().get_value(&param_key) {
+            if let Ok(payload) = serde_json::from_str::<KoreaderProgressPayload>(&raw) {
+                return Some((StatusCode::OK, Json(payload)).into_response());
+            }
         }
-    }
 
-    // Repli : si le document est un book_id Vellum existant
-    if let Ok(Some(book)) = service.get_book_by_id(&doc_key) {
-        let fallback = KoreaderProgressPayload {
-            document: doc_key,
-            progress: format!("/body/chapter/{}", book.current_chapter_index),
-            percentage: (book.progress_percent / 100.0).clamp(0.0, 1.0),
-            device: Some("vellum".to_string()),
-            device_id: Some("vellum".to_string()),
-            timestamp: Some(chrono::Utc::now().timestamp()),
-        };
-        return (StatusCode::OK, Json(fallback)).into_response();
-    }
+        // Repli : si le document est un book_id Vellum existant
+        if let Ok(Some(book)) = service.get_book_by_id(&doc_key) {
+            let fallback = KoreaderProgressPayload {
+                document: doc_key,
+                progress: format!("/body/chapter/{}", book.current_chapter_index),
+                percentage: (book.progress_percent / 100.0).clamp(0.0, 1.0),
+                device: Some("vellum".to_string()),
+                device_id: Some("vellum".to_string()),
+                timestamp: Some(chrono::Utc::now().timestamp()),
+            };
+            return Some((StatusCode::OK, Json(fallback)).into_response());
+        }
 
-    StatusCode::NOT_FOUND.into_response()
+        None
+    })
+    .await
+    {
+        Ok(Some(resp)) => resp,
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(status) => status.into_response(),
+    }
 }

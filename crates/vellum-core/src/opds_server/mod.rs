@@ -63,7 +63,7 @@ impl OpdsServer {
         let protected = Router::new()
             // 1. Web Companion & Mobile Reader UI
             .route("/", get(web_api::web_library_handler))
-            .route("/read/:id", get(web_api::web_reader_handler))
+            .route("/read/{id}", get(web_api::web_reader_handler))
             // 2. REST API for Web & Mobile Clients
             .route("/api/status", get(web_api::api_status_handler))
             .route("/api/users", get(web_api::api_users_handler))
@@ -82,33 +82,39 @@ impl OpdsServer {
                 post(web_api::api_book_upload_handler)
                     .layer(DefaultBodyLimit::max(256 * 1024 * 1024)),
             )
-            .route("/api/books/:id", get(web_api::api_book_detail_handler))
+            .route("/api/books/{id}", get(web_api::api_book_detail_handler))
             .route(
-                "/api/books/:id/metadata",
+                "/api/books/{id}/metadata",
                 post(web_api::api_book_metadata_handler),
             )
-            .route("/api/books/:id/notes", get(web_api::api_book_notes_handler))
-            .route("/api/books/:id/cover", get(xml_feed::cover_handler))
-            .route("/api/books/:id/toc", get(web_api::api_book_toc_handler))
             .route(
-                "/api/books/:id/chapter/:idx",
+                "/api/books/{id}/notes",
+                get(web_api::api_book_notes_handler),
+            )
+            .route("/api/books/{id}/cover", get(xml_feed::cover_handler))
+            .route("/api/books/{id}/toc", get(web_api::api_book_toc_handler))
+            .route(
+                "/api/books/{id}/chapter/{idx}",
                 get(web_api::api_book_chapter_handler),
             )
             .route(
-                "/api/books/:id/progress",
+                "/api/books/{id}/progress",
                 post(web_api::api_book_progress_handler),
             )
             .route(
-                "/api/books/:id/download/:format",
+                "/api/books/{id}/download/{format}",
                 get(xml_feed::download_handler),
             )
-            .route("/api/books/:id/audio", get(web_api::api_book_audio_handler))
+            .route(
+                "/api/books/{id}/audio",
+                get(web_api::api_book_audio_handler),
+            )
             // 3. OPDS 1.2 Catalog Feed (for KOReader, Moon+, etc.)
             .route("/opds", get(xml_feed::root_catalog_handler))
             .route("/opds/books", get(xml_feed::books_catalog_handler))
-            .route("/opds/covers/:id", get(xml_feed::cover_handler))
+            .route("/opds/covers/{id}", get(xml_feed::cover_handler))
             .route(
-                "/opds/download/:id/:format",
+                "/opds/download/{id}/{format}",
                 get(xml_feed::download_handler),
             )
             // 4. KOReader Progress Sync API
@@ -116,7 +122,7 @@ impl OpdsServer {
             .route("/users/create", post(koreader_sync::users_create_handler))
             .route("/syncs/progress", put(koreader_sync::put_progress_handler))
             .route(
-                "/syncs/progress/:document",
+                "/syncs/progress/{document}",
                 get(koreader_sync::get_progress_handler),
             )
             .layer(Extension(sync_service))
@@ -202,6 +208,16 @@ async fn health_handler() -> impl IntoResponse {
             "service": "vellum"
         })),
     )
+}
+
+pub(super) async fn run_blocking<F, T>(f: F) -> Result<T, StatusCode>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 async fn auth_and_security_headers(

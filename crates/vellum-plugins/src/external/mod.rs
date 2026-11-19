@@ -165,11 +165,7 @@ mod tests {
             Value::String("Frank Herbert".to_string()),
         );
         if let LibraryPlugin::Enricher(p) = wasm_plugin {
-            let enriched = p.as_enricher_plugin().unwrap().enrich_metadata(
-                Path::new("dune.epub"),
-                meta,
-                &HashMap::new(),
-            );
+            let enriched = p.enrich_metadata(Path::new("dune.epub"), meta, &HashMap::new());
             assert_eq!(enriched.get("title").and_then(|v| v.as_str()), Some("Dune"));
         }
     }

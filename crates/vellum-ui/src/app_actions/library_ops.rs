@@ -57,61 +57,89 @@ pub(super) fn build_library_handlers(
             );
 
             if let Some(paths) = files {
-                let mut ok_count = 0usize;
-                let mut err_count = 0usize;
-                let mut last_title = String::new();
-                let mut last_err = String::new();
-                for path in paths {
-                    tracing::info!("Importing file: {:?}", path);
-                    match bs.import_book(&path) {
-                        Ok(book) => {
-                            ok_count += 1;
-                            last_title = book.title;
+                let bs_cloned = bs.clone();
+                spawn(async move {
+                    let res = tokio::task::spawn_blocking(move || {
+                        let mut ok_count = 0usize;
+                        let mut err_count = 0usize;
+                        let mut last_title = String::new();
+                        let mut last_err = String::new();
+                        for path in paths {
+                            tracing::info!("Importing file: {:?}", path);
+                            match bs_cloned.import_book(&path) {
+                                Ok(book) => {
+                                    ok_count += 1;
+                                    last_title = book.title;
+                                }
+                                Err(e) => {
+                                    err_count += 1;
+                                    last_err = e.to_string();
+                                    tracing::error!("Import error for {:?}: {}", path, e);
+                                }
+                            }
+                        }
+                        (ok_count, err_count, last_title, last_err)
+                    })
+                    .await;
+
+                    match res {
+                        Ok((ok_count, err_count, last_title, last_err)) => {
+                            on_refresh.call(());
+                            if err_count == 0 && ok_count == 1 {
+                                show_toast(
+                                    ctx.toast_msg,
+                                    translate_fmt(
+                                        locale,
+                                        "actions.import_one_ok",
+                                        &[("title", &last_title)],
+                                    ),
+                                    true,
+                                );
+                            } else if err_count == 0 && ok_count > 1 {
+                                show_toast(
+                                    ctx.toast_msg,
+                                    translate_fmt(
+                                        locale,
+                                        "toolbar.drop_ok",
+                                        &[("count", &ok_count.to_string())],
+                                    ),
+                                    true,
+                                );
+                            } else if ok_count == 0 && err_count > 0 {
+                                show_toast(
+                                    ctx.toast_msg,
+                                    translate_fmt(locale, "common.error", &[("error", &last_err)]),
+                                    false,
+                                );
+                            } else if err_count > 0 {
+                                show_toast(
+                                    ctx.toast_msg,
+                                    translate_fmt(
+                                        locale,
+                                        "toolbar.drop_partial",
+                                        &[
+                                            ("ok", &ok_count.to_string()),
+                                            ("err", &err_count.to_string()),
+                                        ],
+                                    ),
+                                    false,
+                                );
+                            }
                         }
                         Err(e) => {
-                            err_count += 1;
-                            last_err = e.to_string();
-                            tracing::error!("Import error for {:?}: {}", path, e);
+                            tracing::error!("Import task interrupted: {e}");
+                            show_toast(
+                                ctx.toast_msg,
+                                translate_fmt(
+                                    locale,
+                                    "common.task_interrupted",
+                                    &[("error", &e.to_string())],
+                                ),
+                                false,
+                            );
                         }
                     }
-                }
-                on_refresh.call(());
-                if err_count == 0 && ok_count == 1 {
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(locale, "actions.import_one_ok", &[("title", &last_title)]),
-                        true,
-                    );
-                } else if err_count == 0 && ok_count > 1 {
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(
-                            locale,
-                            "toolbar.drop_ok",
-                            &[("count", &ok_count.to_string())],
-                        ),
-                        true,
-                    );
-                } else if ok_count == 0 && err_count > 0 {
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(locale, "common.error", &[("error", &last_err)]),
-                        false,
-                    );
-                } else if err_count > 0 {
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(
-                            locale,
-                            "toolbar.drop_partial",
-                            &[
-                                ("ok", &ok_count.to_string()),
-                                ("err", &err_count.to_string()),
-                            ],
-                        ),
-                        false,
-                    );
-                }
+                });
             }
         }
     });
@@ -346,29 +374,50 @@ pub(super) fn build_library_handlers(
         let bs = ctx.book_service.clone();
         move |(b_id, target_fmt): (String, String)| {
             let locale = *ctx.ui_locale.read();
-            match bs.convert_book_to_format(&b_id, &target_fmt) {
-                Ok(updated) => {
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(
-                            locale,
-                            "actions.convert_ok",
-                            &[("format", &target_fmt), ("title", &updated.title)],
-                        ),
-                        true,
-                    );
-                    ctx.selected_book.set(Some(updated));
-                    on_refresh.call(());
+            let bs_cloned = bs.clone();
+            spawn(async move {
+                let fmt_cloned = target_fmt.clone();
+                let res = tokio::task::spawn_blocking(move || {
+                    bs_cloned.convert_book_to_format(&b_id, &fmt_cloned)
+                })
+                .await;
+
+                match res {
+                    Ok(Ok(updated)) => {
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(
+                                locale,
+                                "actions.convert_ok",
+                                &[("format", &target_fmt), ("title", &updated.title)],
+                            ),
+                            true,
+                        );
+                        ctx.selected_book.set(Some(updated));
+                        on_refresh.call(());
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!("Conversion error to {target_fmt}: {e}");
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!("Conversion task interrupted: {e}");
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(
+                                locale,
+                                "common.task_interrupted",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        );
+                    }
                 }
-                Err(e) => {
-                    tracing::error!("Conversion error to {target_fmt}: {e}");
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
-                        false,
-                    );
-                }
-            }
+            });
         }
     });
 
@@ -418,26 +467,47 @@ pub(super) fn build_library_handlers(
         let bs = ctx.book_service.clone();
         move |b_id: String| {
             let locale = *ctx.ui_locale.read();
-            match bs.enrich_book(&b_id) {
-                Ok(updated) => {
-                    cover_cache::invalidate_book_cover(&updated.id);
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(locale, "actions.enriched_ok", &[("title", &updated.title)]),
-                        true,
-                    );
-                    ctx.selected_book.set(Some(updated));
-                    on_refresh.call(());
+            let bs_cloned = bs.clone();
+            spawn(async move {
+                let res = tokio::task::spawn_blocking(move || bs_cloned.enrich_book(&b_id)).await;
+
+                match res {
+                    Ok(Ok(updated)) => {
+                        cover_cache::invalidate_book_cover(&updated.id);
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(
+                                locale,
+                                "actions.enriched_ok",
+                                &[("title", &updated.title)],
+                            ),
+                            true,
+                        );
+                        ctx.selected_book.set(Some(updated));
+                        on_refresh.call(());
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!("Metadata enrich error: {e}");
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
+                            false,
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!("Enrich task interrupted: {e}");
+                        show_toast(
+                            ctx.toast_msg,
+                            translate_fmt(
+                                locale,
+                                "common.task_interrupted",
+                                &[("error", &e.to_string())],
+                            ),
+                            false,
+                        );
+                    }
                 }
-                Err(e) => {
-                    tracing::error!("Metadata enrich error: {e}");
-                    show_toast(
-                        ctx.toast_msg,
-                        translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
-                        false,
-                    );
-                }
-            }
+            });
         }
     });
 

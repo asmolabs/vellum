@@ -146,7 +146,10 @@ pub(super) async fn web_reader_handler(AxPath(_book_id): AxPath<String>) -> Resp
 }
 
 pub(super) async fn api_status_handler(State(service): State<Arc<BookService>>) -> Response {
-    let count = service.book_repo().count().unwrap_or(0);
+    let count = match super::run_blocking(move || service.book_repo().count().unwrap_or(0)).await {
+        Ok(c) => c,
+        Err(status) => return status.into_response(),
+    };
     Json(serde_json::json!({
         "status": "ok",
         "version": "1.0.0",
@@ -159,7 +162,6 @@ pub(super) async fn api_export_handler(
     State(service): State<Arc<BookService>>,
     Query(query): Query<ExportQuery>,
 ) -> Response {
-    let books = service.get_books(None, None).unwrap_or_default();
     let raw_fmt = query.format.as_deref().unwrap_or("csv").to_lowercase();
     let (fmt, content_type, filename) = match raw_fmt.as_str() {
         "json" => (
@@ -179,7 +181,17 @@ pub(super) async fn api_export_handler(
         ),
     };
 
-    match CatalogExporter::export_to_string(&books, fmt) {
+    let export_res = match super::run_blocking(move || {
+        let books = service.get_books(None, None).unwrap_or_default();
+        CatalogExporter::export_to_string(&books, fmt)
+    })
+    .await
+    {
+        Ok(res) => res,
+        Err(status) => return status.into_response(),
+    };
+
+    match export_res {
         Ok(body) => (
             [
                 (CONTENT_TYPE, content_type),
@@ -200,7 +212,11 @@ pub(super) async fn api_search_content_handler(
     Query(query): Query<ContentSearchQuery>,
 ) -> Response {
     let q = query.q.unwrap_or_default();
-    match service.search_inside_books(&q, 25) {
+    let search_res = match super::run_blocking(move || service.search_inside_books(&q, 25)).await {
+        Ok(res) => res,
+        Err(status) => return status.into_response(),
+    };
+    match search_res {
         Ok(hits) => Json(hits).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
@@ -210,7 +226,13 @@ pub(super) async fn api_book_notes_handler(
     State(service): State<Arc<BookService>>,
     AxPath(book_id): AxPath<String>,
 ) -> Response {
-    match service.export_book_notes_markdown(&book_id, None) {
+    let notes_res =
+        match super::run_blocking(move || service.export_book_notes_markdown(&book_id, None)).await
+        {
+            Ok(res) => res,
+            Err(status) => return status.into_response(),
+        };
+    match notes_res {
         Ok(md) => ([(CONTENT_TYPE, "text/markdown; charset=utf-8")], md).into_response(),
         Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
     }
@@ -261,18 +283,26 @@ pub(super) async fn api_books_handler(
     Query(query): Query<CatalogQuery>,
 ) -> Response {
     let user = extract_vellum_user(&headers);
-    let books = service
-        .get_books(query.search.as_deref(), query.tag.as_deref())
-        .unwrap_or_default();
+    let dtos = match super::run_blocking(move || {
+        let books = service
+            .get_books(query.search.as_deref(), query.tag.as_deref())
+            .unwrap_or_default();
 
-    let dtos: Vec<BookDto> = books
-        .into_iter()
-        .map(|b| {
-            let mut dto = BookDto::from_book(b);
-            apply_user_progress(&service, user.as_deref(), &mut dto);
-            dto
-        })
-        .collect();
+        books
+            .into_iter()
+            .map(|b| {
+                let mut dto = BookDto::from_book(b);
+                apply_user_progress(&service, user.as_deref(), &mut dto);
+                dto
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    {
+        Ok(dtos) => dtos,
+        Err(status) => return status.into_response(),
+    };
+
     Json(dtos).into_response()
 }
 
@@ -282,12 +312,17 @@ pub(super) async fn api_book_detail_handler(
     AxPath(book_id): AxPath<String>,
 ) -> Response {
     let user = extract_vellum_user(&headers);
-    if let Ok(Some(b)) = service.get_book_by_id(&book_id) {
+    match super::run_blocking(move || {
+        let b = service.get_book_by_id(&book_id).ok().flatten()?;
         let mut dto = BookDto::from_book(b);
         apply_user_progress(&service, user.as_deref(), &mut dto);
-        Json(dto).into_response()
-    } else {
-        StatusCode::NOT_FOUND.into_response()
+        Some(dto)
+    })
+    .await
+    {
+        Ok(Some(dto)) => Json(dto).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(status) => status.into_response(),
     }
 }
 
@@ -295,58 +330,74 @@ pub(super) async fn api_book_toc_handler(
     State(service): State<Arc<BookService>>,
     AxPath(book_id): AxPath<String>,
 ) -> Response {
-    if let Ok(Some(book)) = service.get_book_by_id(&book_id) {
-        if let Some(fmt) = book
+    let toc_opt = match super::run_blocking(move || {
+        let book = service.get_book_by_id(&book_id).ok().flatten()?;
+        let fmt = book
             .formats
             .iter()
             .find(|f| f.format.eq_ignore_ascii_case("epub"))
-            .or_else(|| book.formats.first())
-        {
-            let path = service.get_file_for_format(fmt);
-            if path.exists() {
-                let provider = create_content_provider(&path);
-                let toc_raw = provider.get_table_of_contents();
-                let toc_dtos: Vec<TocItemDto> = toc_raw
-                    .into_iter()
-                    .map(|(index, title)| TocItemDto { index, title })
-                    .collect();
-                return Json(toc_dtos).into_response();
-            }
+            .or_else(|| book.formats.first())?;
+        let path = service.get_file_for_format(fmt);
+        if !path.exists() {
+            return None;
         }
+        let provider = create_content_provider(&path);
+        let toc_dtos: Vec<TocItemDto> = provider
+            .get_table_of_contents()
+            .into_iter()
+            .map(|(index, title)| TocItemDto { index, title })
+            .collect();
+        Some(toc_dtos)
+    })
+    .await
+    {
+        Ok(opt) => opt,
+        Err(status) => return status.into_response(),
+    };
+
+    match toc_opt {
+        Some(toc_dtos) => Json(toc_dtos).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     }
-    StatusCode::NOT_FOUND.into_response()
 }
 
 pub(super) async fn api_book_chapter_handler(
     State(service): State<Arc<BookService>>,
     AxPath((book_id, chapter_idx)): AxPath<(String, usize)>,
 ) -> Response {
-    if let Ok(Some(book)) = service.get_book_by_id(&book_id) {
-        if let Some(fmt) = book
+    let chapter_opt = match super::run_blocking(move || {
+        let book = service.get_book_by_id(&book_id).ok().flatten()?;
+        let fmt = book
             .formats
             .iter()
             .find(|f| f.format.eq_ignore_ascii_case("epub"))
-            .or_else(|| book.formats.first())
-        {
-            let path = service.get_file_for_format(fmt);
-            if path.exists() {
-                let provider = create_content_provider(&path);
-                let total = provider.chapter_count();
-                if chapter_idx < total {
-                    let title = provider.chapter_title(chapter_idx);
-                    let html = provider.chapter_html(chapter_idx);
-                    return Json(ChapterContentDto {
-                        chapter_index: chapter_idx,
-                        total_chapters: total,
-                        title,
-                        html,
-                    })
-                    .into_response();
-                }
-            }
+            .or_else(|| book.formats.first())?;
+        let path = service.get_file_for_format(fmt);
+        if !path.exists() {
+            return None;
         }
+        let provider = create_content_provider(&path);
+        let total = provider.chapter_count();
+        if chapter_idx >= total {
+            return None;
+        }
+        Some(ChapterContentDto {
+            chapter_index: chapter_idx,
+            total_chapters: total,
+            title: provider.chapter_title(chapter_idx),
+            html: provider.chapter_html(chapter_idx),
+        })
+    })
+    .await
+    {
+        Ok(opt) => opt,
+        Err(status) => return status.into_response(),
+    };
+
+    match chapter_opt {
+        Some(dto) => Json(dto).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     }
-    StatusCode::NOT_FOUND.into_response()
 }
 
 pub(super) async fn api_book_progress_handler(
@@ -357,44 +408,53 @@ pub(super) async fn api_book_progress_handler(
 ) -> Response {
     let percent = (body.percentage.unwrap_or(0.0) * 100.0).clamp(0.0, 100.0);
     let finished = percent >= 99.0;
+    let user = extract_vellum_user(&headers);
+    let chapter_index = body.chapter_index as i32;
 
-    if let Some(u) = extract_vellum_user(&headers) {
-        let Ok(Some(_)) = service.get_book_by_id(&book_id) else {
-            return StatusCode::NOT_FOUND.into_response();
-        };
-        let key = format!("user_progress:{u}:{book_id}");
-        let rec = UserBookProgress {
-            chapter_index: body.chapter_index as i32,
-            progress_percent: percent,
-            is_finished: finished,
-        };
-        if let Ok(json_str) = serde_json::to_string(&rec) {
-            let _ = service.param_repo().set_value(&key, &json_str);
-            let mut known: Vec<String> = service
-                .param_repo()
-                .get_value("vellum_users")
-                .ok()
-                .flatten()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default();
-            if !known.contains(&u) {
-                known.push(u);
-                if let Ok(k_json) = serde_json::to_string(&known) {
-                    let _ = service.param_repo().set_value("vellum_users", &k_json);
+    match super::run_blocking(move || {
+        if let Some(u) = user {
+            let Ok(Some(_)) = service.get_book_by_id(&book_id) else {
+                return StatusCode::NOT_FOUND.into_response();
+            };
+            let key = format!("user_progress:{u}:{book_id}");
+            let rec = UserBookProgress {
+                chapter_index,
+                progress_percent: percent,
+                is_finished: finished,
+            };
+            if let Ok(json_str) = serde_json::to_string(&rec) {
+                let _ = service.param_repo().set_value(&key, &json_str);
+                let mut known: Vec<String> = service
+                    .param_repo()
+                    .get_value("vellum_users")
+                    .ok()
+                    .flatten()
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default();
+                if !known.contains(&u) {
+                    known.push(u);
+                    if let Ok(k_json) = serde_json::to_string(&known) {
+                        let _ = service.param_repo().set_value("vellum_users", &k_json);
+                    }
                 }
+                return Json(serde_json::json!({ "status": "ok" })).into_response();
             }
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+
+        if service
+            .update_reading_progress(&book_id, chapter_index, 0, percent, finished)
+            .is_ok()
+        {
             return Json(serde_json::json!({ "status": "ok" })).into_response();
         }
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
-
-    if service
-        .update_reading_progress(&book_id, body.chapter_index as i32, 0, percent, finished)
-        .is_ok()
+        StatusCode::NOT_FOUND.into_response()
+    })
+    .await
     {
-        return Json(serde_json::json!({ "status": "ok" })).into_response();
+        Ok(resp) => resp,
+        Err(status) => status.into_response(),
     }
-    StatusCode::NOT_FOUND.into_response()
 }
 
 pub(super) async fn api_users_handler(
@@ -402,13 +462,20 @@ pub(super) async fn api_users_handler(
     headers: HeaderMap,
 ) -> Response {
     let active = extract_vellum_user(&headers).unwrap_or_else(|| "default".to_string());
-    let users: Vec<String> = service
-        .param_repo()
-        .get_value("vellum_users")
-        .ok()
-        .flatten()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
+    let users: Vec<String> = match super::run_blocking(move || {
+        service
+            .param_repo()
+            .get_value("vellum_users")
+            .ok()
+            .flatten()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    })
+    .await
+    {
+        Ok(u) => u,
+        Err(status) => return status.into_response(),
+    };
     Json(serde_json::json!({
         "active_user": active,
         "users": users,
@@ -416,13 +483,16 @@ pub(super) async fn api_users_handler(
     .into_response()
 }
 
-pub(super) async fn api_i18n_handler(State(service): State<Arc<BookService>>) -> impl IntoResponse {
-    let locale = service.get_ui_locale();
+pub(super) async fn api_i18n_handler(State(service): State<Arc<BookService>>) -> Response {
+    let locale = match super::run_blocking(move || service.get_ui_locale()).await {
+        Ok(loc) => loc,
+        Err(status) => return status.into_response(),
+    };
     let payload = serde_json::json!({
         "locale": locale.as_code(),
         "messages": crate::i18n::catalog_for(locale),
     });
-    Json(payload)
+    Json(payload).into_response()
 }
 
 pub(super) async fn api_book_upload_handler(
@@ -474,31 +544,40 @@ pub(super) async fn api_book_metadata_handler(
     AxPath(book_id): AxPath<String>,
     Json(body): Json<MetadataUpdateDto>,
 ) -> Response {
-    let req = UpdateMetadataRequest {
-        book_id: &book_id,
-        title: &body.title,
-        author: &body.author,
-        series: body.series.as_deref(),
-        series_index: body.series_index,
-        publisher: body.publisher.as_deref(),
-        publish_date: body.publish_date.as_deref(),
-        isbn: None,
-        description: body.description.as_deref(),
-        tag_names: body.tags,
-    };
-
-    match service.update_book_metadata_full(req) {
-        Ok(updated) => (StatusCode::OK, Json(BookDto::from_book(updated))).into_response(),
-        Err(err) => (
+    match super::run_blocking(move || {
+        let req = UpdateMetadataRequest {
+            book_id: &book_id,
+            title: &body.title,
+            author: &body.author,
+            series: body.series.as_deref(),
+            series_index: body.series_index,
+            publisher: body.publisher.as_deref(),
+            publish_date: body.publish_date.as_deref(),
+            isbn: None,
+            description: body.description.as_deref(),
+            tag_names: body.tags,
+        };
+        service.update_book_metadata_full(req)
+    })
+    .await
+    {
+        Ok(Ok(updated)) => (StatusCode::OK, Json(BookDto::from_book(updated))).into_response(),
+        Ok(Err(err)) => (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({ "error": err.to_string() })),
         )
             .into_response(),
+        Err(status) => status.into_response(),
     }
 }
 
 pub(super) async fn api_stats_handler(State(service): State<Arc<BookService>>) -> Response {
-    let books = service.book_repo().find_all().unwrap_or_default();
+    let books =
+        match super::run_blocking(move || service.book_repo().find_all().unwrap_or_default()).await
+        {
+            Ok(b) => b,
+            Err(status) => return status.into_response(),
+        };
     let total_books = books.len();
     let finished_books = books.iter().filter(|b| b.is_finished).count();
     let reading_books = books
@@ -569,24 +648,30 @@ pub(super) async fn api_book_audio_handler(
     AxPath(book_id): AxPath<String>,
     req_headers: HeaderMap,
 ) -> Response {
-    let Ok(Some(book)) = service.get_book_by_id(&book_id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let Some(fmt) = book.formats.iter().find(|f| {
-        matches!(
-            f.format.to_ascii_lowercase().as_str(),
-            "mp3" | "m4b" | "m4a" | "ogg" | "flac" | "opus"
-        )
-    }) else {
-        return StatusCode::NOT_FOUND.into_response();
+    let audio_info = match super::run_blocking(move || {
+        let book = service.get_book_by_id(&book_id).ok().flatten()?;
+        let fmt = book.formats.iter().find(|f| {
+            matches!(
+                f.format.to_ascii_lowercase().as_str(),
+                "mp3" | "m4b" | "m4a" | "ogg" | "flac" | "opus"
+            )
+        })?;
+        let path = service.get_file_for_format(fmt);
+        let mime = super::xml_feed::get_mime_type(&fmt.format);
+        Some((path, mime))
+    })
+    .await
+    {
+        Ok(Some(info)) => info,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(status) => return status.into_response(),
     };
 
-    let path = service.get_file_for_format(fmt);
-    let Ok(data) = std::fs::read(&path) else {
+    let (path, mime) = audio_info;
+    let Ok(data) = tokio::fs::read(&path).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let total_len = data.len();
-    let mime = super::xml_feed::get_mime_type(&fmt.format);
 
     if let Some(range_val) = req_headers.get(RANGE).and_then(|v| v.to_str().ok()) {
         if let Some(spec) = range_val.strip_prefix("bytes=") {

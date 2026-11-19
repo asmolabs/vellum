@@ -48,10 +48,6 @@ impl VellumPlugin for EpubToTextConverterPlugin {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Extracteur de texte EPUB prêt (décompression et parsing XHTML intégrés).")
     }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        Some(self)
-    }
 }
 
 impl BookConverterPlugin for EpubToTextConverterPlugin {

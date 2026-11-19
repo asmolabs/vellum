@@ -174,10 +174,6 @@ impl VellumPlugin for GoogleBooksEnricherPlugin {
             .join()
             .unwrap_or_else(|_| TestResult::error("Le thread réseau s'est arrêté inopinément."))
     }
-
-    fn as_enricher_plugin(&self) -> Option<&dyn MetadataEnricherPlugin> {
-        Some(self)
-    }
 }
 
 impl MetadataEnricherPlugin for GoogleBooksEnricherPlugin {

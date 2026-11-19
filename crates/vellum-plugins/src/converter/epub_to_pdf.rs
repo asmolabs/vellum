@@ -55,10 +55,6 @@ impl VellumPlugin for EpubToPdfConverterPlugin {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Moteur de pagination PDF prêt (génération A4 vectorielle).")
     }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        Some(self)
-    }
 }
 
 impl BookConverterPlugin for EpubToPdfConverterPlugin {

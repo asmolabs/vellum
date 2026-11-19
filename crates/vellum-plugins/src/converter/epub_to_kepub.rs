@@ -45,10 +45,6 @@ impl VellumPlugin for EpubToKepubConverterPlugin {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Convertisseur KEPUB prêt (injection koboSpan intégrée).")
     }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        Some(self)
-    }
 }
 
 impl BookConverterPlugin for EpubToKepubConverterPlugin {

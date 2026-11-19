@@ -32,31 +32,31 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Database (SQLite WAL)
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 
 zip = { version = "9.0", default-features = false, features = ["deflate"] }
 crc32fast = "1.4"
-roxmltree = "0.20"
+roxmltree = "0.21"
 regex = "1.11"
 ammonia = "4.0"
-md-5 = "0.10"
-base64 = "0.22"
+md-5 = "0.11"
+base64 = "0.23"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
-lopdf = "0.34"
+lopdf = "0.47"
 
 # Async, HTTP & OPDS Web Server
 tokio = { version = "1.42", features = ["full"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
-axum = "0.7"
-tower-http = { version = "0.6", features = ["cors"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "query", "form"] }
+axum = "0.8"
+tower-http = { version = "0.7", features = ["cors"] }
 sha2 = "0.10"
 url = "2.5"
 
 # Desktop UI (Dioxus + Native Dialogs)
-dioxus = "0.6"
-rfd = "0.15"
+dioxus = "0.7"
+rfd = "0.18"
 open = "5.3"
-dirs = "5.0"
+dirs = "7.0"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 
 # Testing

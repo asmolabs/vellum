@@ -44,10 +44,6 @@ impl VellumPlugin for ComicFormatPlugin {
     fn descriptor(&self) -> &PluginDescriptor {
         &self.descriptor
     }
-
-    fn as_format_plugin(&self) -> Option<&dyn BookFormatPlugin> {
-        Some(self)
-    }
 }
 
 impl BookFormatPlugin for ComicFormatPlugin {

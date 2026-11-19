@@ -284,26 +284,6 @@ pub trait VellumPlugin: Send + Sync {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Configuration opérationnelle.")
     }
-
-    fn as_format_plugin(&self) -> Option<&dyn BookFormatPlugin> {
-        None
-    }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        None
-    }
-
-    fn as_enricher_plugin(&self) -> Option<&dyn MetadataEnricherPlugin> {
-        None
-    }
-
-    fn as_transformation_plugin(&self) -> Option<&dyn BookTransformationPlugin> {
-        None
-    }
-
-    fn as_device_plugin(&self) -> Option<&dyn DeviceSyncPlugin> {
-        None
-    }
 }
 
 pub trait BookFormatPlugin: VellumPlugin {

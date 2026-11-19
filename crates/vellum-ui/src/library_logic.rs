@@ -161,6 +161,7 @@ pub fn filter_and_sort_books(
 
 /// Filters `books` according to status, media type, tag, series, search query and optional virtual library query,
 /// then sorts them according to `sort`.
+#[allow(clippy::too_many_arguments)]
 pub fn filter_and_sort_books_by_media(
     books: &[Book],
     filter: FilterStatus,

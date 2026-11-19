@@ -49,10 +49,6 @@ impl VellumPlugin for MobiToEpubConverterPlugin {
     fn test_configuration(&self, _config: &HashMap<String, Value>) -> TestResult {
         TestResult::ok("Décompresseur PalmDOC LZ77 100% Rust prêt (sans dépendance externe).")
     }
-
-    fn as_converter_plugin(&self) -> Option<&dyn BookConverterPlugin> {
-        Some(self)
-    }
 }
 
 impl BookConverterPlugin for MobiToEpubConverterPlugin {

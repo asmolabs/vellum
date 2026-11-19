@@ -246,7 +246,6 @@ pub fn BooksTable(
                     tbody {
                         if table_win.top_spacer_px > 0.0 {
                             tr {
-                                key: "table-top-spacer",
                                 style: "height: {table_win.top_spacer_px:.1}px; pointer-events: none;",
                                 td { colspan: "9", style: "padding: 0; border: none;" }
                             }
@@ -360,7 +359,6 @@ pub fn BooksTable(
                         }
                         if table_win.bottom_spacer_px > 0.0 {
                             tr {
-                                key: "table-bottom-spacer",
                                 style: "height: {table_win.bottom_spacer_px:.1}px; pointer-events: none;",
                                 td { colspan: "9", style: "padding: 0; border: none;" }
                             }

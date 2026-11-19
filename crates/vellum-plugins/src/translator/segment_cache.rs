@@ -77,7 +77,11 @@ impl TranslationSegmentCache {
         );
         hasher.update(payload.as_bytes());
         let digest = hasher.finalize();
-        format!("{digest:x}")
+        digest.iter().fold(String::with_capacity(32), |mut out, b| {
+            use std::fmt::Write;
+            let _ = write!(out, "{b:02x}");
+            out
+        })
     }
 
     fn file_for_hash(base: &Path, hash: &str) -> PathBuf {

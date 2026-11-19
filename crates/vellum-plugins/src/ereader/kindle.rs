@@ -81,10 +81,6 @@ impl VellumPlugin for KindleSyncPlugin {
         &self.descriptor
     }
 
-    fn as_device_plugin(&self) -> Option<&dyn DeviceSyncPlugin> {
-        Some(self)
-    }
-
     fn test_configuration(&self, config: &HashMap<String, Value>) -> TestResult {
         let custom = config
             .get("customMountPath")

@@ -520,7 +520,7 @@ impl BookService {
         }
 
         let mut results = Vec::new();
-        for p in book_files.into_iter().chain(audio_files.into_iter()) {
+        for p in book_files.into_iter().chain(audio_files) {
             if let Ok(mut b) = self.import_book(&p) {
                 let is_comic = b.formats.iter().any(|f| {
                     matches!(

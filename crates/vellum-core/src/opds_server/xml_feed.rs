@@ -77,9 +77,16 @@ pub(super) async fn books_catalog_handler(
     State(service): State<Arc<BookService>>,
     Query(query): Query<CatalogQuery>,
 ) -> Response {
-    let books = service
-        .get_books(query.search.as_deref(), query.tag.as_deref())
-        .unwrap_or_default();
+    let books = match super::run_blocking(move || {
+        service
+            .get_books(query.search.as_deref(), query.tag.as_deref())
+            .unwrap_or_default()
+    })
+    .await
+    {
+        Ok(b) => b,
+        Err(status) => return status.into_response(),
+    };
 
     let now = Utc::now().to_rfc3339();
     let mut xml = format!(
@@ -175,13 +182,21 @@ pub(super) async fn cover_handler(
     State(service): State<Arc<BookService>>,
     AxPath(book_id): AxPath<String>,
 ) -> Response {
-    if let Ok(Some(book)) = service.get_book_by_id(&book_id) {
-        if let Some(cover_file) = service.get_cover_file(&book) {
-            if let Ok(bytes) = tokio::fs::read(cover_file).await {
-                let mut headers = HeaderMap::new();
-                headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/jpeg"));
-                return (StatusCode::OK, headers, bytes).into_response();
-            }
+    let cover_opt = match super::run_blocking(move || {
+        let book = service.get_book_by_id(&book_id).ok().flatten()?;
+        service.get_cover_file(&book)
+    })
+    .await
+    {
+        Ok(opt) => opt,
+        Err(status) => return status.into_response(),
+    };
+
+    if let Some(cover_file) = cover_opt {
+        if let Ok(bytes) = tokio::fs::read(cover_file).await {
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/jpeg"));
+            return (StatusCode::OK, headers, bytes).into_response();
         }
     }
     StatusCode::NOT_FOUND.into_response()
@@ -191,28 +206,40 @@ pub(super) async fn download_handler(
     State(service): State<Arc<BookService>>,
     AxPath((book_id, fmt_param)): AxPath<(String, String)>,
 ) -> Response {
-    if let Ok(Some(book)) = service.get_book_by_id(&book_id) {
-        if let Some(fmt) = book
+    let file_info = match super::run_blocking(move || {
+        let book = service.get_book_by_id(&book_id).ok().flatten()?;
+        let fmt = book
             .formats
             .iter()
-            .find(|f| f.format.eq_ignore_ascii_case(&fmt_param))
-        {
-            let path = service.get_file_for_format(fmt);
-            if path.exists() {
-                if let Ok(bytes) = tokio::fs::read(&path).await {
-                    let mut headers = HeaderMap::new();
-                    let mime = get_mime_type(&fmt.format);
-                    if let Ok(val) = HeaderValue::from_str(mime) {
-                        headers.insert(CONTENT_TYPE, val);
-                    }
-                    let safe_name = BookService::sanitize_filename(&fmt.filename);
-                    let disp = format!("attachment; filename=\"{safe_name}\"");
-                    if let Ok(val) = HeaderValue::from_str(&disp) {
-                        headers.insert(CONTENT_DISPOSITION, val);
-                    }
-                    return (StatusCode::OK, headers, bytes).into_response();
-                }
+            .find(|f| f.format.eq_ignore_ascii_case(&fmt_param))?;
+        let path = service.get_file_for_format(fmt);
+        if !path.exists() {
+            return None;
+        }
+        Some((
+            path,
+            fmt.format.clone(),
+            BookService::sanitize_filename(&fmt.filename),
+        ))
+    })
+    .await
+    {
+        Ok(opt) => opt,
+        Err(status) => return status.into_response(),
+    };
+
+    if let Some((path, format, safe_name)) = file_info {
+        if let Ok(bytes) = tokio::fs::read(&path).await {
+            let mut headers = HeaderMap::new();
+            let mime = get_mime_type(&format);
+            if let Ok(val) = HeaderValue::from_str(mime) {
+                headers.insert(CONTENT_TYPE, val);
             }
+            let disp = format!("attachment; filename=\"{safe_name}\"");
+            if let Ok(val) = HeaderValue::from_str(&disp) {
+                headers.insert(CONTENT_DISPOSITION, val);
+            }
+            return (StatusCode::OK, headers, bytes).into_response();
         }
     }
     StatusCode::NOT_FOUND.into_response()

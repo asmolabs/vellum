@@ -1,6 +1,6 @@
 # 📋 Feuille de Route & Tâches Vellum (TODO)
 
-Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'application native Rust ; version Java archivée dans la branche `archive/java-desktop` et tag `v1.0-java-final`)
+Dernière mise à jour : 19 novembre 2026 (Workspace Rust consolidé à la racine du dépôt ; version Java archivée dans la branche `archive/java-desktop` et tag `v1.0-java-final`)
 
 ---
 
@@ -119,43 +119,59 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 
 ## ⚪ 5. Sauvegarde & Distribution
 
+- [x] **CI/CD & Documentation Architecture/Sécurité**
+  - [x] Pipeline GitHub Actions (`.github/workflows/ci.yml`) : `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test` et `cargo doc --workspace --no-deps`.
+  - [x] Documentation technique (`README.md`, `docs/architecture-c4.md`, `docs/security.md`, `AGENTS.md`).
 - [ ] **Synchronisation Litestream**
   - [ ] Vérifier et fiabiliser le démarrage/arrêt du processus démon Litestream sous macOS depuis `LitestreamService`.
 - [ ] **Packaging macOS autonome**
-  - [ ] Configurer la tâche Gradle `jpackage` pour générer un fichier `.dmg` ou une application `.app` autonome intégrant le runtime Java.
+  - [ ] Générer un bundle `.app` / `.dmg` macOS autonome pour l'application Rust (`vellum-ui`).
 
 ---
 
 ## 🦀 6. Version Native Rust
 
 - [x] **Architecture Multi-Crates & Fondations**
-  - [x] Workspace Cargo (`vellum-domain`, `vellum-storage`, `vellum-plugins`, `vellum-core`, `vellum-ui`).
-  - [x] SQLite WAL via `rusqlite` avec migration automatique du schéma (`books`, `book_formats`, `tags`, `book_tags`, `params`).
-  - [x] Serveur OPDS 1.2 natif ultra-rapide basé sur Tokio & Axum.
+  - [x] Workspace Cargo consolidé à la racine (`vellum-domain`, `vellum-storage`, `vellum-plugins`, `vellum-core`, `vellum-cli`, `vellum-ui`) avec `unsafe_code = "forbid"` et séparation Clean Architecture.
+  - [x] SQLite WAL via `rusqlite` avec migrations automatiques du schéma (`books`, `book_formats`, `tags`, `book_tags`, `params`, `virtual_libraries`, `custom_columns`, index FTS5).
+  - [x] Serveur OPDS 1.2 natif basé sur Tokio & Axum avec protection optionnelle par jeton Bearer (`VELLUM_OPDS_TOKEN`) et en-têtes de sécurité.
   - [x] Persistance et schéma complet avec colonne `isbn`, dates de publication et recherche plein champ.
-- [x] **Enrichissement & Formats en Rust**
+- [x] **Enrichissement, Formats & Plugins en Rust**
   - [x] Extraction de l'ISBN depuis les archives EPUB (`dc:identifier`), MOBI/AZW3 (tag EXTH 104) et fichiers externes.
   - [x] Moteur complet `GoogleBooksEnricherPlugin` natif Rust : interrogation Google Books API (par ISBN ou Titre+Auteur), nettoyage des balises HTML, fallback automatique Open Library et téléchargement de couverture haute résolution en arrière-plan.
   - [x] Intégration de l'enrichissement automatique à l'importation (`BookService::import_book`) et bouton d'enrichissement à la demande dans le tiroir de détails (`DetailDrawer`).
-  - [x] **Synchronisation Cloud & Multi-Postes Google Drive (Architecture Décentralisée Anti-Corruption)**
-    - [x] Architecture à flux de deltas événementiels décentralisés (`SyncAction`, `SyncEvent`, `SyncDelta`, `CloudSyncConfig`) isolant les fichiers binaires immuables (`files/`) des métadonnées incrémentales (`sync/deltas/`).
-    - [x] Moteur de synchronisation bidirectionnel `SyncService` avec backend `FolderSyncBackend` supportant l'auto-détection de Google Drive sous macOS et Windows.
-    - [x] Résolution de conflits multi-clients : Last-Write-Wins (LWW) sur la progression de lecture avec horodatage UTC, fusion additive des tags, tombstones de suppression, stockage immuable basé sur UUID.
-    - [x] Téléchargement automatique ou à la demande des fichiers de livres distants (EPUB, PDF, CBZ...) entre tous les ordinateurs connectés.
-    - [x] Tables de persistance `sync_events` et `applied_deltas` avec reprise automatique après déconnexion ou utilisation hors-ligne.
-    - [x] Interface utilisateur intégrée dans `Header` (bouton synchro avec indicateur d'état actif/inactif) et `SettingsModal` (configuration du dossier Drive, détection automatique, options de téléchargement miroir complet, déclenchement manuel).
-    - [x] Tâche de synchronisation périodique en arrière-plan toutes les 60s.
-    - [x] Suite de tests d'intégration multi-clients (`test_two_clients_sync_via_google_drive_folder`) validée à 100%.
-  - [x] **Séries, Sagas & Numérotation de Tomes (Standard Calibre & ComicInfo)**
-    - [x] Modèle de données étendu (`series: Option<String>`, `series_index: Option<f64>`) sur `Book` et `ExtractedMetadata`.
-    - [x] Migration de schéma SQLite idempotente (`ALTER TABLE books ADD COLUMN series TEXT; ALTER TABLE books ADD COLUMN series_index REAL;`).
-    - [x] Extracteurs de formats enrichis : lecture de `<meta name="calibre:series">` et `series_index` sur EPUB + standard EPUB3 `belongs-to-collection` ; extraction `<Series>` et `<Number>` sur ComicInfo.xml pour CBZ/CBR.
-    - [x] Badges visuels de séries sur `BookCard` (`📚 Dune • T.1`), édition dans `DetailDrawer`, filtre dédié dans `Sidebar` avec décompte par saga et récapitulatif actif avec fermeture en 1 clic.
-  - [x] **Palette de Commandes Globale Keyboard-First (`Cmd + K` / `Ctrl + K`)**
-    - [x] Composant modal `CommandPalette` avec flou glassmorphic et autofocus réactif.
-    - [x] Raccourci global `Cmd + K` / `Ctrl + K` et bouton d'accès rapide dans la barre de recherche du `Header`.
-    - [x] Recherche unifiée et instantanée (livres, sagas, auteurs, tags) et exécution d'actions rapides en une touche (lecture directe, import, synchro Google Drive, filtres de lecture, paramètres).
-  - [x] Suite de tests 100% au vert sur `cargo test --workspace`.
+- [x] **Synchronisation Cloud & Multi-Postes Google Drive (Architecture Décentralisée Anti-Corruption)**
+  - [x] Architecture à flux de deltas événementiels décentralisés (`SyncAction`, `SyncEvent`, `SyncDelta`, `CloudSyncConfig`) isolant les fichiers binaires immuables (`files/`) des métadonnées incrémentales (`sync/deltas/`).
+  - [x] Moteur de synchronisation bidirectionnel `SyncService` avec backend `FolderSyncBackend` supportant l'auto-détection de Google Drive sous macOS et Windows.
+  - [x] Résolution de conflits multi-clients : Last-Write-Wins (LWW) sur la progression de lecture avec horodatage UTC, fusion additive des tags, tombstones de suppression, stockage immuable basé sur UUID.
+  - [x] Téléchargement automatique ou à la demande des fichiers de livres distants (EPUB, PDF, CBZ...) entre tous les ordinateurs connectés.
+  - [x] Tables de persistance `sync_events` et `applied_deltas` avec reprise automatique après déconnexion ou utilisation hors-ligne.
+  - [x] Interface utilisateur intégrée dans `Header` (bouton synchro avec indicateur d'état actif/inactif) et `SettingsModal` (configuration du dossier Drive, détection automatique, options de téléchargement miroir complet, déclenchement manuel).
+  - [x] Tâche de synchronisation périodique en arrière-plan toutes les 60s.
+  - [x] Suite de tests d'intégration multi-clients (`test_two_clients_sync_via_google_drive_folder`) validée.
+- [x] **Séries, Sagas & Numérotation de Tomes (Standard Calibre & ComicInfo)**
+  - [x] Modèle de données étendu (`series: Option<String>`, `series_index: Option<f64>`) sur `Book` et `ExtractedMetadata`.
+  - [x] Migration de schéma SQLite idempotente (`ALTER TABLE books ADD COLUMN series TEXT; ALTER TABLE books ADD COLUMN series_index REAL;`).
+  - [x] Extracteurs de formats enrichis : lecture de `<meta name="calibre:series">` et `series_index` sur EPUB + standard EPUB3 `belongs-to-collection` ; extraction `<Series>` et `<Number>` sur ComicInfo.xml pour CBZ/CBR.
+  - [x] Badges visuels de séries sur `BookCard` (`📚 Dune • T.1`), édition dans `DetailDrawer`, filtre dédié dans `Sidebar` avec décompte par saga et récapitulatif actif avec fermeture en 1 clic.
+- [x] **Organisation, Recherche & Automatisation Calibre-like**
+  - [x] Migration directe de bibliothèque Calibre (`CalibreImporter` lisant `metadata.db` en lecture seule) et recherche par syntaxe Calibre (`SearchQuery`).
+  - [x] Recherche plein texte dans le contenu des chapitres via SQLite FTS5 + score BM25 (`ContentSearchModal`, `/api/search-content`, `vellum-cli search-content`).
+  - [x] Moteur de templates de nommage / plugboards (`NamingTemplate`), règles d'importation (`ImportRulesModal`), renommage regex en masse (`BulkRegexModal`) et édition groupée (`BulkEditModal`).
+  - [x] Bibliothèques virtuelles (`VirtualLibraryService`), colonnes personnalisées (`CustomColumnService`), export de catalogue CSV/JSON/BibTeX (`CatalogExporter`) et export Markdown des notes (`NotesExporter`).
+  - [x] Surveillance de dossier automatique (`WatchFolderService` / Auto-Add) et envoi sans fil Send-to-Kindle via SMTP (`MailService`).
+- [x] **Éditeur EPUB, Audit de Santé, Presse RSS & Compagnon Web**
+  - [x] Inspecteur EPUB, linter, auto-réparation, éditeur de table des matières NCX/NAV et « Polish Book » (`EpubEditor`, `EpubEditorModal`).
+  - [x] Audit de santé de bibliothèque, détection floue de doublons et fusion intelligente (`library_audit`, `LibraryAuditModal`).
+  - [x] Moteur de recettes de presse RSS/Atom vers EPUB avec sanitisation HTML `ammonia` (`NewsService`, `NewsRecipesModal`).
+  - [x] Compagnon Web mobile responsive, lecteur web intégré (`/read/{id}`) et API REST complète (`/api/*`).
+- [x] **Ergonomie UI, Lecteur, i18n & CLI (`vellum-ui`, `vellum-cli`)**
+  - [x] Palette de commandes globale `Cmd + K` / `Ctrl + K` (`CommandPalette`), glisser-déposer, menu Outils et raccourcis clavier.
+  - [x] Vues multiples : Grille virtualisée avec cache WebP (`cover_cache.rs`), Tableau (`BooksTable`), refonte BookOrbit (`HomeDashboard`, `JumpRail` A–Z, thèmes, séparation Livres/Audiobooks/Comics).
+  - [x] Statistiques de lecture quantifiées avec heatmap annuelle (`ReadingStatsModal`) et modes Manga RTL / Webtoon continu pour CBZ/CBR (`reader_provider`).
+  - [x] Internationalisation complète FR/EN (`i18n.rs`, `locales/fr.json`, `locales/en.json`, sélecteur en direct dans `SettingsModal`).
+  - [x] Interface ligne de commande headless `vellum-cli` (`list`, `import`, `polish`, `convert`, `audit`, `export`, `watch`, `index`, `search-content`, `serve`).
+  - [x] Suite de tests, `clippy` et `rustdoc` du workspace au vert.
 
 ---
 
@@ -185,12 +201,12 @@ Dernière mise à jour : 10 novembre 2026 (Transition complète vers l'applicati
 ### Phase 3 — Web App complète & Écosystème Liseuses
 - [x] **Élever le Web Companion au niveau Web App complète (`web_api.rs` + assets)**
   - [x] Upload de livres par glisser-déposer depuis le navigateur (`POST /api/books/upload`, EPUB, PDF, CBZ/CBR, TXT...).
-  - [x] Édition des métadonnées, tags et séries depuis le navigateur (`POST /api/books/:id/metadata`).
+  - [x] Édition des métadonnées, tags et séries depuis le navigateur (`POST /api/books/{id}/metadata`).
   - [x] Déclenchement et suivi de la synchronisation Google Drive depuis l'interface Web (`GET /api/sync/status`, `POST /api/sync`).
-  - [x] Lecteur audio intégré (MP3 / M4B / OGG / FLAC) avec streaming HTTP Range et sauvegarde de la progression (`GET /api/books/:id/audio`).
+  - [x] Lecteur audio intégré (MP3 / M4B / OGG / FLAC) avec streaming HTTP Range et sauvegarde de la progression (`GET /api/books/{id}/audio`).
   - [x] Tableau de bord statistiques de lecture (`GET /api/stats` + bandeau stats Web).
 - [x] **Synchronisation KOReader**
-  - [x] Routes compatibles KOReader Progress Sync sur `OpdsServer` (`/users/auth`, `/users/create`, `PUT /syncs/progress`, `GET /syncs/progress/:document`).
+  - [x] Routes compatibles KOReader Progress Sync sur `OpdsServer` (`/users/auth`, `/users/create`, `PUT /syncs/progress`, `GET /syncs/progress/{document}`).
 - [x] **Fournisseurs de métadonnées supplémentaires**
   - [x] Enrichisseurs `HardcoverEnricherPlugin` (GraphQL Hardcover) et `ComicVineEnricherPlugin` (API ComicVine pour CBZ/CBR) ajoutés et enregistrés dans `vellum-plugins` et `PluginService`.
 - [x] **Multi-utilisateurs léger (optionnel en mode serveur/Docker)**

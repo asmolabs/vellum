@@ -664,7 +664,6 @@ fn App() -> Element {
                                     div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column;",
                                         if grid_win.top_spacer_px > 0.0 {
                                             div {
-                                                key: "grid-top-spacer",
                                                 style: "height: {grid_win.top_spacer_px:.1}px; flex-shrink: 0;",
                                             }
                                         }
@@ -726,7 +725,6 @@ fn App() -> Element {
                                         }
                                         if grid_win.bottom_spacer_px > 0.0 {
                                             div {
-                                                key: "grid-bottom-spacer",
                                                 style: "height: {grid_win.bottom_spacer_px:.1}px; flex-shrink: 0;",
                                             }
                                         }
