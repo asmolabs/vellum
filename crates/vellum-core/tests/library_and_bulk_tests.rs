@@ -349,6 +349,132 @@ async fn test_calibre_library_import() {
 }
 
 #[tokio::test]
+async fn test_calibre_library_import_real_schema_identifiers() {
+    use rusqlite::Connection;
+    use vellum_core::CalibreImporter;
+
+    let temp_calibre = TempDir::new().expect("temp calibre dir");
+    let calibre_root = temp_calibre.path();
+    let db_path = calibre_root.join("metadata.db");
+
+    // Real Calibre schema: NO `isbn` column in `books`, uses `identifiers` table instead
+    let conn = Connection::open(&db_path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE books (
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            sort TEXT,
+            timestamp TEXT,
+            pubdate TEXT,
+            series_index REAL DEFAULT 1.0,
+            author_sort TEXT,
+            path TEXT,
+            has_cover INTEGER DEFAULT 0
+        );
+        CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sort TEXT);
+        CREATE TABLE books_authors_link (id INTEGER PRIMARY KEY, book INTEGER, author INTEGER);
+        CREATE TABLE series (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sort TEXT);
+        CREATE TABLE books_series_link (id INTEGER PRIMARY KEY, book INTEGER, series INTEGER);
+        CREATE TABLE tags (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE books_tags_link (id INTEGER PRIMARY KEY, book INTEGER, tag INTEGER);
+        CREATE TABLE comments (id INTEGER PRIMARY KEY, book INTEGER, text TEXT);
+        CREATE TABLE publishers (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE books_publishers_link (id INTEGER PRIMARY KEY, book INTEGER, publisher INTEGER);
+        CREATE TABLE data (id INTEGER PRIMARY KEY, book INTEGER, format TEXT, uncompressed_size INTEGER, name TEXT);
+        CREATE TABLE identifiers (id INTEGER PRIMARY KEY, book INTEGER NOT NULL, type TEXT NOT NULL, val TEXT NOT NULL);
+
+        INSERT INTO authors (id, name) VALUES (1, 'Frank Herbert');
+        INSERT INTO books (id, title, series_index, path, has_cover) 
+        VALUES (1, 'Dune', 1.0, 'Frank Herbert/Dune (1)', 1);
+        INSERT INTO books_authors_link (book, author) VALUES (1, 1);
+        INSERT INTO identifiers (book, type, val) VALUES (1, 'isbn', '9780441172719');
+        INSERT INTO data (book, format, uncompressed_size, name) VALUES (1, 'EPUB', 500000, 'Dune - Frank Herbert');
+        ",
+    )
+    .unwrap();
+
+    let book_dir = calibre_root.join("Frank Herbert").join("Dune (1)");
+    std::fs::create_dir_all(&book_dir).unwrap();
+    let epub_file = book_dir.join("Dune - Frank Herbert.epub");
+    std::fs::write(&epub_file, b"dummy dune epub").unwrap();
+
+    let temp_vellum = TempDir::new().expect("temp vellum dir");
+    let book_service = create_test_services(&temp_vellum);
+
+    let report = CalibreImporter::import_calibre_library(calibre_root, true, &book_service)
+        .expect("import real schema calibre library");
+
+    assert_eq!(report.books_imported, 1);
+    assert_eq!(report.formats_imported, 1);
+    assert_eq!(report.errors.len(), 0);
+
+    let all_books = book_service.book_repo().find_all().unwrap();
+    assert_eq!(all_books.len(), 1);
+    assert_eq!(all_books[0].title, "Dune");
+    assert_eq!(all_books[0].author, "Frank Herbert");
+    assert_eq!(all_books[0].isbn.as_deref(), Some("9780441172719"));
+}
+
+#[tokio::test]
+async fn test_calibre_library_import_with_progress_and_cancel() {
+    use rusqlite::Connection;
+    use std::sync::atomic::AtomicBool;
+
+    let temp_calibre = TempDir::new().expect("temp calibre dir");
+    let calibre_root = temp_calibre.path();
+    let db_path = calibre_root.join("metadata.db");
+
+    let conn = Connection::open(&db_path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE books (id INTEGER PRIMARY KEY, title TEXT NOT NULL, path TEXT);
+         CREATE TABLE data (id INTEGER PRIMARY KEY, book INTEGER, format TEXT, uncompressed_size INTEGER, name TEXT);
+         INSERT INTO books (id, title, path) VALUES (1, 'Book 1', 'Author/Book 1');
+         INSERT INTO books (id, title, path) VALUES (2, 'Book 2', 'Author/Book 2');
+         INSERT INTO data (book, format, uncompressed_size, name) VALUES (1, 'TXT', 100, 'b1');
+         INSERT INTO data (book, format, uncompressed_size, name) VALUES (2, 'TXT', 100, 'b2');",
+    ).unwrap();
+
+    let b1_dir = calibre_root.join("Author/Book 1");
+    let b2_dir = calibre_root.join("Author/Book 2");
+    std::fs::create_dir_all(&b1_dir).unwrap();
+    std::fs::create_dir_all(&b2_dir).unwrap();
+    std::fs::write(b1_dir.join("b1.txt"), b"content 1").unwrap();
+    std::fs::write(b2_dir.join("b2.txt"), b"content 2").unwrap();
+
+    let temp_vellum = TempDir::new().expect("temp vellum dir");
+    let book_service = create_test_services(&temp_vellum);
+
+    // 1. Test normal progress tracking
+    let mut progress_events = Vec::new();
+    let report = book_service.import_calibre_library_with_progress(
+        calibre_root,
+        true,
+        None,
+        |done, total, title| {
+            progress_events.push((done, total, title.to_string()));
+        },
+    ).expect("import success");
+
+    assert_eq!(report.books_imported, 2);
+    assert!(!report.cancelled);
+    assert_eq!(progress_events.len(), 2);
+    assert_eq!(progress_events[0], (1, 2, "Book 1".to_string()));
+    assert_eq!(progress_events[1], (2, 2, "Book 2".to_string()));
+
+    // 2. Test cancellation token
+    let cancel = AtomicBool::new(true);
+    let cancel_report = book_service.import_calibre_library_with_progress(
+        calibre_root,
+        true,
+        Some(&cancel),
+        |_, _, _| {},
+    ).expect("import handled with cancel");
+
+    assert!(cancel_report.cancelled);
+    assert_eq!(cancel_report.books_imported, 0);
+}
+
+#[tokio::test]
 async fn test_library_health_audit_and_merge_books() {
     let tmp = tempfile::tempdir().unwrap();
     let library_dir = tmp.path().join("library");
@@ -753,4 +879,45 @@ fn test_full_text_search_inside_books() {
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].book_id, imported.id);
     assert!(hits[0].snippet.contains("épice"));
+}
+
+#[test]
+fn test_bracket_series_detection_and_apply_without_modifying_title() {
+    let temp = TempDir::new().expect("tempdir");
+    let book_service = create_test_services(&temp);
+
+    let b1 = vellum_domain::Book::new("[Ben Hope-En-07] The Sacred Sword", "Scott Mariani");
+    let b2 = vellum_domain::Book::new("[Le Virus Morningstar-03] Survivants", "Z.A. Recht");
+    let b3 = vellum_domain::Book::new("[Warhammer] Wulfrik", "C.L. Werner");
+    let b4 = vellum_domain::Book::new("Fondation", "Isaac Asimov");
+
+    book_service.book_repo().save_batch(&[b1.clone(), b2.clone(), b3.clone(), b4.clone()]).unwrap();
+
+    let scan = book_service.scan_bracket_series().unwrap();
+    assert_eq!(scan.total_books, 4);
+    assert_eq!(scan.matched_count, 3);
+
+    // Apply
+    let updated = book_service.apply_bracket_series(&scan.candidates).unwrap();
+    assert_eq!(updated, 3);
+
+    // Verify: titles are UNCHANGED, series and series_index are populated!
+    let r1 = book_service.get_book_by_id(&b1.id).unwrap().unwrap();
+    assert_eq!(r1.title, "[Ben Hope-En-07] The Sacred Sword");
+    assert_eq!(r1.series.as_deref(), Some("Ben Hope"));
+    assert_eq!(r1.series_index, Some(7.0));
+
+    let r2 = book_service.get_book_by_id(&b2.id).unwrap().unwrap();
+    assert_eq!(r2.title, "[Le Virus Morningstar-03] Survivants");
+    assert_eq!(r2.series.as_deref(), Some("Le Virus Morningstar"));
+    assert_eq!(r2.series_index, Some(3.0));
+
+    let r3 = book_service.get_book_by_id(&b3.id).unwrap().unwrap();
+    assert_eq!(r3.title, "[Warhammer] Wulfrik");
+    assert_eq!(r3.series.as_deref(), Some("Warhammer"));
+    assert_eq!(r3.series_index, None);
+
+    let r4 = book_service.get_book_by_id(&b4.id).unwrap().unwrap();
+    assert_eq!(r4.title, "Fondation");
+    assert_eq!(r4.series, None);
 }

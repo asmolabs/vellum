@@ -25,6 +25,12 @@ pub struct DeviceService {
     plugin_service: PluginService,
 }
 
+impl PartialEq for DeviceService {
+    fn eq(&self, other: &Self) -> bool {
+        self.book_service == other.book_service
+    }
+}
+
 impl DeviceService {
     pub fn new(book_service: Arc<BookService>, plugin_service: PluginService) -> Self {
         Self {
@@ -55,12 +61,11 @@ impl DeviceService {
                 });
 
             if let Some(mount) = p.detect_device(custom_mount.as_deref()) {
-                let book_count = p.list_books(&mount).map(|b| b.len()).unwrap_or(0);
                 list.push(ConnectedDevice {
                     kind: p.device_kind(),
                     name: p.name().to_string(),
                     mount_point: mount,
-                    book_count,
+                    book_count: 0,
                 });
             }
         }
@@ -278,4 +283,154 @@ impl DeviceService {
 
         plugin.get_annotations(&mount)
     }
+
+    /// Compares books on a connected device with the Vellum library.
+    /// Categorizes books into:
+    /// - present on device (matched)
+    /// - in Vellum but not yet on device (candidates to transfer)
+    /// - on device but not in Vellum (candidates to import)
+    pub fn compare_device(
+        &self,
+        kind: DeviceKind,
+        custom_mount: Option<&Path>,
+    ) -> VellumResult<DeviceComparison> {
+        let plugin = self.get_plugin_for_kind(kind).ok_or_else(|| {
+            VellumError::NotFound(format!("Plugin introuvable pour l'appareil {:?}", kind))
+        })?;
+
+        let mount = plugin.detect_device(custom_mount).ok_or_else(|| {
+            VellumError::NotFound(format!("L'appareil {:?} n'est pas connecté", kind))
+        })?;
+
+        let device_books = plugin.list_books(&mount)?;
+        let all_books = self.book_repo().find_all()?;
+
+        let mut matched_device_books = Vec::new();
+        let mut in_vellum_not_on_device = Vec::new();
+        let mut matched_device_indices = std::collections::HashSet::new();
+
+        for book in all_books {
+            let norm_title = normalize_for_match(&book.title);
+            let mut found = false;
+
+            for (idx, d_book) in device_books.iter().enumerate() {
+                let norm_d_title = normalize_for_match(&d_book.title);
+                let norm_d_stem = normalize_for_match(
+                    Path::new(&d_book.filename)
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(""),
+                );
+
+                if !norm_title.is_empty()
+                    && (norm_title == norm_d_title
+                        || norm_d_stem.contains(&norm_title)
+                        || norm_title.contains(&norm_d_title))
+                {
+                    matched_device_indices.insert(idx);
+                    found = true;
+                    break;
+                }
+            }
+
+            if found {
+                // Book is already on device
+            } else {
+                in_vellum_not_on_device.push(book);
+            }
+        }
+
+        let mut on_device_not_in_vellum = Vec::new();
+        for (idx, d_book) in device_books.into_iter().enumerate() {
+            if matched_device_indices.contains(&idx) {
+                matched_device_books.push(d_book);
+            } else {
+                on_device_not_in_vellum.push(d_book);
+            }
+        }
+
+        let connected_device = ConnectedDevice {
+            kind,
+            name: plugin.name().to_string(),
+            mount_point: mount,
+            book_count: matched_device_books.len() + on_device_not_in_vellum.len(),
+        };
+
+        Ok(DeviceComparison {
+            device: connected_device,
+            present_on_device: matched_device_books,
+            in_vellum_not_on_device,
+            on_device_not_in_vellum,
+        })
+    }
+
+    /// Batch exports books from Vellum to a connected device.
+    pub fn export_books_batch(
+        &self,
+        book_ids: &[String],
+        kind: DeviceKind,
+        custom_mount: Option<&Path>,
+    ) -> VellumResult<usize> {
+        let mut count = 0;
+        for id in book_ids {
+            match self.export_book_to_device(id, kind, custom_mount) {
+                Ok(_) => count += 1,
+                Err(e) => {
+                    warn!("Échec de l'export du livre {id} vers {:?}: {e}", kind);
+                }
+            }
+        }
+        Ok(count)
+    }
+
+    /// Batch imports selected books from the device into Vellum.
+    pub fn import_device_books_batch(
+        &self,
+        relative_paths: &[PathBuf],
+        kind: DeviceKind,
+        custom_mount: Option<&Path>,
+    ) -> VellumResult<Vec<Book>> {
+        let plugin = self.get_plugin_for_kind(kind).ok_or_else(|| {
+            VellumError::NotFound(format!("Plugin introuvable pour l'appareil {:?}", kind))
+        })?;
+
+        let mount = plugin.detect_device(custom_mount).ok_or_else(|| {
+            VellumError::NotFound(format!("L'appareil {:?} n'est pas connecté", kind))
+        })?;
+
+        let mut imported = Vec::new();
+        for rel in relative_paths {
+            let full_device_file = if rel.is_absolute() {
+                rel.clone()
+            } else {
+                mount.join(rel)
+            };
+
+            if full_device_file.exists() {
+                match self.book_service.import_book(&full_device_file) {
+                    Ok(b) => imported.push(b),
+                    Err(e) => {
+                        warn!("Erreur lors de l'import de {:?}: {e}", full_device_file);
+                    }
+                }
+            }
+        }
+
+        Ok(imported)
+    }
+}
+
+fn normalize_for_match(s: &str) -> String {
+    s.chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>()
+        .to_lowercase()
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeviceComparison {
+    pub device: ConnectedDevice,
+    pub present_on_device: Vec<DeviceBookInfo>,
+    pub in_vellum_not_on_device: Vec<Book>,
+    pub on_device_not_in_vellum: Vec<DeviceBookInfo>,
 }

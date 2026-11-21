@@ -1,5 +1,4 @@
 use crate::cover_cache::resolve_cover_src;
-use crate::library_logic::{compute_table_window, TABLE_ROW_HEIGHT_PX};
 use dioxus::prelude::*;
 use std::collections::HashSet;
 use vellum_core::{translate, Locale};
@@ -17,7 +16,8 @@ pub fn BooksTable(
     on_read: EventHandler<Book>,
     #[props(default)] on_download: Option<EventHandler<Book>>,
 ) -> Element {
-    let mut table_scroll = use_signal(|| (0.0_f64, 560.0_f64));
+    let total_books = books.len();
+    let mut visible_table_count = use_signal(|| 150_usize);
     let mut cols_open = use_signal(|| false);
     let show_author = use_signal(|| true);
     let show_series = use_signal(|| true);
@@ -30,24 +30,27 @@ pub fn BooksTable(
             r#"
             const el = document.getElementById('vellum-books-table-wrap');
             if (!el) return;
-            let rafId = 0;
-            const emit = () => {
-                rafId = 0;
-                dioxus.send([el.scrollTop, el.clientHeight]);
+            let loading = false;
+            const check = () => {
+                if (loading) return;
+                const distanceToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight);
+                if (distanceToBottom < 800) {
+                    loading = true;
+                    dioxus.send('load_more');
+                    setTimeout(() => { loading = false; }, 150);
+                }
             };
-            const schedule = () => {
-                if (!rafId) rafId = requestAnimationFrame(emit);
-            };
-            el.addEventListener('scroll', schedule, { passive: true });
-            const ro = new ResizeObserver(schedule);
-            ro.observe(el);
-            emit();
+            el.addEventListener('scroll', check, { passive: true });
+            check();
         "#,
         );
         spawn(async move {
-            while let Ok(vals) = eval.recv::<Vec<f64>>().await {
-                if vals.len() == 2 {
-                    table_scroll.set((vals[0], vals[1]));
+            while let Ok(msg) = eval.recv::<String>().await {
+                if msg == "load_more" {
+                    let cur = *visible_table_count.peek();
+                    if cur < total_books {
+                        visible_table_count.set((cur + 100).min(total_books));
+                    }
                 }
             }
         });
@@ -57,20 +60,22 @@ pub fn BooksTable(
         crate::library_logic::resolve_active_index(&books, focused_book_id.read().as_deref())
             .unwrap_or(0);
     let active_id = books.get(active_idx).map(|b| b.id.clone());
-    let (scroll_top, viewport_h) = *table_scroll.read();
-    let table_win = compute_table_window(books.len(), scroll_top, viewport_h, TABLE_ROW_HEIGHT_PX);
+    let cur_visible = (*visible_table_count.read()).min(total_books);
 
     rsx! {
         div { style: "display: flex; flex-direction: column; flex: 1; min-height: 0;",
             if show_carousel && !books.is_empty() {
                 {
                     let total = books.len();
-                    let books_prev = books.clone();
-                    let books_next = books.clone();
-                    let books_wheel = books.clone();
+                    let prev_id = if active_idx > 0 { Some(books[active_idx - 1].id.clone()) } else { None };
+                    let next_id = if active_idx + 1 < total { Some(books[active_idx + 1].id.clone()) } else { None };
+                    let prev_id_wheel = prev_id.clone();
+                    let next_id_wheel = next_id.clone();
                     let active_book = books[active_idx].clone();
                     let active_read = active_book.clone();
                     let active_detail = active_book.clone();
+                    let start_cf = active_idx.saturating_sub(5);
+                    let end_cf = (active_idx + 6).min(total);
 
                     rsx! {
                         div {
@@ -78,10 +83,14 @@ pub fn BooksTable(
                             onwheel: move |evt: WheelEvent| {
                                 let delta = evt.delta().strip_units();
                                 let dy = if delta.x.abs() > delta.y.abs() { delta.x } else { delta.y };
-                                if dy > 4.0 && active_idx + 1 < books_wheel.len() {
-                                    focused_book_id.set(Some(books_wheel[active_idx + 1].id.clone()));
-                                } else if dy < -4.0 && active_idx > 0 {
-                                    focused_book_id.set(Some(books_wheel[active_idx - 1].id.clone()));
+                                if dy > 4.0 {
+                                    if let Some(ref nid) = next_id_wheel {
+                                        focused_book_id.set(Some(nid.clone()));
+                                    }
+                                } else if dy < -4.0 {
+                                    if let Some(ref pid) = prev_id_wheel {
+                                        focused_book_id.set(Some(pid.clone()));
+                                    }
                                 }
                             },
 
@@ -90,66 +99,63 @@ pub fn BooksTable(
                                 title: translate(locale, "table.prev"),
                                 disabled: active_idx == 0,
                                 onclick: move |_| {
-                                    if active_idx > 0 {
-                                        focused_book_id.set(Some(books_prev[active_idx - 1].id.clone()));
+                                    if let Some(ref pid) = prev_id {
+                                        focused_book_id.set(Some(pid.clone()));
                                     }
                                 },
                                 "‹"
                             }
 
                             div { class: "coverflow-track",
-                                for (idx, b) in books.iter().enumerate() {
+                                for (rel_idx, b) in books[start_cf..end_cf].iter().enumerate() {
                                     {
+                                        let idx = start_cf + rel_idx;
                                         let offset = idx as isize - active_idx as isize;
-                                        if offset.abs() <= 5 {
-                                            let is_center = offset == 0;
-                                            let abs_off = offset.abs();
-                                            let z_index = 20 - abs_off;
-                                            let opacity = if is_center { 1.0 } else { (1.0 - (abs_off as f32) * 0.13).max(0.35) };
-                                            let transform = if is_center {
-                                                "translateX(-50%) translateZ(90px) scale(1.1) rotateY(0deg)".to_string()
-                                            } else if offset < 0 {
-                                                let tx = offset * 82 - 44;
-                                                let tz = -(abs_off * 48);
-                                                format!("translateX(calc(-50% + {tx}px)) translateZ({tz}px) rotateY(48deg) scale(0.92)")
-                                            } else {
-                                                let tx = offset * 82 + 44;
-                                                let tz = -(abs_off * 48);
-                                                format!("translateX(calc(-50% + {tx}px)) translateZ({tz}px) rotateY(-48deg) scale(0.92)")
-                                            };
-                                            let cover_src = resolve_cover_src(&b.id, b.cover_path.as_deref(), true);
-                                            let id_click = b.id.clone();
-                                            let b_click = b.clone();
-                                            let b_dbl = b.clone();
-                                            rsx! {
-                                                div {
-                                                    key: "cf-{b.id}",
-                                                    class: if is_center { "coverflow-card is-center" } else { "coverflow-card" },
-                                                    style: "transform: {transform}; z-index: {z_index}; opacity: {opacity};",
-                                                    title: "{b.title} — {b.author}",
-                                                    onclick: move |_| {
-                                                        if is_center {
-                                                            on_select.call(b_click.clone());
-                                                        } else {
-                                                            focused_book_id.set(Some(id_click.clone()));
-                                                        }
-                                                    },
-                                                    ondoubleclick: move |_| on_read.call(b_dbl.clone()),
-                                                    if let Some(src) = cover_src {
-                                                        img {
-                                                            src: "{src}",
-                                                            style: "width: 100%; height: 100%; object-fit: cover; pointer-events: none;",
-                                                        }
+                                        let is_center = offset == 0;
+                                        let abs_off = offset.abs();
+                                        let z_index = 20 - abs_off;
+                                        let opacity = if is_center { 1.0 } else { (1.0 - (abs_off as f32) * 0.13).max(0.35) };
+                                        let transform = if is_center {
+                                            "translateX(-50%) translateZ(90px) scale(1.1) rotateY(0deg)".to_string()
+                                        } else if offset < 0 {
+                                            let tx = offset * 82 - 44;
+                                            let tz = -(abs_off * 48);
+                                            format!("translateX(calc(-50% + {tx}px)) translateZ({tz}px) rotateY(48deg) scale(0.92)")
+                                        } else {
+                                            let tx = offset * 82 + 44;
+                                            let tz = -(abs_off * 48);
+                                            format!("translateX(calc(-50% + {tx}px)) translateZ({tz}px) rotateY(-48deg) scale(0.92)")
+                                        };
+                                        let cover_src = resolve_cover_src(&b.id, b.cover_path.as_deref(), true);
+                                        let id_click = b.id.clone();
+                                        let b_click = b.clone();
+                                        let b_dbl = b.clone();
+                                        rsx! {
+                                            div {
+                                                key: "cf-{b.id}",
+                                                class: if is_center { "coverflow-card is-center" } else { "coverflow-card" },
+                                                style: "transform: {transform}; z-index: {z_index}; opacity: {opacity};",
+                                                title: "{b.title} — {b.author}",
+                                                onclick: move |_| {
+                                                    if is_center {
+                                                        on_select.call(b_click.clone());
                                                     } else {
-                                                        div { style: "padding: 10px; text-align: center; font-size: 11px; color: var(--text-secondary);",
-                                                            div { style: "font-size: 26px; margin-bottom: 6px;", "📖" }
-                                                            div { style: "font-weight: 600;", "{b.title}" }
-                                                        }
+                                                        focused_book_id.set(Some(id_click.clone()));
+                                                    }
+                                                },
+                                                ondoubleclick: move |_| on_read.call(b_dbl.clone()),
+                                                if let Some(src) = cover_src {
+                                                    img {
+                                                        src: "{src}",
+                                                        style: "width: 100%; height: 100%; object-fit: cover; pointer-events: none;",
+                                                    }
+                                                } else {
+                                                    div { style: "padding: 10px; text-align: center; font-size: 11px; color: var(--text-secondary);",
+                                                        div { style: "font-size: 26px; margin-bottom: 6px;", "📖" }
+                                                        div { style: "font-weight: 600;", "{b.title}" }
                                                     }
                                                 }
                                             }
-                                        } else {
-                                            rsx! {}
                                         }
                                     }
                                 }
@@ -160,8 +166,8 @@ pub fn BooksTable(
                                 title: translate(locale, "table.next"),
                                 disabled: active_idx + 1 >= total,
                                 onclick: move |_| {
-                                    if active_idx + 1 < books_next.len() {
-                                        focused_book_id.set(Some(books_next[active_idx + 1].id.clone()));
+                                    if let Some(ref nid) = next_id {
+                                        focused_book_id.set(Some(nid.clone()));
                                     }
                                 },
                                 "›"
@@ -244,13 +250,7 @@ pub fn BooksTable(
                         }
                     }
                     tbody {
-                        if table_win.top_spacer_px > 0.0 {
-                            tr {
-                                style: "height: {table_win.top_spacer_px:.1}px; pointer-events: none;",
-                                td { colspan: "9", style: "padding: 0; border: none;" }
-                            }
-                        }
-                        for b in books[table_win.start_idx..table_win.end_idx].iter() {
+                        for b in books[..cur_visible].iter() {
                             {
                                 let is_active = active_id.as_deref() == Some(b.id.as_str());
                                 let is_checked = selected_ids.contains(&b.id);
@@ -357,11 +357,19 @@ pub fn BooksTable(
                                 }
                             }
                         }
-                        if table_win.bottom_spacer_px > 0.0 {
-                            tr {
-                                style: "height: {table_win.bottom_spacer_px:.1}px; pointer-events: none;",
-                                td { colspan: "9", style: "padding: 0; border: none;" }
-                            }
+                    }
+                }
+                if cur_visible < total_books {
+                    div {
+                        style: "display: flex; justify-content: center; padding: 14px 0;",
+                        button {
+                            class: "btn btn-secondary",
+                            style: "font-size: 12px;",
+                            onclick: move |_| {
+                                let cur = *visible_table_count.peek();
+                                visible_table_count.set((cur + 100).min(total_books));
+                            },
+                            "{translate(locale, \"common.load_more\")} ({cur_visible} / {total_books})"
                         }
                     }
                 }

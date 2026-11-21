@@ -1,5 +1,6 @@
 //! Service principal de gestion de la bibliothèque (import, métadonnées, conversion, audit).
 
+mod bracket_series;
 mod bulk_regex;
 mod conversion;
 mod epub_and_audit;
@@ -8,6 +9,9 @@ mod lifecycle;
 mod metadata;
 pub mod thumbnails;
 
+pub use bracket_series::{
+    parse_bracket_series, BracketSeriesCandidate, BracketSeriesScanReport,
+};
 pub use bulk_regex::{BulkRegexChange, BulkRegexReport, BulkRegexRequest, RegexTargetField};
 pub use conversion::BulkConvertReport;
 pub use thumbnails::{

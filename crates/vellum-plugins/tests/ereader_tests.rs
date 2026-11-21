@@ -4,7 +4,9 @@ use std::fs::File;
 use std::io::Write;
 use tempfile::TempDir;
 use vellum_domain::{Book, DeviceKind, DeviceSyncPlugin};
-use vellum_plugins::ereader::{convert_epub_to_kepub, KindleSyncPlugin, KoboSyncPlugin};
+use vellum_plugins::ereader::{
+    convert_epub_to_kepub, GenericSyncPlugin, KindleSyncPlugin, KoboSyncPlugin,
+};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
@@ -211,4 +213,41 @@ Le criquet du temps chantait dans les herbes mortes.
     assert_eq!(ann.len(), 1);
     assert_eq!(ann[0].book_title, "Hyperion");
     assert!(ann[0].text.contains("Le criquet du temps chantait"));
+}
+
+#[test]
+fn test_generic_sync_plugin_lifecycle() {
+    let temp = TempDir::new().unwrap();
+    let generic_mount = temp.path().join("Xteink");
+    let books_dir = generic_mount.join("books");
+    std::fs::create_dir_all(&books_dir).unwrap();
+
+    let sample = books_dir.join("Ursula Le Guin - Les Depossedes.epub");
+    std::fs::write(&sample, b"EPUB mock data").unwrap();
+
+    let plugin = GenericSyncPlugin::new();
+    assert_eq!(plugin.device_kind(), DeviceKind::Generic);
+
+    let detected = plugin.detect_device(Some(&generic_mount));
+    assert_eq!(detected.as_deref(), Some(generic_mount.as_path()));
+
+    let books = plugin.list_books(&generic_mount).unwrap();
+    assert_eq!(books.len(), 1);
+    assert_eq!(books[0].title, "Les Depossedes");
+    assert_eq!(books[0].author, "Ursula Le Guin");
+
+    let src_file = temp.path().join("Dune.epub");
+    std::fs::write(&src_file, b"Dune mock data").unwrap();
+    let book = Book::new("Dune", "Frank Herbert");
+    let exported = plugin
+        .export_book(
+            &book,
+            &src_file,
+            &generic_mount,
+            &std::collections::HashMap::new(),
+        )
+        .unwrap();
+
+    assert!(exported.exists());
+    assert!(exported.to_string_lossy().contains("Frank Herbert"));
 }

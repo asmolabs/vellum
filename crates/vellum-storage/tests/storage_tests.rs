@@ -47,7 +47,6 @@ fn test_sqlite_wal_book_and_tag_persistence() {
     assert_eq!(found_by_isbn.len(), 1);
     assert_eq!(found_by_isbn[0].title, "Fondation");
 
-    // Tag counts
     let counts = tag_repo.find_tags_with_book_counts().unwrap();
     assert_eq!(counts.get("Science-Fiction"), Some(&1));
     assert_eq!(counts.get("Classique"), Some(&1));
@@ -262,4 +261,29 @@ fn test_param_kv_and_book_tag_replacement() {
     assert_eq!(counts.get("Fantasy"), Some(&1));
     assert_eq!(counts.get("Chef-d'oeuvre"), Some(&1));
     assert_eq!(counts.get("Temporaire").copied().unwrap_or(0), 0);
+}
+
+#[test]
+fn test_save_batch_and_load_batch() {
+    let dir = tempdir().unwrap();
+    let db = Database::open(dir.path().join("batch.db")).unwrap();
+    let book_repo = BookRepository::new(db);
+
+    let mut batch_books = Vec::new();
+    for i in 0..25 {
+        let mut b = Book::new(format!("Book {i}"), "Batch Author");
+        b.add_format(BookFormat::new("epub", format!("b{i}.epub"), format!("b{i}.epub"), 100));
+        b.add_tag(Tag::new("BatchTag"));
+        batch_books.push(b);
+    }
+    book_repo.save_batch(&batch_books).unwrap();
+
+    let all_batch = book_repo.search_books(Some("Batch Author"), None).unwrap();
+    assert_eq!(all_batch.len(), 25);
+    for b in &all_batch {
+        assert_eq!(b.formats.len(), 1);
+        assert_eq!(b.tags.len(), 1);
+        assert_eq!(b.tags[0].name, "BatchTag");
+    }
+    assert_eq!(book_repo.count().unwrap(), 25);
 }

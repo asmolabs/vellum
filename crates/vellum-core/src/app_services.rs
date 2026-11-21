@@ -1,5 +1,6 @@
 //! Initialisation et assemblage des services applicatifs de Vellum.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tracing::info;
@@ -49,7 +50,23 @@ pub fn init_services_with_options(app_cfg: AppConfig, spawn_opds: bool) -> AppSe
     let _ = std::fs::create_dir_all(&app_cfg.library_path);
     let _ = std::fs::create_dir_all(&app_cfg.plugins_path);
 
-    let db = Database::open(&app_cfg.database_path).expect("open vellum sqlite database");
+    let db = match Database::open(&app_cfg.database_path) {
+        Ok(db) => db,
+        Err(e) => {
+            tracing::error!(
+                "Impossible d'ouvrir la base principale {:?}: {e}. Tentative avec base locale.",
+                app_cfg.database_path
+            );
+            let fallback_dir = std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("target");
+            let _ = std::fs::create_dir_all(&fallback_dir);
+            let fallback_path = fallback_dir.join("metadata.db");
+            Database::open(&fallback_path).unwrap_or_else(|err| {
+                panic!("Impossible d'ouvrir la base SQLite ({:?}: {e}, fallback {:?}: {err})", app_cfg.database_path, fallback_path);
+            })
+        }
+    };
     let book_repo = BookRepository::new(db.clone());
     let param_repo = ParamRepository::new(db.clone());
     let tag_repo = TagRepository::new(db.clone());

@@ -49,7 +49,10 @@ pub(crate) struct AppActionContext {
     pub stats_open: Signal<bool>,
     pub content_search_open: Signal<bool>,
     pub bulk_regex_open: Signal<bool>,
+    pub bracket_series_open: Signal<bool>,
+    pub device_manager_open: Signal<bool>,
     pub import_rules_open: Signal<bool>,
+    pub calibre_import_path: Signal<Option<PathBuf>>,
     pub ui_locale: Signal<Locale>,
     pub toast_msg: Signal<Option<(String, bool)>>,
 }
@@ -113,6 +116,7 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         PaletteAction::ReadBook(b) => on_read.call(b),
         PaletteAction::SetViewGrid => ctx.view_mode.set(ViewMode::Grid),
         PaletteAction::SetViewTable => ctx.view_mode.set(ViewMode::Table),
+        PaletteAction::SetViewTableCarousel => ctx.view_mode.set(ViewMode::TableCarousel),
         PaletteAction::FilterAll => {
             ctx.current_filter.set(FilterStatus::All);
             ctx.selected_tag.set(None);
@@ -153,6 +157,8 @@ pub(crate) fn build_app_actions(mut ctx: AppActionContext) -> AppActions {
         PaletteAction::OpenReadingStats => ctx.stats_open.set(true),
         PaletteAction::OpenContentSearch => ctx.content_search_open.set(true),
         PaletteAction::OpenBulkRegex => ctx.bulk_regex_open.set(true),
+        PaletteAction::OpenBracketSeries => ctx.bracket_series_open.set(true),
+        PaletteAction::OpenDeviceManager => ctx.device_manager_open.set(true),
         PaletteAction::OpenImportRules => ctx.import_rules_open.set(true),
         PaletteAction::OpenWebCompanion => {
             crate::platform::open_url(&format!("http://localhost:{opds_port}"));

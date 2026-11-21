@@ -46,14 +46,15 @@ pub use app_services::{
     scan_and_index_library, AppServices,
 };
 pub use book_service::{
-    BookService, BulkConvertReport, BulkRegexChange, BulkRegexReport, BulkRegexRequest,
-    DuplicateBookInfo, RegexTargetField, TranslateBookRequest, UpdateMetadataRequest,
+    parse_bracket_series, BookService, BracketSeriesCandidate, BracketSeriesScanReport,
+    BulkConvertReport, BulkRegexChange, BulkRegexReport, BulkRegexRequest, DuplicateBookInfo,
+    RegexTargetField, TranslateBookRequest, UpdateMetadataRequest,
 };
 pub use calibre_importer::{CalibreImportReport, CalibreImporter};
 pub use catalog_exporter::{CatalogExporter, CatalogFormat};
 pub use conversion_service::ConversionService;
 pub use custom_column_service::CustomColumnService;
-pub use device_service::{ConnectedDevice, DeviceService};
+pub use device_service::{ConnectedDevice, DeviceComparison, DeviceService};
 pub use epub_editor::{EpubEditor, PolishOptions, PolishReport};
 pub use i18n::{catalog_for, translate, translate_fmt, Locale};
 pub use import_rules::{apply_import_rules, ImportRule, ImportRuleOutcome, ImportRuleTarget};

@@ -4,7 +4,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use dioxus::prelude::*;
 use std::sync::LazyLock;
-use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
+use vellum_core::{translate, ConnectedDevice, Locale};
 use vellum_domain::DeviceKind;
 
 pub static VELLUM_LOGO_DATA_URI: LazyLock<String> = LazyLock::new(|| {
@@ -30,6 +30,7 @@ pub fn Header(
     on_open_news: EventHandler<()>,
     on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
+    on_open_device_manager: EventHandler<()>,
     on_sync_cloud: EventHandler<()>,
     on_open_settings: EventHandler<()>,
 ) -> Element {
@@ -44,7 +45,7 @@ pub fn Header(
         ViewMode::Series => translate(locale, "nav.series").to_string(),
         ViewMode::History => translate(locale, "nav.history").to_string(),
         ViewMode::Annotations => "Annotations".to_string(),
-        ViewMode::Grid | ViewMode::Table => translate(locale, "nav.library").to_string(),
+        ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel => translate(locale, "nav.library").to_string(),
     };
 
     rsx! {
@@ -104,8 +105,8 @@ pub fn Header(
                             button {
                                 class: "btn btn-secondary",
                                 style: "border-color: rgba(16, 185, 129, 0.4); color: #34d399;",
-                                title: translate_fmt(locale, "header.sync_device_tooltip", &[("name", &name)]),
-                                onclick: move |_| on_sync_device.call(kind),
+                                title: translate(locale, "header.device_manager_tooltip"),
+                                onclick: move |_| on_open_device_manager.call(()),
                                 span { "{icon}" }
                                 span { "{name}" }
                             }
@@ -176,6 +177,15 @@ pub fn Header(
                                 },
                                 span { "🌐" }
                                 span { "{translate(locale, \"header.tools_web_companion\")}" }
+                            }
+                            button {
+                                class: "tools-menu-item",
+                                onclick: move |_| {
+                                    tools_open.set(false);
+                                    on_open_device_manager.call(());
+                                },
+                                span { "📱" }
+                                span { "{translate(locale, \"device_manager.title\")}" }
                             }
                             button {
                                 class: "tools-menu-item",

@@ -61,6 +61,60 @@ pub fn save_file(
 }
 
 #[cfg(feature = "desktop")]
+#[allow(dead_code)]
+pub async fn pick_folder_async(title: &str) -> Option<PathBuf> {
+    rfd::AsyncFileDialog::new()
+        .set_title(title)
+        .pick_folder()
+        .await
+        .map(|h| h.path().to_path_buf())
+}
+
+#[cfg(not(feature = "desktop"))]
+#[allow(dead_code)]
+pub async fn pick_folder_async(_title: &str) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(feature = "desktop")]
+#[allow(dead_code)]
+pub async fn pick_file_async(title: &str, filters: &[(&str, &[&str])]) -> Option<PathBuf> {
+    let mut dlg = rfd::AsyncFileDialog::new().set_title(title);
+    for (name, exts) in filters {
+        dlg = dlg.add_filter(*name, exts);
+    }
+    dlg.pick_file().await.map(|h| h.path().to_path_buf())
+}
+
+#[cfg(not(feature = "desktop"))]
+#[allow(dead_code)]
+pub async fn pick_file_async(_title: &str, _filters: &[(&str, &[&str])]) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(all(feature = "desktop", target_os = "macos"))]
+pub async fn pick_calibre_path_async(title: &str) -> Option<PathBuf> {
+    rfd::AsyncFileDialog::new()
+        .set_title(title)
+        .pick_file_or_folder()
+        .await
+        .map(|h| h.path().to_path_buf())
+}
+
+#[cfg(all(feature = "desktop", not(target_os = "macos")))]
+pub async fn pick_calibre_path_async(title: &str) -> Option<PathBuf> {
+    if let Some(folder) = pick_folder_async(title).await {
+        return Some(folder);
+    }
+    pick_file_async(title, &[("Base de données Calibre", &["db"])]).await
+}
+
+#[cfg(not(feature = "desktop"))]
+pub async fn pick_calibre_path_async(_title: &str) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(feature = "desktop")]
 pub fn open_url(url: &str) {
     let _ = open::that(url);
 }

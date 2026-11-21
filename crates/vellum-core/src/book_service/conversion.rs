@@ -317,10 +317,26 @@ impl BookService {
         calibre_path: &Path,
         copy_files: bool,
     ) -> VellumResult<crate::calibre_importer::CalibreImportReport> {
-        crate::calibre_importer::CalibreImporter::import_calibre_library(
+        self.import_calibre_library_with_progress(calibre_path, copy_files, None, |_, _, _| {})
+    }
+
+    /// Imports an entire Calibre library with real-time progress and cancellation support
+    pub fn import_calibre_library_with_progress<F>(
+        &self,
+        calibre_path: &Path,
+        copy_files: bool,
+        cancel_token: Option<&std::sync::atomic::AtomicBool>,
+        on_progress: F,
+    ) -> VellumResult<crate::calibre_importer::CalibreImportReport>
+    where
+        F: FnMut(usize, usize, &str),
+    {
+        crate::calibre_importer::CalibreImporter::import_calibre_library_with_progress(
             calibre_path,
             copy_files,
             self,
+            cancel_token,
+            on_progress,
         )
     }
 

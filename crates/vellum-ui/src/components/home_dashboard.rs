@@ -1,7 +1,5 @@
 //! Tableau de bord d'accueil inspiré de BookOrbit (widgets stats, reprendre la lecture, sagas et ajouts récents).
 
-use std::collections::BTreeMap;
-
 use dioxus::prelude::*;
 use vellum_core::{translate, Locale};
 use vellum_domain::{Book, ReadingStats};
@@ -13,7 +11,12 @@ use crate::state::{FilterStatus, ViewMode};
 #[component]
 pub fn HomeDashboard(
     locale: Locale,
-    books: Vec<Book>,
+    total_books: usize,
+    in_progress_count: usize,
+    finished_count: usize,
+    series_list: Vec<(String, usize)>,
+    continue_reading: Vec<Book>,
+    recent_books: Vec<Book>,
     stats: Option<ReadingStats>,
     mut current_filter: Signal<FilterStatus>,
     mut selected_series: Signal<Option<String>>,
@@ -21,56 +24,16 @@ pub fn HomeDashboard(
     on_select: EventHandler<Book>,
     on_read: EventHandler<Book>,
 ) -> Element {
-    let total_books = stats.as_ref().map(|s| s.total_books).unwrap_or(books.len());
+    let total_books = stats.as_ref().map(|s| s.total_books).unwrap_or(total_books);
     let in_progress = stats
         .as_ref()
         .map(|s| s.in_progress_books)
-        .unwrap_or_else(|| {
-            books
-                .iter()
-                .filter(|b| !b.is_finished && b.progress_percent > 0.0)
-                .count()
-        });
+        .unwrap_or(in_progress_count);
     let finished = stats
         .as_ref()
         .map(|s| s.finished_books)
-        .unwrap_or_else(|| books.iter().filter(|b| b.is_finished).count());
-
-    let mut series_map: BTreeMap<String, Vec<Book>> = BTreeMap::new();
-    for b in &books {
-        if let Some(ref s) = b.series {
-            let trimmed = s.trim();
-            if !trimmed.is_empty() {
-                series_map
-                    .entry(trimmed.to_string())
-                    .or_default()
-                    .push(b.clone());
-            }
-        }
-    }
-    let series_count = series_map.len();
-
-    let continue_reading: Vec<Book> = {
-        let mut list: Vec<Book> = books
-            .iter()
-            .filter(|b| !b.is_finished && b.progress_percent > 0.0)
-            .cloned()
-            .collect();
-        list.sort_by(|a, b| {
-            b.progress_percent
-                .partial_cmp(&a.progress_percent)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        list.truncate(8);
-        list
-    };
-
-    let recent_books: Vec<Book> = {
-        let mut list = books.clone();
-        list.sort_by(|a, b| b.added_at.cmp(&a.added_at));
-        list.truncate(8);
-        list
-    };
+        .unwrap_or(finished_count);
+    let series_count = series_list.len();
 
     rsx! {
         div {
@@ -203,14 +166,13 @@ pub fn HomeDashboard(
             }
 
             // 3. Étagères par Sagas / Séries
-            if !series_map.is_empty() {
+            if !series_list.is_empty() {
                 section { style: "display: flex; flex-direction: column; gap: 10px;",
                     h3 { style: "font-size: 14px; font-weight: 700; margin: 0;", "{translate(locale, \"home.shelves_series\")}" }
                     div { style: "display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;",
-                        for (series_name, series_books) in series_map.into_iter().take(12) {
+                        for (series_name, count) in series_list.into_iter().take(12) {
                             {
                                 let s_name = series_name.clone();
-                                let count = series_books.len();
                                 rsx! {
                                     button {
                                         key: "home-ser-{series_name}",

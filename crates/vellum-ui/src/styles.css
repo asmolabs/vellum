@@ -593,6 +593,8 @@ select option {
 
 .books-table tbody tr.book-row {
   height: 57px;
+  content-visibility: auto;
+  contain-intrinsic-size: 100% 57px;
 }
 
 .books-table tbody tr:hover {
@@ -863,6 +865,8 @@ select option {
   flex-direction: column;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: 154px 310px;
 }
 
 .book-card:hover {

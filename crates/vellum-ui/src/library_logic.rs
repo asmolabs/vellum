@@ -270,6 +270,7 @@ pub fn next_focused_book_id(
 }
 
 /// Fenêtre de virtualisation calculée pour la grille de couvertures (`.books-grid`).
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GridWindow {
     pub start_idx: usize,
@@ -279,6 +280,7 @@ pub struct GridWindow {
 }
 
 /// Calcule la plage visible `[start_idx..end_idx]` et les espaces haut/bas pour la grille virtualisée.
+#[allow(dead_code)]
 pub fn compute_grid_window(
     total_items: usize,
     container_width_px: f64,
@@ -329,6 +331,7 @@ pub fn compute_grid_window(
 }
 
 /// Fenêtre de virtualisation calculée pour le tableau des livres (`.books-table`).
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TableWindow {
     pub start_idx: usize,
@@ -338,9 +341,11 @@ pub struct TableWindow {
 }
 
 /// Hauteur nominale (px) d'une ligne de tableau dans `.books-table`.
+#[allow(dead_code)]
 pub const TABLE_ROW_HEIGHT_PX: f64 = 57.0;
 
 /// Calcule la plage visible `[start_idx..end_idx]` et les espaces haut/bas pour le tableau virtualisé.
+#[allow(dead_code)]
 pub fn compute_table_window(
     total_rows: usize,
     scroll_top_px: f64,

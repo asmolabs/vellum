@@ -145,70 +145,22 @@ pub(super) fn build_library_handlers(
     });
 
     let on_import_calibre = EventHandler::new({
-        let bs = ctx.book_service.clone();
+        let locale_sig = ctx.ui_locale;
+        let calibre_path_sig = ctx.calibre_import_path;
         move |()| {
-            let locale = *ctx.ui_locale.read();
-            let folder =
-                crate::platform::pick_folder(translate(locale, "actions.import_calibre_folder"));
+            let locale = *locale_sig.read();
+            let mut calibre_sig = calibre_path_sig;
+            spawn(async move {
+                let target_path = crate::platform::pick_calibre_path_async(translate(
+                    locale,
+                    "actions.import_calibre_folder",
+                ))
+                .await;
 
-            let target_path = if let Some(f) = folder {
-                Some(f)
-            } else {
-                crate::platform::pick_file(
-                    translate(locale, "actions.import_calibre_db"),
-                    &[(translate(locale, "actions.import_calibre_filter"), &["db"])],
-                )
-            };
-
-            if let Some(path) = target_path {
-                tracing::info!("Importing Calibre library from: {:?}", path);
-                let bs_cloned = bs.clone();
-                spawn(async move {
-                    let path_cloned = path.clone();
-                    let res = tokio::task::spawn_blocking(move || {
-                        bs_cloned.import_calibre_library(&path_cloned, true)
-                    })
-                    .await;
-
-                    match res {
-                        Ok(Ok(report)) => {
-                            show_toast(
-                                ctx.toast_msg,
-                                translate_fmt(
-                                    locale,
-                                    "actions.import_calibre_ok",
-                                    &[
-                                        ("books", &report.books_imported.to_string()),
-                                        ("formats", &report.formats_imported.to_string()),
-                                    ],
-                                ),
-                                true,
-                            );
-                            on_refresh.call(());
-                        }
-                        Ok(Err(e)) => {
-                            tracing::error!("Calibre import error: {e}");
-                            show_toast(
-                                ctx.toast_msg,
-                                translate_fmt(locale, "common.error", &[("error", &e.to_string())]),
-                                false,
-                            );
-                        }
-                        Err(e) => {
-                            tracing::error!("Background task interrupted: {e}");
-                            show_toast(
-                                ctx.toast_msg,
-                                translate_fmt(
-                                    locale,
-                                    "common.task_interrupted",
-                                    &[("error", &e.to_string())],
-                                ),
-                                false,
-                            );
-                        }
-                    }
-                });
-            }
+                if let Some(path) = target_path {
+                    calibre_sig.set(Some(path));
+                }
+            });
         }
     });
 

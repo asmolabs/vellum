@@ -1,6 +1,7 @@
 //! Modales applicatives, barre d'actions de sélection flottante et bannières toast de Vellum.
 
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use dioxus::prelude::*;
@@ -16,9 +17,10 @@ use vellum_domain::{
 
 use crate::components::bulk_edit_modal::BulkEditRequest;
 use crate::components::{
-    BulkConvertModal, BulkEditModal, BulkRegexModal, CommandPalette, ContentSearchModal,
-    EpubEditorModal, ImportRulesModal, LibraryAuditModal, NewsRecipesModal, PaletteAction,
-    ReaderModal, ReadingStatsModal, SettingsModal, TranslateModal, TranslationRequest,
+    BracketSeriesModal, BulkConvertModal, BulkEditModal, BulkRegexModal, CalibreImportModal,
+    CommandPalette, ContentSearchModal, DeviceManagerModal, EpubEditorModal, ImportRulesModal,
+    LibraryAuditModal, NewsRecipesModal, PaletteAction, ReaderModal, ReadingStatsModal,
+    SettingsModal, TranslateModal, TranslationRequest,
 };
 use crate::state::ReaderSession;
 
@@ -34,6 +36,8 @@ pub(crate) struct OverlayServices {
     pub plugin_descriptors: Vec<PluginDescriptor>,
     pub reading_stats: Option<ReadingStats>,
     pub series_names: Vec<String>,
+    pub device_service: Arc<vellum_core::DeviceService>,
+    pub connected_devices: Signal<Vec<vellum_core::ConnectedDevice>>,
 }
 
 /// Signaux réactifs de visibilité et d'état des modales.
@@ -66,7 +70,10 @@ pub(crate) struct OverlayState {
     pub stats_open: Signal<bool>,
     pub content_search_open: Signal<bool>,
     pub bulk_regex_open: Signal<bool>,
+    pub bracket_series_open: Signal<bool>,
+    pub device_manager_open: Signal<bool>,
     pub import_rules_open: Signal<bool>,
+    pub calibre_import_path: Signal<Option<PathBuf>>,
     pub toast_msg: Signal<Option<(String, bool)>>,
 }
 
@@ -475,12 +482,46 @@ pub(crate) fn render_app_overlays(
             }
         }
 
+        // Bracket Series Extraction Modal
+        if *st.bracket_series_open.read() {
+            BracketSeriesModal {
+                locale: *st.ui_locale.read(),
+                book_service: book_service.clone(),
+                on_close: move |_| st.bracket_series_open.set(false),
+                on_updated: move |_| hd.on_refresh.call(()),
+            }
+        }
+
         // Automatic Import Rules Modal
         if *st.import_rules_open.read() {
             ImportRulesModal {
                 locale: *st.ui_locale.read(),
                 book_service: book_service.clone(),
                 on_close: move |_| st.import_rules_open.set(false),
+            }
+        }
+
+        // Device Manager & Sync Modal
+        if *st.device_manager_open.read() {
+            DeviceManagerModal {
+                locale: *st.ui_locale.read(),
+                device_service: svc.device_service.clone(),
+                connected_devices: svc.connected_devices,
+                on_close: move |_| st.device_manager_open.set(false),
+                on_updated: move |_| hd.on_refresh.call(()),
+            }
+        }
+
+        // Calibre Import Modal with Live Progress
+        if let Some(ref path) = *st.calibre_import_path.read() {
+            CalibreImportModal {
+                locale: *st.ui_locale.read(),
+                book_service: book_service.clone(),
+                calibre_path: path.clone(),
+                on_close: move |_| {
+                    st.calibre_import_path.set(None);
+                    hd.on_refresh.call(());
+                },
             }
         }
 

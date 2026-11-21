@@ -2,7 +2,7 @@ use crate::components::header::VELLUM_LOGO_DATA_URI;
 use crate::components::{IconKind, LucideIcon};
 use crate::state::{FilterStatus, MediaType, ViewMode};
 use dioxus::prelude::*;
-use vellum_core::{translate, translate_fmt, ConnectedDevice, Locale};
+use vellum_core::{translate, ConnectedDevice, Locale};
 use vellum_domain::{DeviceKind, ReadingStats, VirtualLibrary};
 
 #[component]
@@ -38,6 +38,8 @@ pub fn Sidebar(
     on_open_audit: EventHandler<()>,
     on_open_import_rules: EventHandler<()>,
     on_open_bulk_regex: EventHandler<()>,
+    on_open_bracket_series: EventHandler<()>,
+    on_open_device_manager: EventHandler<()>,
     on_open_news: EventHandler<()>,
     on_open_web_companion: EventHandler<()>,
     on_sync_device: EventHandler<DeviceKind>,
@@ -249,7 +251,7 @@ pub fn Sidebar(
                         (MediaType::Comics, IconKind::Image, media_counts.2),
                     ] {
                         {
-                            let is_active = cur_view == ViewMode::Grid
+                            let is_active = matches!(cur_view, ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel)
                                 && *media_type.read() == mt
                                 && *current_filter.read() == FilterStatus::All
                                 && selected_series.read().is_none()
@@ -281,7 +283,7 @@ pub fn Sidebar(
                 div { class: "sidebar-section-title", "{translate(locale, \"nav.browse\")}" }
                 nav { class: "nav-list",
                     div {
-                        class: if cur_view == ViewMode::Grid && *media_type.read() == MediaType::All && *current_filter.read() == FilterStatus::All && selected_series.read().is_none() && selected_tag.read().is_none() { "nav-item active" } else { "nav-item" },
+                        class: if matches!(cur_view, ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel) && *media_type.read() == MediaType::All && *current_filter.read() == FilterStatus::All && selected_series.read().is_none() && selected_tag.read().is_none() { "nav-item active" } else { "nav-item" },
                         onclick: move |_| {
                             media_type.set(MediaType::All);
                             current_filter.set(FilterStatus::All);
@@ -323,7 +325,7 @@ pub fn Sidebar(
                 nav { class: "nav-list",
                     for (f, icon_kind) in filters.iter().copied().skip(1) {
                         {
-                            let is_active = cur_view == ViewMode::Grid && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
+                            let is_active = matches!(cur_view, ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel) && *current_filter.read() == f && selected_series.read().is_none() && selected_tag.read().is_none();
                             let filter_label = translate(locale, f.i18n_key());
                             let count_label = match (f, &stats) {
                                 (FilterStatus::Reading, Some(s)) => format!("{}", s.in_progress_books),
@@ -646,19 +648,13 @@ pub fn Sidebar(
                             LucideIcon { kind: IconKind::Cloud, size: 15 }
                         }
                     }
-                    for dev in connected_devices.iter().take(1) {
-                        {
-                            let kind = dev.kind;
-                            let name = dev.name.clone();
-                            rsx! {
-                                button {
-                                    class: "btn btn-icon",
-                                    style: "width: 32px; height: 32px; color: #34d399;",
-                                    title: translate_fmt(locale, "header.sync_device_tooltip", &[("name", &name)]),
-                                    onclick: move |_| on_sync_device.call(kind),
-                                    LucideIcon { kind: IconKind::BookOpen, size: 15 }
-                                }
-                            }
+                    for _dev in connected_devices.iter().take(1) {
+                        button {
+                            class: "btn btn-icon",
+                            style: "width: 32px; height: 32px; color: #34d399;",
+                            title: translate(locale, "header.device_manager_tooltip"),
+                            onclick: move |_| on_open_device_manager.call(()),
+                            LucideIcon { kind: IconKind::BookOpen, size: 15 }
                         }
                     }
                     button {
@@ -719,6 +715,15 @@ pub fn Sidebar(
                             class: "tools-menu-item",
                             onclick: move |_| {
                                 tools_open.set(false);
+                                on_open_bracket_series.call(());
+                            },
+                            span { "📚" }
+                            span { "{translate(locale, \"tools.bracket_series\")}" }
+                        }
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
                                 on_open_news.call(());
                             },
                             span { "📰" }
@@ -732,6 +737,15 @@ pub fn Sidebar(
                             },
                             span { "🌐" }
                             span { "{translate(locale, \"header.tools_web_companion\")}" }
+                        }
+                        button {
+                            class: "tools-menu-item",
+                            onclick: move |_| {
+                                tools_open.set(false);
+                                on_open_device_manager.call(());
+                            },
+                            span { "📱" }
+                            span { "{translate(locale, \"device_manager.title\")}" }
                         }
                         button {
                             class: "tools-menu-item",

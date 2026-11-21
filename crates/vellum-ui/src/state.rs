@@ -7,6 +7,7 @@ pub enum ViewMode {
     Home,
     Grid,
     Table,
+    TableCarousel,
     Authors,
     Series,
     History,

@@ -16,6 +16,7 @@ pub enum PaletteAction {
     FilterToRead,
     SetViewGrid,
     SetViewTable,
+    SetViewTableCarousel,
     ImportBooks,
     ImportCalibre,
     OpenNewsRecipes,
@@ -23,7 +24,9 @@ pub enum PaletteAction {
     OpenReadingStats,
     OpenContentSearch,
     OpenBulkRegex,
+    OpenBracketSeries,
     OpenImportRules,
+    OpenDeviceManager,
     OpenWebCompanion,
     SyncCloud,
     OpenSettings,
@@ -113,6 +116,11 @@ pub fn CommandPalette(
             "vue tableau liste table calibre",
         ),
         (
+            translate(locale, "palette.act_carousel"),
+            PaletteAction::SetViewTableCarousel,
+            "vue tableau 3d carrousel cover flow browser calibre",
+        ),
+        (
             translate(locale, "palette.act_import"),
             PaletteAction::ImportBooks,
             "import ajouter",
@@ -136,6 +144,16 @@ pub fn CommandPalette(
             translate(locale, "palette.act_regex"),
             PaletteAction::OpenBulkRegex,
             "regex masse bulk nettoyer titre auteur",
+        ),
+        (
+            translate(locale, "tools.bracket_series"),
+            PaletteAction::OpenBracketSeries,
+            "série saga crochets extraire déduire tomes brackets",
+        ),
+        (
+            translate(locale, "device_manager.title"),
+            PaletteAction::OpenDeviceManager,
+            "liseuse ereader kobo kindle xteink usb transfert synchronisation comparer",
         ),
         (
             translate(locale, "palette.act_rules"),

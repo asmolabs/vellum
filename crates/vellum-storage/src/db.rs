@@ -22,12 +22,15 @@ impl Database {
         info!("Initializing SQLite database at {}", path.display());
         let conn = Connection::open(&path).map_err(|e| VellumError::Database(e.to_string()))?;
 
-        // Configure WAL mode & pragmas for concurrent reads and Litestream replication
+        // Configure WAL mode & pragmas for concurrent reads, caching, and Litestream replication
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA foreign_keys = ON;
-             PRAGMA busy_timeout = 5000;",
+             PRAGMA busy_timeout = 5000;
+             PRAGMA cache_size = -64000;
+             PRAGMA mmap_size = 268435456;
+             PRAGMA temp_store = MEMORY;",
         )
         .map_err(|e| VellumError::Database(e.to_string()))?;
 
@@ -153,7 +156,15 @@ impl Database {
                 PRIMARY KEY (book_id, column_id),
                 FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
                 FOREIGN KEY (column_id) REFERENCES custom_columns(id) ON DELETE CASCADE
-            );",
+            );
+
+            -- Performance indexes for 10,000+ book collections
+            CREATE INDEX IF NOT EXISTS idx_book_formats_book_id ON book_formats(book_id);
+            CREATE INDEX IF NOT EXISTS idx_book_tags_tag_name ON book_tags(tag_name);
+            CREATE INDEX IF NOT EXISTS idx_books_added_at ON books(added_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_books_series ON books(series);
+            CREATE INDEX IF NOT EXISTS idx_books_author ON books(author);
+            CREATE INDEX IF NOT EXISTS idx_params_key ON params(key);",
         )
         .map_err(|e| VellumError::Database(e.to_string()))?;
 
@@ -230,11 +241,6 @@ impl Database {
                 DELETE FROM books_fts WHERE book_id = old.id;
             END;
 
-            INSERT INTO books_fts(book_id, title, author, publisher, series, isbn, description)
-            SELECT id, title, author, COALESCE(publisher, ''), COALESCE(series, ''), COALESCE(isbn, ''), COALESCE(description, '')
-            FROM books
-            WHERE id NOT IN (SELECT book_id FROM books_fts);
-
             CREATE VIRTUAL TABLE IF NOT EXISTS book_content_fts USING fts5(
                 book_id UNINDEXED,
                 chapter_index UNINDEXED,
@@ -244,6 +250,23 @@ impl Database {
             );",
         )
         .map_err(|e| VellumError::Database(e.to_string()))?;
+
+        // Fast FTS check & backfill only if counts diverge
+        let fts_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM books_fts", [], |r| r.get(0))
+            .unwrap_or(0);
+        let books_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM books", [], |r| r.get(0))
+            .unwrap_or(0);
+        if fts_count < books_count {
+            let _ = conn.execute_batch(
+                "INSERT INTO books_fts(book_id, title, author, publisher, series, isbn, description)
+                 SELECT b.id, b.title, b.author, COALESCE(b.publisher, ''), COALESCE(b.series, ''), COALESCE(b.isbn, ''), COALESCE(b.description, '')
+                 FROM books b
+                 LEFT JOIN books_fts f ON f.book_id = b.id
+                 WHERE f.book_id IS NULL;",
+            );
+        }
 
         Ok(())
     }

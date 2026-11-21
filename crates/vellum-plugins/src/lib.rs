@@ -55,6 +55,7 @@ pub fn built_in_device_plugins() -> Vec<Arc<dyn DeviceSyncPlugin>> {
     vec![
         Arc::new(ereader::KoboSyncPlugin::new()),
         Arc::new(ereader::KindleSyncPlugin::new()),
+        Arc::new(ereader::GenericSyncPlugin::new()),
     ]
 }
 

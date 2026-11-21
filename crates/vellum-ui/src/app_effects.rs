@@ -35,6 +35,7 @@ pub(crate) struct KeyboardNavContext {
     pub bulk_edit_open: Signal<bool>,
     pub bulk_convert_open: Signal<bool>,
     pub bulk_regex_open: Signal<bool>,
+    pub bracket_series_open: Signal<bool>,
     pub content_search_open: Signal<bool>,
     pub import_rules_open: Signal<bool>,
     pub news_recipes_open: Signal<bool>,
@@ -51,33 +52,37 @@ pub(crate) struct DetailExtraHandlers {
     pub on_save_custom_value: EventHandler<(String, String, String)>,
 }
 
-/// Observe le défilement et le redimensionnement du conteneur principal pour virtualiser la grille.
-pub(crate) fn use_grid_scroll_observer(mut grid_scroll_metrics: Signal<(f64, f64, f64)>) {
+/// Observe l'arrivée près du bas de la liste pour charger les lots suivants de façon fluide, sans à-coups ni re-rendus intempestifs.
+pub(crate) fn use_infinite_scroll_observer(
+    mut visible_count: Signal<usize>,
+    total_count: usize,
+) {
     use_effect(move || {
         let mut eval = document::eval(
             r#"
             const scroller = document.getElementById('vellum-library-scroll');
             if (!scroller) return;
-            let rafId = 0;
-            const emit = () => {
-                rafId = 0;
-                const grid = document.getElementById('vellum-books-grid');
-                const width = grid ? grid.clientWidth : Math.max(scroller.clientWidth - 48, 200);
-                dioxus.send([scroller.scrollTop, width, scroller.clientHeight]);
+            let loading = false;
+            const check = () => {
+                if (loading) return;
+                const distanceToBottom = scroller.scrollHeight - (scroller.scrollTop + scroller.clientHeight);
+                if (distanceToBottom < 800) {
+                    loading = true;
+                    dioxus.send('load_more');
+                    setTimeout(() => { loading = false; }, 150);
+                }
             };
-            const schedule = () => {
-                if (!rafId) rafId = requestAnimationFrame(emit);
-            };
-            scroller.addEventListener('scroll', schedule, { passive: true });
-            const ro = new ResizeObserver(schedule);
-            ro.observe(scroller);
-            emit();
+            scroller.addEventListener('scroll', check, { passive: true });
+            check();
         "#,
         );
         spawn(async move {
-            while let Ok(vals) = eval.recv::<Vec<f64>>().await {
-                if vals.len() == 3 {
-                    grid_scroll_metrics.set((vals[0], vals[1], vals[2]));
+            while let Ok(msg) = eval.recv::<String>().await {
+                if msg == "load_more" {
+                    let cur = *visible_count.peek();
+                    if cur < total_count {
+                        visible_count.set((cur + 80).min(total_count));
+                    }
                 }
             }
         });
@@ -131,6 +136,8 @@ fn close_top_overlay(ctx: &mut KeyboardNavContext) {
         ctx.bulk_edit_open.set(false);
     } else if *ctx.bulk_regex_open.peek() {
         ctx.bulk_regex_open.set(false);
+    } else if *ctx.bracket_series_open.peek() {
+        ctx.bracket_series_open.set(false);
     } else if *ctx.settings_open.peek() {
         ctx.settings_open.set(false);
     } else if *ctx.audit_open.peek() {

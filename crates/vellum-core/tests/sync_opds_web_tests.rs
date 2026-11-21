@@ -86,6 +86,51 @@ async fn test_device_service_kobo_and_kindle_integration() {
         .find_by_id(&imported[0].id)
         .unwrap();
     assert!(in_db.is_some());
+
+    // 4. Test compare_device with Xteink / Generic Device
+    let xteink_mount = temp.path().join("Xteink");
+    let xteink_books = xteink_mount.join("books");
+    std::fs::create_dir_all(&xteink_books).unwrap();
+
+    // Book present on Xteink: "Solaris"
+    let xteink_solaris = xteink_books.join("Stanislaw Lem - Solaris.epub");
+    std::fs::write(&xteink_solaris, b"dummy epub").unwrap();
+
+    // Book present only on Xteink: "Fondation"
+    let xteink_fondation = xteink_books.join("Isaac Asimov - Fondation.epub");
+    std::fs::write(&xteink_fondation, b"dummy epub").unwrap();
+
+    let comparison = device_service
+        .compare_device(vellum_domain::DeviceKind::Generic, Some(&xteink_mount))
+        .unwrap();
+
+    assert_eq!(comparison.device.kind, vellum_domain::DeviceKind::Generic);
+    // Solaris matches
+    assert_eq!(comparison.present_on_device.len(), 1);
+    assert_eq!(comparison.present_on_device[0].title, "Solaris");
+    // Neuromancer is in Vellum but not on Xteink
+    assert!(comparison
+        .in_vellum_not_on_device
+        .iter()
+        .any(|b| b.title == "Neuromancer"));
+    // Fondation is only on Xteink
+    assert_eq!(comparison.on_device_not_in_vellum.len(), 1);
+    assert_eq!(comparison.on_device_not_in_vellum[0].title, "Fondation");
+
+    // 5. Test export_books_batch
+    let ids_to_export: Vec<String> = comparison
+        .in_vellum_not_on_device
+        .iter()
+        .map(|b| b.id.clone())
+        .collect();
+    let exported_count = device_service
+        .export_books_batch(
+            &ids_to_export,
+            vellum_domain::DeviceKind::Generic,
+            Some(&xteink_mount),
+        )
+        .unwrap();
+    assert!(exported_count >= 1);
 }
 
 #[tokio::test]

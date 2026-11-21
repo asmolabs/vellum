@@ -11,7 +11,7 @@
 #[cfg(feature = "desktop")]
 use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;
-use vellum_core::{init_services, translate, Locale};
+use vellum_core::{init_services, translate, ConnectedDevice, Locale};
 
 mod app_actions;
 mod app_effects;
@@ -34,6 +34,10 @@ use styles::APP_CSS;
 use vellum_domain::Book;
 
 fn main() {
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("💥 PANIC OCCURRED: {info}");
+        eprintln!("{:?}", std::backtrace::Backtrace::force_capture());
+    }));
     tracing_subscriber::fmt::init();
 
     #[cfg(feature = "desktop")]
@@ -44,13 +48,15 @@ fn main() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
         let window_title = translate(Locale::detect_system(), "app.title");
-        let cfg = Config::new().with_menu(None).with_window(
-            WindowBuilder::new()
-                .with_title(window_title)
-                .with_decorations(false)
-                .with_inner_size(dioxus::desktop::LogicalSize::new(1200.0, 800.0))
-                .with_min_inner_size(dioxus::desktop::LogicalSize::new(960.0, 640.0)),
-        );
+        let window = WindowBuilder::new()
+            .with_title(window_title)
+            .with_inner_size(dioxus::desktop::LogicalSize::new(1200.0, 800.0))
+            .with_min_inner_size(dioxus::desktop::LogicalSize::new(960.0, 640.0));
+
+        #[cfg(target_os = "linux")]
+        let window = window.with_decorations(false);
+
+        let cfg = Config::new().with_menu(None).with_window(window);
 
         dioxus::LaunchBuilder::desktop().with_cfg(cfg).launch(App);
     }
@@ -72,7 +78,26 @@ fn App() -> Element {
     let device_service = services.device_service.clone();
     let virtual_library_service = services.virtual_library_service.clone();
     let custom_column_service = services.custom_column_service.clone();
-    let connected_devices = use_signal(|| device_service.detect_connected_devices());
+
+    let mut connected_devices = use_signal(Vec::<ConnectedDevice>::new);
+    use_effect({
+        let ds = device_service.clone();
+        move || {
+            let ds_cloned = ds.clone();
+            spawn(async move {
+                let res = tokio::time::timeout(
+                    std::time::Duration::from_millis(1500),
+                    tokio::task::spawn_blocking(move || ds_cloned.detect_connected_devices()),
+                )
+                .await;
+                if let Ok(Ok(devs)) = res {
+                    if *connected_devices.peek() != devs {
+                        connected_devices.set(devs);
+                    }
+                }
+            });
+        }
+    });
 
     let sync_config = use_signal(|| sync_service.config());
     let opds_enabled = use_signal(|| opds_running);
@@ -127,7 +152,7 @@ fn App() -> Element {
     let search_query = use_signal(String::new);
     let mut selected_book = use_signal(|| None::<Book>);
     let focused_book_id = use_signal(|| None::<String>);
-    let grid_scroll_metrics = use_signal(|| (0.0_f64, 920.0_f64, 720.0_f64));
+    let mut visible_grid_count = use_signal(|| 120_usize);
     let active_reader = use_signal(|| None::<ReaderSession>);
     let mut settings_open = use_signal(|| false);
     let mut palette_open = use_signal(|| false);
@@ -144,7 +169,10 @@ fn App() -> Element {
     let mut stats_open = use_signal(|| false);
     let mut content_search_open = use_signal(|| false);
     let mut bulk_regex_open = use_signal(|| false);
+    let mut bracket_series_open = use_signal(|| false);
+    let mut device_manager_open = use_signal(|| false);
     let mut import_rules_open = use_signal(|| false);
+    let calibre_import_path = use_signal(|| None::<std::path::PathBuf>);
     let mut is_dragging_files = use_signal(|| false);
     let toast_msg = use_signal(|| None::<(String, bool)>);
 
@@ -155,21 +183,78 @@ fn App() -> Element {
     let smtp_test_message = use_signal(|| None::<(bool, String)>);
     let is_sending_kindle = use_signal(|| false);
 
-    // Calculate media counts (books, audiobooks, comics)
-    let media_counts = library_logic::compute_media_counts(&books.read());
+    // Calculate media counts (books, audiobooks, comics) — memoized for fast 10k+ libraries
+    let media_counts = use_memo(move || library_logic::compute_media_counts(&books.read()));
 
-    // Calculate tag counts
-    let tags_counts = library_logic::compute_tags_counts(&books.read());
+    // Calculate tag counts — memoized
+    let tags_counts = use_memo(move || library_logic::compute_tags_counts(&books.read()));
 
-    // Calculate series counts
-    let series_counts = library_logic::compute_series_counts(&books.read());
-    let series_names: Vec<String> = series_counts.iter().map(|(n, _)| n.clone()).collect();
+    // Calculate series counts — memoized
+    let series_counts = use_memo(move || library_logic::compute_series_counts(&books.read()));
+    let series_names = use_memo(move || {
+        series_counts
+            .read()
+            .iter()
+            .map(|(n, _)| n.clone())
+            .collect::<Vec<String>>()
+    });
 
-    // Reading stats
-    let reading_stats = book_service.get_reading_stats().ok();
+    // Reading stats loaded asynchronously to never block startup
+    let mut reading_stats = use_signal(|| None::<vellum_domain::ReadingStats>);
+    use_effect({
+        let bs = book_service.clone();
+        move || {
+            let bs_cloned = bs.clone();
+            spawn(async move {
+                let res = tokio::task::spawn_blocking(move || bs_cloned.get_reading_stats()).await;
+                if let Ok(Ok(stats)) = res {
+                    if reading_stats.peek().is_none() {
+                        reading_stats.set(Some(stats));
+                    }
+                }
+            });
+        }
+    });
 
-    // Filter and sort books
-    let filtered_books: Vec<Book> = {
+    // Fast memoized HomeDashboard slices so 10,000+ books are never cloned on dashboard render
+    let home_kpis = use_memo(move || {
+        let all = books.read();
+        let total = all.len();
+        let mut in_prog = 0;
+        let mut fin = 0;
+        for b in all.iter() {
+            if b.is_finished {
+                fin += 1;
+            } else if b.progress_percent > 0.0 {
+                in_prog += 1;
+            }
+        }
+        (total, in_prog, fin)
+    });
+
+    let home_continue_reading = use_memo(move || {
+        let all = books.read();
+        let mut list: Vec<Book> = all
+            .iter()
+            .filter(|b| !b.is_finished && b.progress_percent > 0.0)
+            .cloned()
+            .collect();
+        list.sort_by(|a, b| {
+            b.progress_percent
+                .partial_cmp(&a.progress_percent)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        list.truncate(8);
+        list
+    });
+
+    let home_recent_books = use_memo(move || {
+        let all = books.read();
+        all.iter().take(8).cloned().collect::<Vec<Book>>()
+    });
+
+    // Filter and sort books — memoized so scrolling/selection does not re-sort 10,000 items
+    let filtered_books = use_memo(move || {
         let all = books.read();
         let active_vl_query = active_virtual_library_id.read().as_ref().and_then(|id| {
             virtual_libraries
@@ -206,27 +291,32 @@ fn App() -> Element {
         if let Some(min_r) = *min_rating.read() {
             list.retain(|b| b.rating.is_some_and(|r| r >= min_r));
         }
+        if let Some(ch) = *letter_filter.read() {
+            list.retain(|b| letter_bucket(&b.title) == ch);
+        }
         list
-    };
+    });
 
-    let available_letters: std::collections::HashSet<char> = filtered_books
-        .iter()
-        .map(|b| letter_bucket(&b.title))
-        .collect();
-    let active_letter_val = *letter_filter.read();
-    let letter_filtered_books: Vec<Book> = match active_letter_val {
-        Some(ch) => filtered_books
+    use_effect(move || {
+        let _ = (
+            search_query.read().clone(),
+            selected_tag.read().clone(),
+            selected_series.read().clone(),
+            *current_filter.read(),
+            *media_type.read(),
+            *letter_filter.read(),
+            active_virtual_library_id.read().clone(),
+        );
+        visible_grid_count.set(120);
+    });
+
+    let available_letters = use_memo(move || {
+        books
+            .read()
             .iter()
-            .filter(|b| letter_bucket(&b.title) == ch)
-            .cloned()
-            .collect(),
-        None => filtered_books,
-    };
-    let filtered_books = if active_letter_val.is_some() && letter_filtered_books.is_empty() {
-        Vec::new()
-    } else {
-        letter_filtered_books
-    };
+            .map(|b| letter_bucket(&b.title))
+            .collect::<std::collections::HashSet<char>>()
+    });
 
     let actions = app_actions::build_app_actions(app_actions::AppActionContext {
         book_service: book_service.clone(),
@@ -259,7 +349,10 @@ fn App() -> Element {
         stats_open,
         content_search_open,
         bulk_regex_open,
+        bracket_series_open,
+        device_manager_open,
         import_rules_open,
+        calibre_import_path,
         ui_locale,
         toast_msg,
     });
@@ -284,6 +377,7 @@ fn App() -> Element {
         bulk_edit_open,
         bulk_convert_open,
         bulk_regex_open,
+        bracket_series_open,
         content_search_open,
         import_rules_open,
         news_recipes_open,
@@ -294,7 +388,8 @@ fn App() -> Element {
         on_read: actions.on_read,
     };
 
-    app_effects::use_grid_scroll_observer(grid_scroll_metrics);
+    let total_filtered_books = filtered_books.read().len();
+    app_effects::use_infinite_scroll_observer(visible_grid_count, total_filtered_books);
     app_effects::use_keyboard_shortcuts(kb_ctx.clone());
 
     let cur_locale = *ui_locale.read();
@@ -325,8 +420,10 @@ fn App() -> Element {
         opds_running,
         litestream_status_str,
         plugin_descriptors,
-        reading_stats: reading_stats.clone(),
-        series_names: series_names.clone(),
+        reading_stats: reading_stats.read().clone(),
+        series_names: series_names.read().clone(),
+        device_service: device_service.clone(),
+        connected_devices,
     };
     let overlay_state = app_modals::OverlayState {
         books,
@@ -356,7 +453,10 @@ fn App() -> Element {
         stats_open,
         content_search_open,
         bulk_regex_open,
+        bracket_series_open,
+        device_manager_open,
         import_rules_open,
+        calibre_import_path,
         toast_msg,
     };
     let on_change_font_size = use_callback({
@@ -409,9 +509,9 @@ fn App() -> Element {
                 on_open_content_search: move |_| content_search_open.set(true),
                 selected_tag: selected_tag,
                 selected_series: selected_series,
-                media_counts,
-                tags_counts: tags_counts,
-                series_counts: series_counts,
+                media_counts: *media_counts.read(),
+                tags_counts: tags_counts.read().clone(),
+                series_counts: series_counts.read().clone(),
                 virtual_libraries: virtual_libraries.read().clone(),
                 active_virtual_library_id: active_virtual_library_id,
                 on_create_virtual_library: {
@@ -433,7 +533,7 @@ fn App() -> Element {
                         }
                     }
                 },
-                stats: reading_stats.clone(),
+                stats: reading_stats.read().clone(),
                 on_open_stats: move |_| stats_open.set(true),
                 ui_theme: ui_theme.read().clone(),
                 on_change_theme: {
@@ -453,6 +553,8 @@ fn App() -> Element {
                 on_open_audit: move |_| audit_open.set(true),
                 on_open_import_rules: move |_| import_rules_open.set(true),
                 on_open_bulk_regex: move |_| bulk_regex_open.set(true),
+                on_open_bracket_series: move |_| bracket_series_open.set(true),
+                on_open_device_manager: move |_| device_manager_open.set(true),
                 on_open_news: move |_| news_recipes_open.set(true),
                 on_open_web_companion: actions.on_open_web_companion,
                 on_sync_device: actions.on_sync_device,
@@ -460,9 +562,9 @@ fn App() -> Element {
                 on_open_settings: move |_| settings_open.set(true),
             }
 
-            // Main Right Column (contrôles de fenêtre style VS Code + contenu)
+            // Main Right Column (contrôles de fenêtre style VS Code pour Linux + contenu)
             div { class: "main-column",
-                if cfg!(feature = "desktop") {
+                if cfg!(feature = "desktop") && cfg!(target_os = "linux") {
                     div {
                         class: "win-ctrl-bar",
                         div {
@@ -511,7 +613,7 @@ fn App() -> Element {
                 main {
                     id: "vellum-library-scroll",
                     class: "library-area",
-                    if matches!(*view_mode.read(), ViewMode::Grid | ViewMode::Table) {
+                    if matches!(*view_mode.read(), ViewMode::Grid | ViewMode::Table | ViewMode::TableCarousel) {
                         LibraryToolbar {
                             locale: *ui_locale.read(),
                             current_filter,
@@ -523,7 +625,7 @@ fn App() -> Element {
                             min_rating,
                             collapse_series,
                             on_shuffle: {
-                                let pool = filtered_books.clone();
+                                let pool = filtered_books.read().clone();
                                 move |_| {
                                     if !pool.is_empty() {
                                         let seed = std::time::SystemTime::now()
@@ -535,8 +637,8 @@ fn App() -> Element {
                                     }
                                 }
                             },
-                            filtered_count: filtered_books.len(),
-                            filtered_ids: filtered_books.iter().map(|b| b.id.clone()).collect(),
+                            filtered_count: filtered_books.read().len(),
+                            filtered_ids: filtered_books.read().iter().map(|b| b.id.clone()).collect(),
                             selected_ids,
                             view_mode,
                             current_sort,
@@ -577,8 +679,13 @@ fn App() -> Element {
                     } else if *view_mode.read() == ViewMode::Home {
                         HomeDashboard {
                             locale: *ui_locale.read(),
-                            books: books.read().clone(),
-                            stats: reading_stats.clone(),
+                            total_books: home_kpis.read().0,
+                            in_progress_count: home_kpis.read().1,
+                            finished_count: home_kpis.read().2,
+                            series_list: series_counts.read().clone(),
+                            continue_reading: home_continue_reading.read().clone(),
+                            recent_books: home_recent_books.read().clone(),
+                            stats: reading_stats.read().clone(),
                             current_filter,
                             selected_series,
                             view_mode,
@@ -613,7 +720,7 @@ fn App() -> Element {
                             on_select: move |selected| selected_book.set(Some(selected)),
                             on_read: actions.on_read,
                         }
-                    } else if filtered_books.is_empty() {
+                    } else if filtered_books.read().is_empty() {
                         div {
                             style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); padding: 60px 0;",
                             span { style: "font-size: 40px;", "📚" }
@@ -626,13 +733,13 @@ fn App() -> Element {
                                 {translate(*ui_locale.read(), "toolbar.add_book")}
                             }
                         }
-                    } else if *view_mode.read() == ViewMode::Table {
+                    } else if matches!(*view_mode.read(), ViewMode::Table | ViewMode::TableCarousel) {
                         div { style: "display: flex; gap: 12px; flex: 1; min-height: 0; align-items: flex-start;",
                             div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%;",
                                 BooksTable {
                                     locale: *ui_locale.read(),
-                                    books: filtered_books.clone(),
-                                    show_carousel: false,
+                                    books: filtered_books.read().clone(),
+                                    show_carousel: *view_mode.read() == ViewMode::TableCarousel,
                                     selected_ids: selected_ids.read().clone(),
                                     focused_book_id,
                                     on_toggle_select: actions.on_toggle_select,
@@ -641,38 +748,29 @@ fn App() -> Element {
                                     on_download: move |b: Book| actions.on_export_file.call((b.id, None)),
                                 }
                             }
-                            if !available_letters.is_empty() {
+                            if !available_letters.read().is_empty() {
                                 JumpRail {
-                                    available_letters: available_letters.clone(),
+                                    available_letters: available_letters.read().clone(),
                                     active_letter: letter_filter,
                                 }
                             }
                         }
                     } else {
                         {
-                            let (scroll_top, grid_w, view_h) = *grid_scroll_metrics.read();
-                            let grid_win = library_logic::compute_grid_window(
-                                filtered_books.len(),
-                                grid_w,
-                                scroll_top,
-                                view_h,
-                            );
                             let card_sz = *grid_card_size.read();
                             let show_lbl = *grid_show_labels.read();
+                            let all_filtered = filtered_books.read();
+                            let total_filtered = all_filtered.len();
+                            let cur_visible = (*visible_grid_count.read()).min(total_filtered);
                             rsx! {
                                 div { style: "display: flex; gap: 14px; align-items: flex-start;",
                                     div { style: "flex: 1; min-width: 0; display: flex; flex-direction: column;",
-                                        if grid_win.top_spacer_px > 0.0 {
-                                            div {
-                                                style: "height: {grid_win.top_spacer_px:.1}px; flex-shrink: 0;",
-                                            }
-                                        }
                                         div {
                                             id: "vellum-books-grid",
                                             class: "books-grid",
                                             style: "grid-template-columns: repeat(auto-fill, minmax({card_sz}px, 1fr));",
                                             if *collapse_series.read() {
-                                                for (b, stack) in library_logic::collapse_books_by_series(&filtered_books) {
+                                                for (b, stack) in library_logic::collapse_books_by_series(&all_filtered[..cur_visible]) {
                                                     {
                                                         let id = b.id.clone();
                                                         let is_selected = selected_ids.read().contains(&id);
@@ -701,7 +799,7 @@ fn App() -> Element {
                                                     }
                                                 }
                                             } else {
-                                                for b in filtered_books[grid_win.start_idx..grid_win.end_idx].iter() {
+                                                for b in all_filtered[..cur_visible].iter() {
                                                     {
                                                         let id = b.id.clone();
                                                         let is_selected = selected_ids.read().contains(&id);
@@ -723,15 +821,25 @@ fn App() -> Element {
                                                 }
                                             }
                                         }
-                                        if grid_win.bottom_spacer_px > 0.0 {
+                                        if cur_visible < total_filtered {
                                             div {
-                                                style: "height: {grid_win.bottom_spacer_px:.1}px; flex-shrink: 0;",
+                                                id: "vellum-grid-sentinel",
+                                                style: "display: flex; justify-content: center; align-items: center; padding: 24px 0;",
+                                                button {
+                                                    class: "btn btn-secondary",
+                                                    style: "font-size: 12px; padding: 6px 16px; border-radius: 8px;",
+                                                    onclick: move |_| {
+                                                        let cur = *visible_grid_count.peek();
+                                                        visible_grid_count.set((cur + 120).min(total_filtered));
+                                                    },
+                                                    "{translate(*ui_locale.read(), \"common.load_more\")} ({cur_visible} / {total_filtered})"
+                                                }
                                             }
                                         }
                                     }
-                                    if !available_letters.is_empty() {
+                                    if !available_letters.read().is_empty() {
                                         JumpRail {
-                                            available_letters: available_letters.clone(),
+                                            available_letters: available_letters.read().clone(),
                                             active_letter: letter_filter,
                                         }
                                     }
@@ -749,7 +857,8 @@ fn App() -> Element {
                     let custom_vals = custom_column_service
                         .get_book_values(&book.id)
                         .unwrap_or_default();
-                    rsx! {
+                    eprintln!("🚀 [DEBUG] App() about to return RSX");
+    rsx! {
                         DetailDrawer {
                             locale: *ui_locale.read(),
                             book: book.clone(),
